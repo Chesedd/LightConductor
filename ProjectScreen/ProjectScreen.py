@@ -94,6 +94,47 @@ class ProjectWindow(QMainWindow):
 
     def addWave(self, waveTitle):
         box = CollapsibleBox(waveTitle)
-        box.addWidget(WaveWidget(self.audio, self.sr))
+
+        visibleButton = QPushButton("Vissible Tags")
+        addButton = QPushButton("Add tag")
+        waveButtons = QWidget()
+        waveButtons.layout = QVBoxLayout(waveButtons)
+        waveButtons.layout.addWidget(visibleButton)
+        waveButtons.layout.addWidget(addButton)
+
+        waveSpace = QWidget()
+        waveSpace.layout = QHBoxLayout(waveSpace)
+        waveSpace.layout.addWidget(waveButtons)
+        waveSpace.layout.addWidget(WaveWidget(self.audio, self.sr))
+
+        tag1 = QPushButton("Tag1")
+        tag2 = QPushButton("Tag2")
+        tag3 = QPushButton("Tag3")
+        tagsWidget = QWidget()
+        tagsWidget.layout = QHBoxLayout(tagsWidget)
+        tagsWidget.layout.addWidget(tag1)
+        tagsWidget.layout.addWidget(tag2)
+        tagsWidget.layout.addWidget(tag3)
+
+        centralWidget = QWidget()
+        centralWidget.layout = QVBoxLayout(centralWidget)
+        centralWidget.layout.addWidget(waveSpace)
+        centralWidget.layout.addWidget(tagsWidget)
+
+        button1 = QPushButton("Button1")
+        button2 = QPushButton("Button2")
+        button3 = QPushButton("Button3")
+        tagsButtonWidget = QWidget()
+        tagsButtonWidget.layout = QVBoxLayout(tagsButtonWidget)
+        tagsButtonWidget.layout.addWidget(button1)
+        tagsButtonWidget.layout.addWidget(button2)
+        tagsButtonWidget.layout.addWidget(button3)
+
+        mainWidget = QWidget()
+        mainWidget.layout = QHBoxLayout(mainWidget)
+        mainWidget.layout.addWidget(centralWidget)
+        mainWidget.layout.addWidget(tagsButtonWidget)
+
+        box.addWidget(mainWidget)
         self.layout.addWidget(box)
 

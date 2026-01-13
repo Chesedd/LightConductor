@@ -20,10 +20,9 @@ class WaveWidget(pg.PlotWidget):
         self.clear()
 
         self.setStyleSheet("QGraphicsView { border: 2px solid black; }")
-        self.setLabel("left", 'Амплитуда')
+        self.hideAxis("left")
         self.setLabel('bottom', 'Time', units='s')
         self.setBackground('w')
-        self.showGrid(x=True, y=True, alpha=0.3)
         self.drawWave()
 
         self.vb.setLimits(
@@ -56,11 +55,6 @@ class WaveWidget(pg.PlotWidget):
         self.zeroLine = pg.InfiniteLine(pos = 0, angle=0, pen=pg.mkPen('r', width=1))
         self.addItem(self.zeroLine)
 
-        #выделение области
-        self.region = pg.LinearRegionItem([self.duration/4, self.duration/2])
-        self.region.setZValue(-10)
-        self.addItem(self.region)
-
         #курсор
         self.vLine = pg.InfiniteLine(pos=0, angle=90, pen='y')
         self.addItem(self.vLine)
@@ -82,7 +76,6 @@ class WaveWidget(pg.PlotWidget):
     def setupZooming(self):
 
         self.vb.wheelEvent = self.wheelEventFixedCenter
-        self.vb.sigRangeChanged.connect(self.updateCenterLine)
 
     def wheelEventFixedCenter(self, ev, axis=None):
         vr = self.vb.viewRect()
@@ -97,12 +90,6 @@ class WaveWidget(pg.PlotWidget):
 
         ev.accept()
 
-        self.updateVisibleFragment()
-
-    def updateCenterLine(self):
-        currentRange = self.vb.viewRange()[0]
-        centerX = (currentRange[0] + currentRange[1]) / 2
-        self.zeroLine.setPos(centerX)
 
     def updateVisibleFragment(self):
         currentRange = self.vb.viewRange()[0]
