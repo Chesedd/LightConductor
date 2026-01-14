@@ -2,6 +2,7 @@ from PyQt6.QtWidgets import (QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QDi
                              QLabel, QLineEdit, QToolButton)
 from PyQt6.QtCore import pyqtSignal
 from ProjectScreen.TagType import TagType
+from AssistanceTools.ColorPicker import ColorPicker
 
 class TagManager(QWidget):
 
@@ -41,7 +42,7 @@ class newTypeDialog(QDialog):
 
     def initParams(self):
         self.newTypeParams = QWidget()
-        newTypeLayout = QHBoxLayout(self.newTypeParams)
+        newTypeLayout = QVBoxLayout(self.newTypeParams)
 
         newName = QWidget()
         newNameText = QLabel("Name")
@@ -50,12 +51,7 @@ class newTypeDialog(QDialog):
         newNameLayout.addWidget(newNameText)
         newNameLayout.addWidget(self.newNameBar)
 
-        newColor = QWidget()
-        newColorText = QLabel("Color")
-        self.newColorBar = QLineEdit()
-        newColorLayout = QHBoxLayout(newColor)
-        newColorLayout.addWidget(newColorText)
-        newColorLayout.addWidget(self.newColorBar)
+        self.colorPicker = ColorPicker()
 
         newPin = QWidget()
         newPinText = QLabel("Pin")
@@ -65,7 +61,7 @@ class newTypeDialog(QDialog):
         newPinLayout.addWidget(self.newPinBar)
 
         newTypeLayout.addWidget(newName)
-        newTypeLayout.addWidget(newColor)
+        newTypeLayout.addWidget(self.colorPicker)
         newTypeLayout.addWidget(newPin)
 
         self.mainLayout.addWidget(self.newTypeParams)
@@ -85,7 +81,7 @@ class newTypeDialog(QDialog):
     def on_ok_clicked(self):
         params = {
             "name": self.newNameBar.text(),
-            "color": self.newColorBar.text(),
+            "color": "base",
             "pin": self.newPinBar.text()
         }
         self.newType.emit(params)
