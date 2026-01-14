@@ -81,7 +81,7 @@ class newTypeDialog(QDialog):
     def on_ok_clicked(self):
         params = {
             "name": self.newNameBar.text(),
-            "color": "base",
+            "color": f"{self.colorPicker.r}, {self.colorPicker.g}, {self.colorPicker.b}",
             "pin": self.newPinBar.text()
         }
         self.newType.emit(params)
@@ -100,13 +100,20 @@ class TagButton(QToolButton):
     def initButton(self):
         container = QWidget()
         containerLayout = QHBoxLayout(container)
+        self.setFixedSize(100, 100)
 
-        name = QLabel(self.tagType.name+" ")
-        color = QLabel(self.tagType.color+" ")
+        color = QLabel()
+        color.setFixedSize(10, 10)
+        color.setStyleSheet(
+            f"background-color: rgb({self.tagType.color});"
+            "border-radius: 5px;"
+        )
+
+        name = QLabel(self.tagType.name)
         pin = QLabel(self.tagType.pin)
 
-        containerLayout.addWidget(name)
         containerLayout.addWidget(color)
+        containerLayout.addWidget(name)
         containerLayout.addWidget(pin)
 
         self.mainLayout.addWidget(container)

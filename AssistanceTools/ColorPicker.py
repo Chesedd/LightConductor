@@ -68,12 +68,12 @@ class ColorPicker(QWidget):
             pass
 
     def updateColor(self):
-        r = self.sliderR.value()
-        g = self.sliderG.value()
-        b = self.sliderB.value()
+        self.r = self.sliderR.value()
+        self.g = self.sliderG.value()
+        self.b = self.sliderB.value()
 
         self.colorSquare.setStyleSheet(
-            f"background-color: rgb({r}, {g}, {b}); "
+            f"background-color: rgb({self.r}, {self.g}, {self.b}); "
             f"border: 2px solid black;"
         )
 
