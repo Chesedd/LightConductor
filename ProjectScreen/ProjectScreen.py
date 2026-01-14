@@ -94,9 +94,11 @@ class ProjectWindow(QMainWindow):
 
     def addWave(self, waveTitle):
         box = CollapsibleBox(waveTitle)
+        wave = WaveWidget(self.audio, self.sr)
 
         visibleButton = QPushButton("Vissible Tags")
         addButton = QPushButton("Add tag")
+        addButton.clicked.connect(wave.addTag)
         waveButtons = QWidget()
         waveButtons.layout = QVBoxLayout(waveButtons)
         waveButtons.layout.addWidget(visibleButton)
@@ -105,7 +107,7 @@ class ProjectWindow(QMainWindow):
         waveSpace = QWidget()
         waveSpace.layout = QHBoxLayout(waveSpace)
         waveSpace.layout.addWidget(waveButtons)
-        waveSpace.layout.addWidget(WaveWidget(self.audio, self.sr))
+        waveSpace.layout.addWidget(wave)
 
         tag1 = QPushButton("Tag1")
         tag2 = QPushButton("Tag2")

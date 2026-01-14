@@ -3,6 +3,7 @@ import pyqtgraph as pg
 from PyQt6.QtCore import QPointF
 import numpy as np
 
+from ProjectScreen.TagObject import Tag
 
 class WaveWidget(pg.PlotWidget):
     def __init__(self, audioData, sr):
@@ -13,7 +14,7 @@ class WaveWidget(pg.PlotWidget):
         self.vb = self.getViewBox()
 
         self.init_ui()
-        self.setupZooming()
+        self.setupMouse()
 
     def init_ui(self):
         self.setFixedHeight(200)
@@ -59,6 +60,10 @@ class WaveWidget(pg.PlotWidget):
         self.vLine = pg.InfiniteLine(pos=0, angle=90, pen='y')
         self.addItem(self.vLine)
 
+        #метка
+        self.selectedLine = pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen('r', width=1))
+        self.addItem(self.selectedLine)
+
         #движение мышью
         self.proxy = pg.SignalProxy(
             self.scene().sigMouseMoved,
@@ -73,9 +78,10 @@ class WaveWidget(pg.PlotWidget):
             mousePosition = self.vb.mapSceneToView(pos)
             self.vLine.setPos(mousePosition.x())
 
-    def setupZooming(self):
+    def setupMouse(self):
 
         self.vb.wheelEvent = self.wheelEventFixedCenter
+        self.scene().sigMouseClicked.connect(self.onClick)
 
     def wheelEventFixedCenter(self, ev, axis=None):
         vr = self.vb.viewRect()
@@ -96,3 +102,13 @@ class WaveWidget(pg.PlotWidget):
         vissibleDuration = currentRange[1] - currentRange[0]
 
 
+    def onClick(self, ev):
+        pos = ev.scenePos()
+
+        if self.sceneBoundingRect().contains(pos):
+            mousePosition = self.vb.mapSceneToView(pos)
+            self.selectedLine.setPos(mousePosition.x())
+
+    def addTag(self):
+        tag = Tag(pos = self.selectedLine.pos(), angle=90, pen=pg.mkPen('g', width=1))
+        self.addItem(tag)
