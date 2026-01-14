@@ -6,6 +6,7 @@ from PyQt6.QtCore import pyqtSignal, Qt
 import librosa
 from ProjectScreen.CollapsibleBox import CollapsibleBox
 from ProjectScreen.WaveWidget import WaveWidget
+from ProjectScreen.TagManager import TagManager
 
 class newWaveWidgetDialog(QDialog):
     waveCreated = pyqtSignal(str)
@@ -123,19 +124,12 @@ class ProjectWindow(QMainWindow):
         centralWidget.layout.addWidget(waveSpace)
         centralWidget.layout.addWidget(tagsWidget)
 
-        button1 = QPushButton("Button1")
-        button2 = QPushButton("Button2")
-        button3 = QPushButton("Button3")
-        tagsButtonWidget = QWidget()
-        tagsButtonWidget.layout = QVBoxLayout(tagsButtonWidget)
-        tagsButtonWidget.layout.addWidget(button1)
-        tagsButtonWidget.layout.addWidget(button2)
-        tagsButtonWidget.layout.addWidget(button3)
+        manager = TagManager()
 
         mainWidget = QWidget()
         mainWidget.layout = QHBoxLayout(mainWidget)
         mainWidget.layout.addWidget(centralWidget)
-        mainWidget.layout.addWidget(tagsButtonWidget)
+        mainWidget.layout.addWidget(manager)
 
         box.addWidget(mainWidget)
         self.layout.addWidget(box)
