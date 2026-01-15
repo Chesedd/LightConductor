@@ -117,3 +117,4 @@ class WaveWidget(pg.PlotWidget):
         r, g, b = map(int, color.split(','))
         tag = Tag(pos = self.selectedLine.pos(), angle=90, pen=pg.mkPen(QColor(r, g, b), width=1))
         self.addItem(tag)
+        self.manager.curType.addTag(tag)
