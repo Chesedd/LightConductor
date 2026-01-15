@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QDialog,
-                             QLabel, QLineEdit, QToolButton)
+                             QLabel, QLineEdit, QToolButton, QButtonGroup)
 from PyQt6.QtCore import pyqtSignal
 from ProjectScreen.TagType import TagType
 from AssistanceTools.ColorPicker import ColorPicker
@@ -8,6 +8,9 @@ class TagManager(QWidget):
 
     def __init__(self):
         super().__init__()
+        self.buttons = QButtonGroup()
+        self.buttons.setExclusive(True)
+
         self.initPanel()
 
     def initPanel(self):
@@ -27,6 +30,8 @@ class TagManager(QWidget):
     def addType(self, params):
         newType = TagType(params["color"], params["name"], params["pin"])
         button = TagButton(newType)
+        button.setCheckable(True)
+        self.buttons.addButton(button)
         self.mainLayout.insertWidget(0, button)
 
 class newTypeDialog(QDialog):
