@@ -1,13 +1,16 @@
 import pyqtgraph as pg
 
+from PyQt6.QtGui import QColor
 from PyQt6.QtCore import QPointF
 import numpy as np
 
 from ProjectScreen.TagObject import Tag
+from ProjectScreen.TagManager import TagManager
 
 class WaveWidget(pg.PlotWidget):
-    def __init__(self, audioData, sr):
+    def __init__(self, audioData, sr, manager):
         super().__init__()
+        self.manager = manager
         self.audioData = audioData
         self.sr = sr
         self.duration = len(self.audioData)/self.sr
@@ -110,5 +113,7 @@ class WaveWidget(pg.PlotWidget):
             self.selectedLine.setPos(mousePosition.x())
 
     def addTag(self):
-        tag = Tag(pos = self.selectedLine.pos(), angle=90, pen=pg.mkPen('g', width=1))
+        color = self.manager.curType.color
+        r, g, b = map(int, color.split(','))
+        tag = Tag(pos = self.selectedLine.pos(), angle=90, pen=pg.mkPen(QColor(r, g, b), width=1))
         self.addItem(tag)

@@ -10,6 +10,7 @@ class TagManager(QWidget):
         super().__init__()
         self.buttons = QButtonGroup()
         self.buttons.setExclusive(True)
+        self.curType = None
 
         self.initPanel()
 
@@ -31,8 +32,12 @@ class TagManager(QWidget):
         newType = TagType(params["color"], params["name"], params["pin"])
         button = TagButton(newType)
         button.setCheckable(True)
+        button.clicked.connect(self.setNewType)
         self.buttons.addButton(button)
         self.mainLayout.insertWidget(0, button)
+
+    def setNewType(self):
+        self.curType = self.buttons.checkedButton().tagType
 
 class newTypeDialog(QDialog):
     newType = pyqtSignal(dict)
