@@ -7,6 +7,7 @@ import librosa
 from ProjectScreen.CollapsibleBox import CollapsibleBox
 from ProjectScreen.WaveWidget import WaveWidget
 from ProjectScreen.TagManager import TagManager
+from AssistanceTools.ChooseBox import  TagTypeChooseBox
 
 class newWaveWidgetDialog(QDialog):
     waveCreated = pyqtSignal(str)
@@ -95,15 +96,15 @@ class ProjectWindow(QMainWindow):
 
     def addWave(self, waveTitle):
         box = CollapsibleBox(waveTitle)
-        self.manager = TagManager()
-        self.wave = WaveWidget(self.audio, self.sr, self.manager)
+        self.chooseBox = TagTypeChooseBox("Visible tags")
+        self.manager = TagManager(self.chooseBox)
+        self.wave = WaveWidget(self.audio, self.sr, self.manager, self.chooseBox)
 
-        visibleButton = QPushButton("Vissible Tags")
         addButton = QPushButton("Add tag")
         addButton.clicked.connect(self.wave.addTag)
         waveButtons = QWidget()
         waveButtons.layout = QVBoxLayout(waveButtons)
-        waveButtons.layout.addWidget(visibleButton)
+        waveButtons.layout.addWidget(self.chooseBox)
         waveButtons.layout.addWidget(addButton)
 
         waveSpace = QWidget()

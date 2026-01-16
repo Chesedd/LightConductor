@@ -5,7 +5,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="f22a01fc-d6fa-4e31-a073-49c82c357fd4" name="Changes" comment="Add solo checked for buttons in tagmanager">
+      <change afterPath="$PROJECT_DIR$/AssistanceTools/ChooseBox.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectScreen/ProjectScreen.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/ProjectScreen.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectScreen/TagManager.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/TagManager.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ProjectScreen/TagType.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/TagType.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectScreen/WaveWidget.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/WaveWidget.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

@@ -6,13 +6,15 @@ import numpy as np
 
 from ProjectScreen.TagObject import Tag
 from ProjectScreen.TagManager import TagManager
+from AssistanceTools.ChooseBox import  TagTypeChooseBox
 
 class WaveWidget(pg.PlotWidget):
-    def __init__(self, audioData, sr, manager):
+    def __init__(self, audioData, sr, manager, chooseBox):
         super().__init__()
         self.manager = manager
         self.audioData = audioData
         self.sr = sr
+        self.chooseBox = chooseBox
         self.duration = len(self.audioData)/self.sr
         self.vb = self.getViewBox()
 

@@ -6,8 +6,9 @@ from AssistanceTools.ColorPicker import ColorPicker
 
 class TagManager(QWidget):
 
-    def __init__(self):
+    def __init__(self, checkBox):
         super().__init__()
+        self.checkBox = checkBox
         self.buttons = QButtonGroup()
         self.buttons.setExclusive(True)
         self.curType = None
@@ -29,6 +30,7 @@ class TagManager(QWidget):
         dialog.exec()
 
     def addType(self, params):
+        self.checkBox.addType(params["name"])
         newType = TagType(params["color"], params["name"], params["pin"])
         button = TagButton(newType)
         button.setCheckable(True)
