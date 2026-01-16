@@ -5,13 +5,13 @@ from ProjectScreen.TagType import TagType
 from AssistanceTools.ColorPicker import ColorPicker
 
 class TagManager(QWidget):
-
     def __init__(self, checkBox):
         super().__init__()
         self.checkBox = checkBox
         self.buttons = QButtonGroup()
         self.buttons.setExclusive(True)
         self.curType = None
+        self.types = {}
 
         self.initPanel()
 
@@ -30,13 +30,14 @@ class TagManager(QWidget):
         dialog.exec()
 
     def addType(self, params):
-        self.checkBox.addType(params["name"])
         newType = TagType(params["color"], params["name"], params["pin"])
+        self.types[params["name"]] = newType
         button = TagButton(newType)
         button.setCheckable(True)
         button.clicked.connect(self.setNewType)
         self.buttons.addButton(button)
         self.mainLayout.insertWidget(0, button)
+        self.checkBox.addType(params["name"])
 
     def setNewType(self):
         self.curType = self.buttons.checkedButton().tagType

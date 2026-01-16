@@ -15,6 +15,8 @@ class WaveWidget(pg.PlotWidget):
         self.audioData = audioData
         self.sr = sr
         self.chooseBox = chooseBox
+        self.chooseBox.stateChanged.connect(self.editTagTypeOnWave)
+
         self.duration = len(self.audioData)/self.sr
         self.vb = self.getViewBox()
 
@@ -120,3 +122,11 @@ class WaveWidget(pg.PlotWidget):
         tag = Tag(pos = self.selectedLine.pos(), angle=90, pen=pg.mkPen(QColor(r, g, b), width=1))
         self.addItem(tag)
         self.manager.curType.addTag(tag)
+
+    def editTagTypeOnWave(self, data):
+        tags = self.manager.types[data["tagType"]].tags
+        for tag in tags:
+            if data["state"]:
+                tag.show()
+            else:
+                tag.hide()
