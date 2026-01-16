@@ -5,10 +5,12 @@ from PyQt6.QtCore import QPointF
 import numpy as np
 
 from ProjectScreen.TagObject import Tag
+from PyQt6.QtCore import pyqtSignal
 from ProjectScreen.TagManager import TagManager
 from AssistanceTools.ChooseBox import  TagTypeChooseBox
 
 class WaveWidget(pg.PlotWidget):
+    click = pyqtSignal(float)
     def __init__(self, audioData, sr, manager, chooseBox):
         super().__init__()
         self.manager = manager
@@ -115,11 +117,12 @@ class WaveWidget(pg.PlotWidget):
         if self.sceneBoundingRect().contains(pos):
             mousePosition = self.vb.mapSceneToView(pos)
             self.selectedLine.setPos(mousePosition.x())
+            self.click.emit(mousePosition.x())
 
-    def addTag(self):
+    def addTag(self, state):
         color = self.manager.curType.color
         r, g, b = map(int, color.split(','))
-        tag = Tag(pos = self.selectedLine.pos(), angle=90, pen=pg.mkPen(QColor(r, g, b), width=1))
+        tag = Tag(pos = self.selectedLine.pos(), angle=90, pen=pg.mkPen(QColor(r, g, b), width=1), state=state)
         self.addItem(tag)
         self.manager.curType.addTag(tag)
 

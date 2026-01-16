@@ -4,11 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="f22a01fc-d6fa-4e31-a073-49c82c357fd4" name="Changes" comment="Add chooseBox for tagtypes">
-      <change afterPath="$PROJECT_DIR$/AssistanceTools/TagState.py" afterDir="false" />
+    <list default="true" id="f22a01fc-d6fa-4e31-a073-49c82c357fd4" name="Changes" comment="Add TagState widget">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ProjectScreen/ProjectScreen.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/ProjectScreen.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ProjectScreen/TagManager.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/TagManager.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectScreen/WaveWidget.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/WaveWidget.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -152,7 +151,15 @@
       <option name="project" value="LOCAL" />
       <updated>1768562495724</updated>
     </task>
-    <option name="localTasksCounter" value="9" />
+    <task id="LOCAL-00009" summary="Add TagState widget">
+      <option name="closed" value="true" />
+      <created>1768572022427</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1768572022427</updated>
+    </task>
+    <option name="localTasksCounter" value="10" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -186,6 +193,7 @@
     <MESSAGE value="Add color for tagButton" />
     <MESSAGE value="Add solo checked for buttons in tagmanager" />
     <MESSAGE value="Add chooseBox for tagtypes" />
-    <option name="LAST_COMMIT_MESSAGE" value="Add chooseBox for tagtypes" />
+    <MESSAGE value="Add TagState widget" />
+    <option name="LAST_COMMIT_MESSAGE" value="Add TagState widget" />
   </component>
 </project>
