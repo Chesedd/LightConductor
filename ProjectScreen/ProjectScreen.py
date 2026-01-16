@@ -8,6 +8,7 @@ from ProjectScreen.CollapsibleBox import CollapsibleBox
 from ProjectScreen.WaveWidget import WaveWidget
 from ProjectScreen.TagManager import TagManager
 from AssistanceTools.ChooseBox import  TagTypeChooseBox
+from AssistanceTools.TagState import TagState
 
 class newWaveWidgetDialog(QDialog):
     waveCreated = pyqtSignal(str)
@@ -98,6 +99,7 @@ class ProjectWindow(QMainWindow):
         box = CollapsibleBox(waveTitle)
         self.chooseBox = TagTypeChooseBox("Visible tags")
         self.manager = TagManager(self.chooseBox)
+        self.manager.newTypeCreate.connect(self.addTagState)
         self.wave = WaveWidget(self.audio, self.sr, self.manager, self.chooseBox)
 
         addButton = QPushButton("Add tag")
@@ -112,14 +114,9 @@ class ProjectWindow(QMainWindow):
         waveSpace.layout.addWidget(waveButtons)
         waveSpace.layout.addWidget(self.wave)
 
-        tag1 = QPushButton("Tag1")
-        tag2 = QPushButton("Tag2")
-        tag3 = QPushButton("Tag3")
         tagsWidget = QWidget()
-        tagsWidget.layout = QHBoxLayout(tagsWidget)
-        tagsWidget.layout.addWidget(tag1)
-        tagsWidget.layout.addWidget(tag2)
-        tagsWidget.layout.addWidget(tag3)
+        self.tagsLayout = QHBoxLayout()
+        tagsWidget.setLayout(self.tagsLayout)
 
         centralWidget = QWidget()
         centralWidget.layout = QVBoxLayout(centralWidget)
@@ -134,3 +131,5 @@ class ProjectWindow(QMainWindow):
         box.addWidget(mainWidget)
         self.layout.addWidget(box)
 
+    def addTagState(self, tagType):
+        self.tagsLayout.addWidget(TagState(tagType))

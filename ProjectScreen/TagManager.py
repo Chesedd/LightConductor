@@ -5,6 +5,7 @@ from ProjectScreen.TagType import TagType
 from AssistanceTools.ColorPicker import ColorPicker
 
 class TagManager(QWidget):
+    newTypeCreate = pyqtSignal(TagType)
     def __init__(self, checkBox):
         super().__init__()
         self.checkBox = checkBox
@@ -38,6 +39,7 @@ class TagManager(QWidget):
         self.buttons.addButton(button)
         self.mainLayout.insertWidget(0, button)
         self.checkBox.addType(params["name"])
+        self.newTypeCreate.emit(newType)
 
     def setNewType(self):
         self.curType = self.buttons.checkedButton().tagType
