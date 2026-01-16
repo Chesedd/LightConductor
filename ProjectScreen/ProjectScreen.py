@@ -4,10 +4,12 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QPushButton,
                             QLabel, QDialog, QLineEdit)
 from PyQt6.QtCore import pyqtSignal, Qt
 import librosa
+import bisect
 from ProjectScreen.CollapsibleBox import CollapsibleBox
 from ProjectScreen.WaveWidget import WaveWidget
 from ProjectScreen.TagManager import TagManager
 from AssistanceTools.ChooseBox import  TagTypeChooseBox
+from AssistanceTools.TagState import TagState
 
 class newWaveWidgetDialog(QDialog):
     waveCreated = pyqtSignal(str)
@@ -42,6 +44,42 @@ class newWaveWidgetDialog(QDialog):
         self.waveCreated.emit(waveTitle)
         self.accept()
 
+
+class TagDialog(QDialog):
+    tagCreated = pyqtSignal(bool)
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.uiCreate()
+
+    def uiCreate(self):
+        stateText = QLabel("Состояние")
+        self.stateBar = QLineEdit()
+        stateLayout = QHBoxLayout()
+        stateLayout.addWidget(stateText)
+        stateLayout.addWidget(self.stateBar)
+
+        okButton = QPushButton("Ok")
+        okButton.clicked.connect(self.onOkClicked)
+        cancelButton = QPushButton("Cancel")
+        cancelButton.clicked.connect(self.reject)
+        buttonLayout = QHBoxLayout()
+        buttonLayout.addWidget(okButton)
+        buttonLayout.addWidget(cancelButton)
+
+        self.mainScreen = QWidget()
+        self.mainLayout = QVBoxLayout(self.mainScreen)
+        self.mainLayout.addLayout(stateLayout)
+        self.mainLayout.addLayout(buttonLayout)
+
+        self.setLayout(self.mainLayout)
+
+    def onOkClicked(self):
+        state = self.stateBar.text()
+        if state=='On':
+            self.tagCreated.emit(True)
+        else:
+            self.tagCreated.emit(False)
+        self.accept()
 
 
 class ProjectWindow(QMainWindow):
@@ -98,10 +136,12 @@ class ProjectWindow(QMainWindow):
         box = CollapsibleBox(waveTitle)
         self.chooseBox = TagTypeChooseBox("Visible tags")
         self.manager = TagManager(self.chooseBox)
+        self.manager.newTypeCreate.connect(self.addTagState)
         self.wave = WaveWidget(self.audio, self.sr, self.manager, self.chooseBox)
+        self.wave.click.connect(self.updateTagStates)
 
         addButton = QPushButton("Add tag")
-        addButton.clicked.connect(self.wave.addTag)
+        addButton.clicked.connect(self.createTag)
         waveButtons = QWidget()
         waveButtons.layout = QVBoxLayout(waveButtons)
         waveButtons.layout.addWidget(self.chooseBox)
@@ -112,14 +152,9 @@ class ProjectWindow(QMainWindow):
         waveSpace.layout.addWidget(waveButtons)
         waveSpace.layout.addWidget(self.wave)
 
-        tag1 = QPushButton("Tag1")
-        tag2 = QPushButton("Tag2")
-        tag3 = QPushButton("Tag3")
         tagsWidget = QWidget()
-        tagsWidget.layout = QHBoxLayout(tagsWidget)
-        tagsWidget.layout.addWidget(tag1)
-        tagsWidget.layout.addWidget(tag2)
-        tagsWidget.layout.addWidget(tag3)
+        self.tagsLayout = QHBoxLayout()
+        tagsWidget.setLayout(self.tagsLayout)
 
         centralWidget = QWidget()
         centralWidget.layout = QVBoxLayout(centralWidget)
@@ -134,3 +169,23 @@ class ProjectWindow(QMainWindow):
         box.addWidget(mainWidget)
         self.layout.addWidget(box)
 
+    def createTag(self):
+        dialog = TagDialog(self)
+        dialog.tagCreated.connect(self.wave.addTag)
+        dialog.exec()
+
+    def addTagState(self, tagType):
+        state = TagState(tagType)
+        self.tagsLayout.addWidget(state)
+
+    def updateTagStates(self, time):
+        for i in range(self.tagsLayout.count()):
+            widget = self.tagsLayout.itemAt(i).widget()
+            tags = widget.tagType.tags
+            times = [tag.time for tag in tags]
+            pos = bisect.bisect_right(times, time) - 1
+            if pos >= 0:
+                tag = tags[pos]
+                widget.changeState(tag.state)
+            else:
+                widget.changeState(False)
