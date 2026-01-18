@@ -2,7 +2,7 @@ import json
 import os
 from datetime import datetime
 
-class ProjectManager():
+class ProjectsManager():
 
     def __init__(self, storage_file="projects.json"):
         self.storage_file = storage_file

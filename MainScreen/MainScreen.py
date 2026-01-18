@@ -1,5 +1,5 @@
 import sys
-from MainScreen.ProjectManager import  ProjectManager
+from MainScreen.ProjectsManager import  ProjectsManager
 from PyQt6.QtWidgets import (
     QMainWindow, QPushButton, QDialog, QVBoxLayout,
     QHBoxLayout, QWidget, QLabel, QLineEdit)
@@ -72,7 +72,7 @@ class MainWindow(QMainWindow):
         self.project_system_init()
 
     def project_system_init(self):
-        self.project_manager = ProjectManager()
+        self.project_manager = ProjectsManager()
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
