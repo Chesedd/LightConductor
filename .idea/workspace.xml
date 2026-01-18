@@ -4,10 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="f22a01fc-d6fa-4e31-a073-49c82c357fd4" name="Changes" comment="Add save and load for audio data">
+    <list default="true" id="f22a01fc-d6fa-4e31-a073-49c82c357fd4" name="Changes" comment="Add save and load for boxes">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ProjectScreen/CollapsibleBox.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/CollapsibleBox.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ProjectScreen/ProjectManager.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/ProjectManager.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ProjectScreen/ProjectScreen.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/ProjectScreen.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -176,7 +175,15 @@
       <option name="project" value="LOCAL" />
       <updated>1768740789762</updated>
     </task>
-    <option name="localTasksCounter" value="12" />
+    <task id="LOCAL-00012" summary="Add save and load for boxes">
+      <option name="closed" value="true" />
+      <created>1768747991811</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1768747991811</updated>
+    </task>
+    <option name="localTasksCounter" value="13" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -213,6 +220,7 @@
     <MESSAGE value="Add TagState widget" />
     <MESSAGE value="Add folder create and delete for projects" />
     <MESSAGE value="Add save and load for audio data" />
-    <option name="LAST_COMMIT_MESSAGE" value="Add save and load for audio data" />
+    <MESSAGE value="Add save and load for boxes" />
+    <option name="LAST_COMMIT_MESSAGE" value="Add save and load for boxes" />
   </component>
 </project>

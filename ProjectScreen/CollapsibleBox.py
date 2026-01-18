@@ -1,10 +1,12 @@
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import QAction
+from AssistanceTools.TagState import TagState
+import bisect
 
 class CollapsibleBox(QWidget):
     boxDeleted = pyqtSignal(str)
-    def __init__(self, title="", parent=None, boxID=''):
+    def __init__(self, title="", parent=None, boxID='', wave=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
@@ -15,6 +17,8 @@ class CollapsibleBox(QWidget):
         self.title = title
         self.boxID = boxID
 
+        self.wave = wave
+
         self.createTitleButton()
         self.createContentArea()
 
@@ -23,6 +27,61 @@ class CollapsibleBox(QWidget):
 
         self.toggleButton.setText("▼ "+title)
 
+        self.initUI()
+
+    def initUI(self):
+        self.wave.click.connect(self.updateTagStates)
+        self.wave.manager.newTypeCreate.connect(self.addTagState)
+
+        addButton = QPushButton("Add tag")
+        addButton.clicked.connect(self.createTag)
+        waveButtons = QWidget()
+        waveButtons.layout = QVBoxLayout(waveButtons)
+        waveButtons.layout.addWidget(self.wave.chooseBox)
+        waveButtons.layout.addWidget(addButton)
+
+        waveSpace = QWidget()
+        waveSpace.layout = QHBoxLayout(waveSpace)
+        waveSpace.layout.addWidget(waveButtons)
+        waveSpace.layout.addWidget(self.wave)
+
+        tagsWidget = QWidget()
+        self.tagsLayout = QHBoxLayout()
+        tagsWidget.setLayout(self.tagsLayout)
+
+        centralWidget = QWidget()
+        centralWidget.layout = QVBoxLayout(centralWidget)
+        centralWidget.layout.addWidget(waveSpace)
+        centralWidget.layout.addWidget(tagsWidget)
+
+        mainWidget = QWidget()
+        mainWidget.layout = QHBoxLayout(mainWidget)
+        mainWidget.layout.addWidget(centralWidget)
+        mainWidget.layout.addWidget(self.wave.manager)
+
+        self.addWidget(mainWidget)
+
+
+    def addTagState(self, tagType):
+        state = TagState(tagType)
+        self.tagsLayout.addWidget(state)
+
+    def createTag(self):
+        dialog = TagDialog(self)
+        dialog.tagCreated.connect(self.wave.addTag)
+        dialog.exec()
+
+    def updateTagStates(self, time):
+        for i in range(self.tagsLayout.count()):
+            widget = self.tagsLayout.itemAt(i).widget()
+            tags = widget.tagType.tags
+            times = [tag.time for tag in tags]
+            pos = bisect.bisect_right(times, time) - 1
+            if pos >= 0:
+                tag = tags[pos]
+                widget.changeState(tag.state)
+            else:
+                widget.changeState(False)
 
     def createTitleButton(self):
         self.toggleButton = QPushButton()
@@ -112,6 +171,42 @@ class CollapsibleBox(QWidget):
     def deleteBox(self):
         self.boxDeleted.emit(self.boxID)
         self.deleteLater()
+
+class TagDialog(QDialog):
+    tagCreated = pyqtSignal(bool)
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.uiCreate()
+
+    def uiCreate(self):
+        stateText = QLabel("Состояние")
+        self.stateBar = QLineEdit()
+        stateLayout = QHBoxLayout()
+        stateLayout.addWidget(stateText)
+        stateLayout.addWidget(self.stateBar)
+
+        okButton = QPushButton("Ok")
+        okButton.clicked.connect(self.onOkClicked)
+        cancelButton = QPushButton("Cancel")
+        cancelButton.clicked.connect(self.reject)
+        buttonLayout = QHBoxLayout()
+        buttonLayout.addWidget(okButton)
+        buttonLayout.addWidget(cancelButton)
+
+        self.mainScreen = QWidget()
+        self.mainLayout = QVBoxLayout(self.mainScreen)
+        self.mainLayout.addLayout(stateLayout)
+        self.mainLayout.addLayout(buttonLayout)
+
+        self.setLayout(self.mainLayout)
+
+    def onOkClicked(self):
+        state = self.stateBar.text()
+        if state=='On':
+            self.tagCreated.emit(True)
+        else:
+            self.tagCreated.emit(False)
+        self.accept()
 
 class RenameDialog(QDialog):
     boxRenamed = pyqtSignal(str)
