@@ -25,6 +25,7 @@ class ProjectsManager():
         project_id = datetime.now().strftime("%Y%m%d%H%M%S%f")
         project_data['id'] = project_id
         project_data['created_at'] = datetime.now().isoformat()
+        os.mkdir(f"Projects/{project_data['project_name']}")
 
         self.projects[project_id] = project_data
         self.save_projects()
@@ -32,6 +33,8 @@ class ProjectsManager():
 
     def delete_project(self, project_id):
         if project_id in self.projects:
+            projectName = self.projects[project_id]["project_name"]
+            os.rmdir(f"Projects/{projectName}")
             del self.projects[project_id]
             self.save_projects()
             return True
