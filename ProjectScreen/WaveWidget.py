@@ -123,8 +123,17 @@ class WaveWidget(pg.PlotWidget):
         color = self.manager.curType.color
         r, g, b = map(int, color.split(','))
         tag = Tag(pos = self.selectedLine.pos(), angle=90, pen=pg.mkPen(QColor(r, g, b), width=1), state=state)
+        print(self.selectedLine.pos())
         self.addItem(tag)
         self.manager.curType.addTag(tag)
+
+    def addExistingTag(self, params, type):
+        color = type.color
+        r, g, b = map(int, color.split(','))
+        tag = Tag(pos=QPointF(params["time"], 0.0), angle=90, pen=pg.mkPen(QColor(r, g, b), width=1), state=params["state"])
+        self.addItem(tag)
+        type.addTag(tag)
+        return tag
 
     def editTagTypeOnWave(self, data):
         tags = self.manager.types[data["tagType"]].tags

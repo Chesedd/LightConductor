@@ -98,6 +98,12 @@ class ProjectWindow(QMainWindow):
                 params = tagTypes[tagType]
                 params['name'] = tagType
                 manager.addType(params)
+                type = manager.types[params['name']]
+                tags = []
+                for tagID in params['tags']:
+                    print(params['tags'][tagID])
+                    tags.append(self.boxes[box["id"]].wave.addExistingTag(params['tags'][tagID], type))
+                type.addExistingTags(tags)
 
     def saveData(self):
         print("Save")

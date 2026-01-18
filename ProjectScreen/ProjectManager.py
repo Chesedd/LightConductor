@@ -32,12 +32,23 @@ class ProjectManager():
                 typeData = {}
                 typeData["color"] = type.color
                 typeData["pin"] = type.pin
+
+                tagsOfType = type.tags
+                tagID = 0
+                tagsData = {}
+                for tag in tagsOfType:
+                    tagData = {}
+                    tagData['time'] = tag.time
+                    tagData['state'] = tag.state
+                    tagsData[tagID] = tagData
+                    tagID+=1
+                typeData["tags"] = tagsData
+
                 typesData[type.name] = typeData
             self.boxes[boxID] = {}
             self.boxes[boxID]['name'] = saveBox.title
             self.boxes[boxID]['id'] = saveBox.boxID
             self.boxes[boxID]['tagTypes'] = typesData
-            print(self.boxes[boxID]['tagTypes'])
         with open(f"Projects/{self.projectName}/{self.dataFile}", 'w', encoding='utf-8') as f:
             json.dump(self.boxes, f, indent=4, ensure_ascii=False)
 

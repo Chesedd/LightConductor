@@ -4,10 +4,13 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="f22a01fc-d6fa-4e31-a073-49c82c357fd4" name="Changes" comment="Fix self bug">
+    <list default="true" id="f22a01fc-d6fa-4e31-a073-49c82c357fd4" name="Changes" comment="Add save and load for tagTypes">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ProjectScreen/ProjectManager.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/ProjectManager.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ProjectScreen/ProjectScreen.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/ProjectScreen.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectScreen/TagObject.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/TagObject.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectScreen/TagType.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/TagType.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectScreen/WaveWidget.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/WaveWidget.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -191,7 +194,15 @@
       <option name="project" value="LOCAL" />
       <updated>1768751095567</updated>
     </task>
-    <option name="localTasksCounter" value="14" />
+    <task id="LOCAL-00014" summary="Add save and load for tagTypes">
+      <option name="closed" value="true" />
+      <created>1768752211750</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1768752211750</updated>
+    </task>
+    <option name="localTasksCounter" value="15" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -230,6 +241,7 @@
     <MESSAGE value="Add save and load for audio data" />
     <MESSAGE value="Add save and load for boxes" />
     <MESSAGE value="Fix self bug" />
-    <option name="LAST_COMMIT_MESSAGE" value="Fix self bug" />
+    <MESSAGE value="Add save and load for tagTypes" />
+    <option name="LAST_COMMIT_MESSAGE" value="Add save and load for tagTypes" />
   </component>
 </project>

@@ -18,3 +18,6 @@ class TagType():
     def addTag(self, tag):
         index = bisect.bisect_left([t.time for t in self.tags], tag.time)
         self.tags.insert(index, tag)
+
+    def addExistingTags(self, tags):
+        self.tags = tags
