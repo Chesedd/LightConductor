@@ -3,13 +3,17 @@ from PyQt6.QtCore import *
 from PyQt6.QtGui import QAction
 
 class CollapsibleBox(QWidget):
-    def __init__(self, title="", parent=None):
+    boxDeleted = pyqtSignal(str)
+    def __init__(self, title="", parent=None, boxID=''):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         self.mainLayout = QVBoxLayout(self)
         self.mainLayout.setContentsMargins(0, 0, 0, 0)
         self.mainLayout.setSpacing(0)
+
+        self.title = title
+        self.boxID = boxID
 
         self.createTitleButton()
         self.createContentArea()
@@ -106,6 +110,7 @@ class CollapsibleBox(QWidget):
         dialog.exec()
 
     def deleteBox(self):
+        self.boxDeleted.emit(self.boxID)
         self.deleteLater()
 
 class RenameDialog(QDialog):

@@ -12,6 +12,7 @@ from ProjectScreen.TagManager import TagManager
 from ProjectScreen.ProjectManager import ProjectManager
 from AssistanceTools.ChooseBox import  TagTypeChooseBox
 from AssistanceTools.TagState import TagState
+from datetime import datetime
 
 class newWaveWidgetDialog(QDialog):
     waveCreated = pyqtSignal(str)
@@ -98,6 +99,7 @@ class ProjectWindow(QMainWindow):
         self.sr = None
         self.boxCounter = 0
         self.projectManager = ProjectManager(self.project_data['project_name'])
+        self.boxes = {}
 
         self.init_ui()
         self.initExistingData()
@@ -123,10 +125,15 @@ class ProjectWindow(QMainWindow):
 
     def initExistingData(self):
         self.audio, self.sr = self.projectManager.loadAudioData()
+        loadBoxes = self.projectManager.returnAllBoxes()
+        for boxID in loadBoxes:
+            box = loadBoxes[boxID]
+            self.addWave(box["name"], box["id"])
 
     def saveData(self):
         print("Save")
         self.projectManager.saveAudioData(self.audio, self.sr)
+        self.projectManager.saveData(self.boxes)
 
     def addTrack(self):
         filePath, _ = QFileDialog.getOpenFileName(
@@ -149,8 +156,11 @@ class ProjectWindow(QMainWindow):
         dialog.waveCreated.connect(self.addWave)
         dialog.exec()
 
-    def addWave(self, waveTitle):
-        box = CollapsibleBox(waveTitle)
+    def addWave(self, waveTitle, boxID=None):
+        if boxID is None:
+            boxID = datetime.now().strftime("%Y%m%d%H%M%S%f")
+        box = CollapsibleBox(title=waveTitle, boxID=boxID)
+        box.boxDeleted.connect(self.deleteBoxData)
         self.chooseBox = TagTypeChooseBox("Visible tags")
         self.manager = TagManager(self.chooseBox)
         self.manager.newTypeCreate.connect(self.addTagState)
@@ -184,6 +194,7 @@ class ProjectWindow(QMainWindow):
         mainWidget.layout.addWidget(self.manager)
 
         box.addWidget(mainWidget)
+        self.boxes[boxID] = box
         self.layout.addWidget(box)
 
     def createTag(self):
@@ -206,3 +217,11 @@ class ProjectWindow(QMainWindow):
                 widget.changeState(tag.state)
             else:
                 widget.changeState(False)
+
+    def deleteBoxData(self, boxID):
+        print(self.boxes, boxID)
+        if boxID in self.boxes:
+            del self.boxes[boxID]
+            return True
+        return False
+
