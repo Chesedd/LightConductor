@@ -91,7 +91,13 @@ class ProjectWindow(QMainWindow):
         loadBoxes = self.projectManager.returnAllBoxes()
         for boxID in loadBoxes:
             box = loadBoxes[boxID]
+            tagTypes = box['tagTypes']
             self.addWave(box["name"], box["id"])
+            manager = self.boxes[box["id"]].wave.manager
+            for tagType in tagTypes:
+                params = tagTypes[tagType]
+                params['name'] = tagType
+                manager.addType(params)
 
     def saveData(self):
         print("Save")

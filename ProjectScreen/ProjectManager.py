@@ -25,9 +25,19 @@ class ProjectManager():
         self.boxes = {}
         for boxID in boxes:
             saveBox = boxes[boxID]
+            tagTypes = saveBox.wave.manager.types
+            typesData = {}
+            for tagType in tagTypes:
+                type = tagTypes[tagType]
+                typeData = {}
+                typeData["color"] = type.color
+                typeData["pin"] = type.pin
+                typesData[type.name] = typeData
             self.boxes[boxID] = {}
             self.boxes[boxID]['name'] = saveBox.title
             self.boxes[boxID]['id'] = saveBox.boxID
+            self.boxes[boxID]['tagTypes'] = typesData
+            print(self.boxes[boxID]['tagTypes'])
         with open(f"Projects/{self.projectName}/{self.dataFile}", 'w', encoding='utf-8') as f:
             json.dump(self.boxes, f, indent=4, ensure_ascii=False)
 
