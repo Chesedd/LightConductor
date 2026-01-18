@@ -3,11 +3,13 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QPushButton,
                             QFileDialog, QHBoxLayout,
                             QLabel, QDialog, QLineEdit)
 from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtGui import QAction, QKeySequence
 import librosa
 import bisect
 from ProjectScreen.CollapsibleBox import CollapsibleBox
 from ProjectScreen.WaveWidget import WaveWidget
 from ProjectScreen.TagManager import TagManager
+from ProjectScreen.ProjectManager import ProjectManager
 from AssistanceTools.ChooseBox import  TagTypeChooseBox
 from AssistanceTools.TagState import TagState
 
@@ -85,12 +87,20 @@ class TagDialog(QDialog):
 class ProjectWindow(QMainWindow):
     def __init__(self, project_data):
         super().__init__()
+
+        saveAction = QAction("Save", self)
+        saveAction.setShortcut(QKeySequence("Ctrl+S"))
+        saveAction.triggered.connect(self.saveData)
+        self.addAction(saveAction)
+
         self.project_data = project_data
         self.audio = None
         self.sr = None
         self.boxCounter = 0
+        self.projectManager = ProjectManager(self.project_data['project_name'])
 
         self.init_ui()
+        self.initExistingData()
 
 
     def init_ui(self):
@@ -110,6 +120,13 @@ class ProjectWindow(QMainWindow):
         waveButton = QPushButton("Add wave")
         waveButton.clicked.connect(self.showWaveDialog)
         self.layout.addWidget(waveButton)
+
+    def initExistingData(self):
+        self.audio, self.sr = self.projectManager.loadAudioData()
+
+    def saveData(self):
+        print("Save")
+        self.projectManager.saveAudioData(self.audio, self.sr)
 
     def addTrack(self):
         filePath, _ = QFileDialog.getOpenFileName(
