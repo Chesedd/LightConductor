@@ -18,6 +18,7 @@ class CollapsibleBox(QWidget):
         self.boxID = boxID
 
         self.wave = wave
+        self.wave.manager.box = self
 
         self.createTitleButton()
         self.createContentArea()

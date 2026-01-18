@@ -132,12 +132,12 @@ class ProjectWindow(QMainWindow):
         dialog.exec()
 
     def addWave(self, waveTitle, boxID=None):
-        self.chooseBox = TagTypeChooseBox("Visible tags")
-        self.manager = TagManager(self.chooseBox)
-        self.wave = WaveWidget(self.audio, self.sr, self.manager, self.chooseBox)
+        chooseBox = TagTypeChooseBox("Visible tags")
+        manager = TagManager(chooseBox)
+        wave = WaveWidget(self.audio, self.sr, manager, chooseBox)
         if boxID is None:
             boxID = datetime.now().strftime("%Y%m%d%H%M%S%f")
-        box = CollapsibleBox(title=waveTitle, boxID=boxID, wave=self.wave)
+        box = CollapsibleBox(title=waveTitle, boxID=boxID, wave=wave)
         box.boxDeleted.connect(self.deleteBoxData)
 
         self.boxes[boxID] = box
