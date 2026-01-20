@@ -31,14 +31,20 @@ class TagInfoScreen(QWidget):
         tagStateLayout.addWidget(tagState)
         tagStateLayout.addWidget(self.tagStateText)
 
+        buttonLayout = QHBoxLayout()
         self.saveButton = QPushButton("Save")
         self.saveButton.clicked.connect(self.editTag)
         self.saveButton.setEnabled(False)
+        self.deleteButton = QPushButton("Delete tag")
+        self.deleteButton.clicked.connect(self.deleteTag)
+        self.deleteButton.setEnabled(False)
+        buttonLayout.addWidget(self.saveButton)
+        buttonLayout.addWidget(self.deleteButton)
 
         self.mainLayout.addLayout(tagTypeLayout)
         self.mainLayout.addLayout(tagTimeLayout)
         self.mainLayout.addLayout(tagStateLayout)
-        self.mainLayout.addWidget(self.saveButton)
+        self.mainLayout.addLayout(buttonLayout)
 
     def setTag(self, tag):
         self.tag = tag
@@ -48,6 +54,7 @@ class TagInfoScreen(QWidget):
         self.tagStateText.setText(str(tag.state))
         self.tagStateText.setEnabled(True)
         self.saveButton.setEnabled(True)
+        self.deleteButton.setEnabled(True)
 
     def setNone(self):
         return
@@ -57,3 +64,13 @@ class TagInfoScreen(QWidget):
         params["time"] = self.tagTimeText.text()
         params["state"] = self.tagStateText.text()
         self.tag.editParams(params)
+
+    def deleteTag(self):
+        self.tag.deleteTag()
+        self.tagTypeText.setText("")
+        self.tagTimeText.setText("")
+        self.tagTimeText.setEnabled(False)
+        self.tagStateText.setText("")
+        self.tagStateText.setEnabled(False)
+        self.saveButton.setEnabled(False)
+        self.deleteButton.setEnabled(False)

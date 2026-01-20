@@ -35,3 +35,7 @@ class Tag(InfiniteLine):
             self.state = False
         self.setPos(self.time)
         self.type.editTag()
+
+    def deleteTag(self):
+        self.type.deleteTag(self)
+        self.scene().removeItem(self)

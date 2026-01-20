@@ -24,3 +24,7 @@ class TagType():
 
     def addExistingTags(self, tags):
         self.tags = tags
+
+    def deleteTag(self, tag):
+        self.tags.remove(tag)
+        print(self.tags)
