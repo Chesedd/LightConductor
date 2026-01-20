@@ -19,5 +19,8 @@ class TagType():
         index = bisect.bisect_left([t.time for t in self.tags], tag.time)
         self.tags.insert(index, tag)
 
+    def editTag(self):
+        self.tags.sort(key=lambda tag: tag.time)
+
     def addExistingTags(self, tags):
         self.tags = tags

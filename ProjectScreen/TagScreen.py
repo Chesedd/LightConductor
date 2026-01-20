@@ -41,13 +41,19 @@ class TagInfoScreen(QWidget):
         self.mainLayout.addWidget(self.saveButton)
 
     def setTag(self, tag):
+        self.tag = tag
         self.tagTypeText.setText(tag.type.name)
         self.tagTimeText.setText(str(tag.time))
+        self.tagTimeText.setEnabled(True)
         self.tagStateText.setText(str(tag.state))
-
+        self.tagStateText.setEnabled(True)
+        self.saveButton.setEnabled(True)
 
     def setNone(self):
         return
 
     def editTag(self):
-        return
+        params = {}
+        params["time"] = self.tagTimeText.text()
+        params["state"] = self.tagStateText.text()
+        self.tag.editParams(params)

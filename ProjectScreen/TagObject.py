@@ -27,3 +27,11 @@ class Tag(InfiniteLine):
         QtWidgets.QApplication.restoreOverrideCursor()
         super().hoverLeaveEvent(event)
 
+    def editParams(self, params):
+        self.time = float(params["time"])
+        if params["state"] == "True":
+            self.state = True
+        else:
+            self.state = False
+        self.setPos(self.time)
+        self.type.editTag()
