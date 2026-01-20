@@ -57,6 +57,7 @@ class CollapsibleBox(QWidget):
         centralWidget.layout.addWidget(tagsWidget)
 
         self.tagInfo = TagInfoScreen(tagTypes=self.wave.manager.types)
+        self.wave.manager.tagScreen = self.tagInfo
 
         mainWidget = QWidget()
         mainWidget.layout = QHBoxLayout(mainWidget)

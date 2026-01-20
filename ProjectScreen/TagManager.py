@@ -18,6 +18,7 @@ class TagManager(QWidget):
         self.curType = None
         self.types = {}
         self.box = None
+        self.tagScreen = None
 
         self.initPanel()
 
