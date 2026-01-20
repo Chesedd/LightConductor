@@ -2,6 +2,7 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import QAction
 from AssistanceTools.TagState import TagState
+from ProjectScreen.TagScreen import TagInfoScreen
 import bisect
 
 class CollapsibleBox(QWidget):
@@ -55,10 +56,13 @@ class CollapsibleBox(QWidget):
         centralWidget.layout.addWidget(waveSpace)
         centralWidget.layout.addWidget(tagsWidget)
 
+        self.tagInfo = TagInfoScreen(tagTypes=self.wave.manager.types)
+
         mainWidget = QWidget()
         mainWidget.layout = QHBoxLayout(mainWidget)
         mainWidget.layout.addWidget(centralWidget)
         mainWidget.layout.addWidget(self.wave.manager)
+        mainWidget.layout.addWidget(self.tagInfo)
 
         self.addWidget(mainWidget)
 
