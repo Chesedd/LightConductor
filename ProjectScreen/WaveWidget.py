@@ -1,8 +1,11 @@
 import pyqtgraph as pg
 
+from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtGui import QColor
-from PyQt6.QtCore import QPointF
+from PyQt6.QtCore import QPointF, QUrl
 import numpy as np
+
+import librosa
 
 from ProjectScreen.TagObject import Tag
 from PyQt6.QtCore import pyqtSignal
@@ -10,22 +13,26 @@ from ProjectScreen.TagManager import TagManager
 from AssistanceTools.ChooseBox import  TagTypeChooseBox
 
 class WaveWidget(pg.PlotWidget):
-    click = pyqtSignal(float)
-    def __init__(self, audioData, sr, manager, chooseBox):
+    positionUpdate = pyqtSignal(float, str)
+    def __init__(self, audioData, sr, manager, chooseBox, audioPath):
         super().__init__()
         self.manager = manager
         self.audioData = audioData
         self.sr = sr
         self.chooseBox = chooseBox
+        self.audioPath = audioPath
         self.chooseBox.stateChanged.connect(self.editTagTypeOnWave)
 
         self.duration = len(self.audioData)/self.sr
+        self.durationMs = librosa.get_duration(y=self.audioData, sr=self.sr)
         self.vb = self.getViewBox()
 
         self.init_ui()
         self.setupMouse()
 
     def init_ui(self):
+        self.initAudioPlayer()
+
         self.setFixedHeight(200)
         self.clear()
 
@@ -116,8 +123,7 @@ class WaveWidget(pg.PlotWidget):
 
         if self.sceneBoundingRect().contains(pos):
             mousePosition = self.vb.mapSceneToView(pos)
-            self.selectedLine.setPos(mousePosition.x())
-            self.click.emit(mousePosition.x())
+            self.audioPlayer.setPosition(round(mousePosition.x() * 1000))
 
     def addTag(self, state):
         color = self.manager.curType.color
@@ -142,3 +148,28 @@ class WaveWidget(pg.PlotWidget):
                 tag.show()
             else:
                 tag.hide()
+
+
+    def initAudioPlayer(self):
+        self.audioPlayer = QMediaPlayer()
+        self.audioPlayer.setSource(QUrl.fromLocalFile(self.audioPath))
+        self.audioOutput = QAudioOutput()
+        self.audioPlayer.setAudioOutput(self.audioOutput)
+        self.audioPlayer.positionChanged.connect(self.onPositionChanged)
+
+    def onPositionChanged(self, positionMs):
+        positioRatio = positionMs / 1000
+        self.selectedLine.setValue(positioRatio)
+
+        minutes = positionMs // 60000
+        seconds = (positionMs % 60000) // 1000
+        timeStr = f"{minutes}:{seconds}"
+        self.positionUpdate.emit(positioRatio, timeStr)
+
+    def playOrPause(self, action):
+        if action == "Play":
+            self.audioPlayer.play()
+        else:
+            self.audioPlayer.pause()
+
+

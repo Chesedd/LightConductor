@@ -16,10 +16,11 @@ class ProjectManager():
             sf.write(f"Projects/{self.projectName}/{self.audioFile}", audio, sr)
 
     def loadAudioData(self):
-        if os.path.exists(f"Projects/{self.projectName}/{self.audioFile}"):
-            audio, sr = librosa.load(f"Projects/{self.projectName}/{self.audioFile}", sr=None, mono=True)
-            return audio, sr
-        else: return None, None
+        path = f"Projects/{self.projectName}/{self.audioFile}"
+        if os.path.exists(path):
+            audio, sr = librosa.load(path, sr=None, mono=True)
+            return audio, sr, path
+        else: return None, None, path
 
     def saveData(self, boxes):
         self.boxes = {}

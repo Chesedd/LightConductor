@@ -32,7 +32,7 @@ class CollapsibleBox(QWidget):
         self.initUI()
 
     def initUI(self):
-        self.wave.click.connect(self.updateTagStates)
+        self.wave.positionUpdate.connect(self.onPositionUpdate)
         self.wave.manager.newTypeCreate.connect(self.addTagState)
 
         addButton = QPushButton("Add tag")
@@ -44,10 +44,10 @@ class CollapsibleBox(QWidget):
 
         waveButtons = QWidget()
         waveButtons.layout = QHBoxLayout(waveButtons)
-        playButton = QPushButton("Play")
-        playButton.clicked.connect(self.playAndPause)
+        self.playButton = QPushButton("Play")
+        self.playButton.clicked.connect(self.playOrPause)
         self.timeLabel = QLabel("time")
-        waveButtons.layout.addWidget(playButton)
+        waveButtons.layout.addWidget(self.playButton)
         waveButtons.layout.addWidget(self.timeLabel)
 
         waveWidget = QWidget()
@@ -80,8 +80,13 @@ class CollapsibleBox(QWidget):
 
         self.addWidget(mainWidget)
 
-    def playAndPause(self):
-        return
+    def playOrPause(self):
+        state = self.playButton.text()
+        if state == "Play":
+            self.playButton.setText("Pause")
+        else:
+            self.playButton.setText("Play")
+        self.wave.playOrPause(state)
 
     def addTagState(self, tagType):
         state = TagState(tagType)
@@ -92,7 +97,7 @@ class CollapsibleBox(QWidget):
         dialog.tagCreated.connect(self.wave.addTag)
         dialog.exec()
 
-    def updateTagStates(self, time):
+    def onPositionUpdate(self, time, timeStr):
         for i in range(self.tagsLayout.count()):
             widget = self.tagsLayout.itemAt(i).widget()
             tags = widget.tagType.tags
@@ -103,6 +108,7 @@ class CollapsibleBox(QWidget):
                 widget.changeState(tag.state)
             else:
                 widget.changeState(False)
+        self.timeLabel.setText(timeStr)
 
     def createTitleButton(self):
         self.toggleButton = QPushButton()

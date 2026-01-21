@@ -63,6 +63,7 @@ class ProjectWindow(QMainWindow):
         self.boxCounter = 0
         self.projectManager = ProjectManager(self.project_data['project_name'])
         self.boxes = {}
+        self.audioPath = None
 
         self.init_ui()
         self.initExistingData()
@@ -87,7 +88,7 @@ class ProjectWindow(QMainWindow):
         self.layout.addWidget(waveButton)
 
     def initExistingData(self):
-        self.audio, self.sr = self.projectManager.loadAudioData()
+        self.audio, self.sr, self.audioPath = self.projectManager.loadAudioData()
         loadBoxes = self.projectManager.returnAllBoxes()
         for boxID in loadBoxes:
             box = loadBoxes[boxID]
@@ -121,6 +122,7 @@ class ProjectWindow(QMainWindow):
             print("File not exist")
             return
         try:
+            self.audioPath = filePath
             self.audio, self.sr = librosa.load(filePath, sr=None, mono=True)
         except Exception as e:
             print(e)
@@ -134,7 +136,7 @@ class ProjectWindow(QMainWindow):
     def addWave(self, waveTitle, boxID=None):
         chooseBox = TagTypeChooseBox("Visible tags")
         manager = TagManager(chooseBox)
-        wave = WaveWidget(self.audio, self.sr, manager, chooseBox)
+        wave = WaveWidget(self.audio, self.sr, manager, chooseBox, self.audioPath)
         if boxID is None:
             boxID = datetime.now().strftime("%Y%m%d%H%M%S%f")
         box = CollapsibleBox(title=waveTitle, boxID=boxID, wave=wave)
