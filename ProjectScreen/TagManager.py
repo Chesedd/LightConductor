@@ -6,7 +6,7 @@ from ProjectScreen.TagType import TagType
 from AssistanceTools.ColorPicker import ColorPicker
 import pyqtgraph as pg
 from PyQt6.QtGui import QColor
-from ProjectScreen.CollapsibleBox import DeleteDialog
+from ProjectScreen.SlaveBox import DeleteDialog
 
 class TagManager(QWidget):
     newTypeCreate = pyqtSignal(TagType)

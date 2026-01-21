@@ -5,7 +5,7 @@ from AssistanceTools.TagState import TagState
 from ProjectScreen.TagScreen import TagInfoScreen
 import bisect
 
-class CollapsibleBox(QWidget):
+class SlaveBox(QWidget):
     boxDeleted = pyqtSignal(str)
     def __init__(self, title="", parent=None, boxID='', wave=None):
         super().__init__(parent)
@@ -164,7 +164,7 @@ class CollapsibleBox(QWidget):
         if checked:
             self.toggleButton.setText("► " + self.toggleButton.text()[2:])
             self.contentArea.setMaximumHeight(16777215)
-            self.contentArea.setMinimumHeight(0)
+            self.contentArea.setMinimumHeight(200)
         else:
             self.toggleButton.setText("▼ " + self.toggleButton.text()[2:])
             self.contentArea.setMaximumHeight(0)

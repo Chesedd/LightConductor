@@ -5,7 +5,8 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QPushButton,
 from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtGui import QAction, QKeySequence
 import librosa
-from ProjectScreen.CollapsibleBox import CollapsibleBox
+from ProjectScreen.SlaveBox import SlaveBox
+from ProjectScreen.MasterBox import MasterBox
 from ProjectScreen.WaveWidget import WaveWidget
 from ProjectScreen.TagManager import TagManager
 from ProjectScreen.ProjectManager import ProjectManager
@@ -13,18 +14,18 @@ from AssistanceTools.ChooseBox import  TagTypeChooseBox
 
 from datetime import datetime
 
-class newWaveWidgetDialog(QDialog):
-    waveCreated = pyqtSignal(str)
+class newMasterDialog(QDialog):
+    masterCreated = pyqtSignal(str)
     def __init__(self, parent=None):
         super().__init__(parent)
         self.uiCreate()
 
     def uiCreate(self):
-        waveNameText = QLabel("Название компонента")
-        self.waveNameBar = QLineEdit()
-        waveNameLayout = QHBoxLayout()
-        waveNameLayout.addWidget(waveNameText)
-        waveNameLayout.addWidget(self.waveNameBar)
+        masterNameText = QLabel("Master's name")
+        self.masterNameBar = QLineEdit()
+        masterNameLayout = QHBoxLayout()
+        masterNameLayout.addWidget(masterNameText)
+        masterNameLayout.addWidget(self.masterNameBar)
 
         okButton = QPushButton("Ok")
         okButton.clicked.connect(self.onOkClicked)
@@ -36,14 +37,14 @@ class newWaveWidgetDialog(QDialog):
 
         self.mainScreen = QWidget()
         self.mainLayout = QVBoxLayout(self.mainScreen)
-        self.mainLayout.addLayout(waveNameLayout)
+        self.mainLayout.addLayout(masterNameLayout)
         self.mainLayout.addLayout(buttonLayout)
 
         self.setLayout(self.mainLayout)
 
     def onOkClicked(self):
-        waveTitle = self.waveNameBar.text()
-        self.waveCreated.emit(waveTitle)
+        masterTitle = self.masterNameBar.text()
+        self.masterCreated.emit(masterTitle)
         self.accept()
 
 
@@ -51,6 +52,7 @@ class newWaveWidgetDialog(QDialog):
 class ProjectWindow(QMainWindow):
     def __init__(self, project_data):
         super().__init__()
+        self.masters = {}
 
         saveAction = QAction("Save", self)
         saveAction.setShortcut(QKeySequence("Ctrl+S"))
@@ -83,8 +85,8 @@ class ProjectWindow(QMainWindow):
         addButton.clicked.connect(self.addTrack)
         self.layout.addWidget(addButton)
 
-        waveButton = QPushButton("Add wave")
-        waveButton.clicked.connect(self.showWaveDialog)
+        waveButton = QPushButton("Add master")
+        waveButton.clicked.connect(self.showMasterDialog)
         self.layout.addWidget(waveButton)
 
     def initExistingData(self):
@@ -93,7 +95,7 @@ class ProjectWindow(QMainWindow):
         for boxID in loadBoxes:
             box = loadBoxes[boxID]
             tagTypes = box['tagTypes']
-            self.addWave(box["name"], box["id"])
+            self.addSlave(box["name"], box["id"])
             manager = self.boxes[box["id"]].wave.manager
             for tagType in tagTypes:
                 params = tagTypes[tagType]
@@ -128,18 +130,25 @@ class ProjectWindow(QMainWindow):
             print(e)
             return
 
-    def showWaveDialog(self):
-        dialog = newWaveWidgetDialog(self)
-        dialog.waveCreated.connect(self.addWave)
+    def showMasterDialog(self):
+        dialog = newMasterDialog(self)
+        dialog.masterCreated.connect(self.addMaster)
         dialog.exec()
 
-    def addWave(self, waveTitle, boxID=None):
+    def addMaster(self, masterName, boxID=None):
+        if boxID is None:
+            boxID = datetime.now().strftime("%Y%m%d%H%M%S%f")
+        master = MasterBox(title=masterName, boxID=boxID, audio=self.audio, sr=self.sr, aydioPath=self.audioPath)
+        self.masters[boxID] = master
+        self.layout.addWidget(master)
+
+    def addSlave(self, waveTitle, boxID=None):
         chooseBox = TagTypeChooseBox("Visible tags")
         manager = TagManager(chooseBox)
         wave = WaveWidget(self.audio, self.sr, manager, chooseBox, self.audioPath)
         if boxID is None:
             boxID = datetime.now().strftime("%Y%m%d%H%M%S%f")
-        box = CollapsibleBox(title=waveTitle, boxID=boxID, wave=wave)
+        box = SlaveBox(title=waveTitle, boxID=boxID, wave=wave)
         box.boxDeleted.connect(self.deleteBoxData)
 
         self.boxes[boxID] = box
