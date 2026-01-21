@@ -91,27 +91,32 @@ class ProjectWindow(QMainWindow):
 
     def initExistingData(self):
         self.audio, self.sr, self.audioPath = self.projectManager.loadAudioData()
-        loadBoxes = self.projectManager.returnAllBoxes()
-        for boxID in loadBoxes:
-            box = loadBoxes[boxID]
-            tagTypes = box['tagTypes']
-            self.addSlave(box["name"], box["id"])
-            manager = self.boxes[box["id"]].wave.manager
-            for tagType in tagTypes:
-                params = tagTypes[tagType]
-                params['name'] = tagType
-                manager.addType(params)
-                type = manager.types[params['name']]
-                tags = []
-                for tagID in params['tags']:
-                    print(params['tags'][tagID])
-                    tags.append(self.boxes[box["id"]].wave.addExistingTag(params['tags'][tagID], type))
-                type.addExistingTags(tags)
+        masters = self.projectManager.returnAllBoxes()
+        for masterID in masters:
+            master = masters[masterID]
+            slaves = master['slaves']
+            self.addMaster(master["name"], master["id"])
+            masterWidget = self.masters[master["id"]]
+            for slaveID in slaves:
+                slave = slaves[slaveID]
+                tagTypes = slave['tagTypes']
+                masterWidget.addSlave(slave["name"], slave["id"])
+                manager = self.masters[master["id"]].slaves[slave["id"]].wave.manager
+                for tagType in tagTypes:
+                    params = tagTypes[tagType]
+                    params['name'] = tagType
+                    manager.addType(params)
+                    type = manager.types[params['name']]
+                    tags = []
+                    for tagID in params['tags']:
+                        print(params['tags'][tagID])
+                        tags.append(self.masters[master["id"]].slaves[slave["id"]].wave.addExistingTag(params['tags'][tagID], type))
+                    type.addExistingTags(tags)
 
     def saveData(self):
         print("Save")
         self.projectManager.saveAudioData(self.audio, self.sr)
-        self.projectManager.saveData(self.boxes)
+        self.projectManager.saveData(self.masters)
 
     def addTrack(self):
         filePath, _ = QFileDialog.getOpenFileName(
@@ -141,24 +146,4 @@ class ProjectWindow(QMainWindow):
         master = MasterBox(title=masterName, boxID=boxID, audio=self.audio, sr=self.sr, aydioPath=self.audioPath)
         self.masters[boxID] = master
         self.layout.addWidget(master)
-
-    def addSlave(self, waveTitle, boxID=None):
-        chooseBox = TagTypeChooseBox("Visible tags")
-        manager = TagManager(chooseBox)
-        wave = WaveWidget(self.audio, self.sr, manager, chooseBox, self.audioPath)
-        if boxID is None:
-            boxID = datetime.now().strftime("%Y%m%d%H%M%S%f")
-        box = SlaveBox(title=waveTitle, boxID=boxID, wave=wave)
-        box.boxDeleted.connect(self.deleteBoxData)
-
-        self.boxes[boxID] = box
-        self.layout.addWidget(box)
-
-
-    def deleteBoxData(self, boxID):
-        print(self.boxes, boxID)
-        if boxID in self.boxes:
-            del self.boxes[boxID]
-            return True
-        return False
 

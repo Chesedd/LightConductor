@@ -4,12 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="f22a01fc-d6fa-4e31-a073-49c82c357fd4" name="Changes" comment="Add track play and pause">
-      <change afterPath="$PROJECT_DIR$/ProjectScreen/MasterBox.py" afterDir="false" />
+    <list default="true" id="f22a01fc-d6fa-4e31-a073-49c82c357fd4" name="Changes" comment="Add master box">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ProjectScreen/CollapsibleBox.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/SlaveBox.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectScreen/ProjectManager.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/ProjectManager.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ProjectScreen/ProjectScreen.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/ProjectScreen.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ProjectScreen/TagManager.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/TagManager.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -265,7 +263,15 @@
       <option name="project" value="LOCAL" />
       <updated>1768997863118</updated>
     </task>
-    <option name="localTasksCounter" value="23" />
+    <task id="LOCAL-00023" summary="Add master box">
+      <option name="closed" value="true" />
+      <created>1769030028139</created>
+      <option name="number" value="00023" />
+      <option name="presentableId" value="LOCAL-00023" />
+      <option name="project" value="LOCAL" />
+      <updated>1769030028139</updated>
+    </task>
+    <option name="localTasksCounter" value="24" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -313,6 +319,7 @@
     <MESSAGE value="Add tag delete" />
     <MESSAGE value="Add play button" />
     <MESSAGE value="Add track play and pause" />
-    <option name="LAST_COMMIT_MESSAGE" value="Add track play and pause" />
+    <MESSAGE value="Add master box" />
+    <option name="LAST_COMMIT_MESSAGE" value="Add master box" />
   </component>
 </project>

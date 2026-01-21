@@ -22,34 +22,42 @@ class ProjectManager():
             return audio, sr, path
         else: return None, None, path
 
-    def saveData(self, boxes):
+    def saveData(self, masters):
         self.boxes = {}
-        for boxID in boxes:
-            saveBox = boxes[boxID]
-            tagTypes = saveBox.wave.manager.types
-            typesData = {}
-            for tagType in tagTypes:
-                type = tagTypes[tagType]
-                typeData = {}
-                typeData["color"] = type.color
-                typeData["pin"] = type.pin
+        for masterID in masters:
+            saveMaster = masters[masterID]
+            slaves = saveMaster.slaves
+            slavesData = {}
+            for slaveID in slaves:
+                saveSlave = slaves[slaveID]
+                tagTypes = saveSlave.wave.manager.types
+                typesData = {}
+                for tagType in tagTypes:
+                    type = tagTypes[tagType]
+                    typeData = {}
+                    typeData["color"] = type.color
+                    typeData["pin"] = type.pin
 
-                tagsOfType = type.tags
-                tagID = 0
-                tagsData = {}
-                for tag in tagsOfType:
-                    tagData = {}
-                    tagData['time'] = tag.time
-                    tagData['state'] = tag.state
-                    tagsData[tagID] = tagData
-                    tagID+=1
-                typeData["tags"] = tagsData
+                    tagsOfType = type.tags
+                    tagID = 0
+                    tagsData = {}
+                    for tag in tagsOfType:
+                        tagData = {}
+                        tagData['time'] = tag.time
+                        tagData['state'] = tag.state
+                        tagsData[tagID] = tagData
+                        tagID+=1
+                    typeData["tags"] = tagsData
 
-                typesData[type.name] = typeData
-            self.boxes[boxID] = {}
-            self.boxes[boxID]['name'] = saveBox.title
-            self.boxes[boxID]['id'] = saveBox.boxID
-            self.boxes[boxID]['tagTypes'] = typesData
+                    typesData[type.name] = typeData
+                slavesData[slaveID] = {}
+                slavesData[slaveID]['name'] = saveSlave.title
+                slavesData[slaveID]['id'] = saveSlave.boxID
+                slavesData[slaveID]['tagTypes'] = typesData
+            self.boxes[masterID] = {}
+            self.boxes[masterID]['name'] = saveMaster.title
+            self.boxes[masterID]['id'] = saveMaster.boxID
+            self.boxes[masterID]['slaves'] = slavesData
         with open(f"Projects/{self.projectName}/{self.dataFile}", 'w', encoding='utf-8') as f:
             json.dump(self.boxes, f, indent=4, ensure_ascii=False)
 
