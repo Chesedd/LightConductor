@@ -37,15 +37,28 @@ class CollapsibleBox(QWidget):
 
         addButton = QPushButton("Add tag")
         addButton.clicked.connect(self.createTag)
+        tagWaveButtons = QWidget()
+        tagWaveButtons.layout = QVBoxLayout(tagWaveButtons)
+        tagWaveButtons.layout.addWidget(self.wave.chooseBox)
+        tagWaveButtons.layout.addWidget(addButton)
+
         waveButtons = QWidget()
-        waveButtons.layout = QVBoxLayout(waveButtons)
-        waveButtons.layout.addWidget(self.wave.chooseBox)
-        waveButtons.layout.addWidget(addButton)
+        waveButtons.layout = QHBoxLayout(waveButtons)
+        playButton = QPushButton("Play")
+        playButton.clicked.connect(self.playAndPause)
+        self.timeLabel = QLabel("time")
+        waveButtons.layout.addWidget(playButton)
+        waveButtons.layout.addWidget(self.timeLabel)
+
+        waveWidget = QWidget()
+        waveWidget.layout = QVBoxLayout(waveWidget)
+        waveWidget.layout.addWidget(waveButtons)
+        waveWidget.layout.addWidget(self.wave)
 
         waveSpace = QWidget()
         waveSpace.layout = QHBoxLayout(waveSpace)
-        waveSpace.layout.addWidget(waveButtons)
-        waveSpace.layout.addWidget(self.wave)
+        waveSpace.layout.addWidget(tagWaveButtons)
+        waveSpace.layout.addWidget(waveWidget)
 
         tagsWidget = QWidget()
         self.tagsLayout = QHBoxLayout()
@@ -67,6 +80,8 @@ class CollapsibleBox(QWidget):
 
         self.addWidget(mainWidget)
 
+    def playAndPause(self):
+        return
 
     def addTagState(self, tagType):
         state = TagState(tagType)
