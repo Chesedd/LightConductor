@@ -46,8 +46,11 @@ class SlaveBox(QWidget):
         waveButtons.layout = QHBoxLayout(waveButtons)
         self.playButton = QPushButton("Play")
         self.playButton.clicked.connect(self.playOrPause)
+        self.playAndPauseButton = QPushButton("Play+Pause")
+        self.playAndPauseButton.clicked.connect(self.wave.playAndPause)
         self.timeLabel = QLabel("time")
         waveButtons.layout.addWidget(self.playButton)
+        waveButtons.layout.addWidget(self.playAndPauseButton)
         waveButtons.layout.addWidget(self.timeLabel)
 
         waveWidget = QWidget()

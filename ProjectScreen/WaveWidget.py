@@ -2,7 +2,7 @@ import pyqtgraph as pg
 
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtGui import QColor
-from PyQt6.QtCore import QPointF, QUrl, Qt
+from PyQt6.QtCore import QPointF, QUrl, Qt, QTimer
 import numpy as np
 
 import librosa
@@ -178,5 +178,7 @@ class WaveWidget(pg.PlotWidget):
             self.audioPlayer.play()
         else:
             self.audioPlayer.pause()
-
+    def playAndPause(self):
+        self.audioPlayer.play()
+        QTimer.singleShot(100, self.audioPlayer.pause)
 
