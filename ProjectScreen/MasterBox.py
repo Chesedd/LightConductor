@@ -117,6 +117,7 @@ class MasterBox(QWidget):
         else:
             self.toggleButton.setText("▼ " + self.toggleButton.text()[2:])
             self.contentArea.setMaximumHeight(0)
+            self.contentArea.setMinimumHeight(0)
 
 
     def showSlaveDialog(self):
