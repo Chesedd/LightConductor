@@ -2,7 +2,7 @@ import pyqtgraph as pg
 
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtGui import QColor
-from PyQt6.QtCore import QPointF, QUrl
+from PyQt6.QtCore import QPointF, QUrl, Qt
 import numpy as np
 
 import librosa
@@ -124,6 +124,13 @@ class WaveWidget(pg.PlotWidget):
         if self.sceneBoundingRect().contains(pos):
             mousePosition = self.vb.mapSceneToView(pos)
             self.audioPlayer.setPosition(round(mousePosition.x() * 1000))
+
+    def keyPressEvent(self, ev):
+        step = 0.1
+        if ev.key() == Qt.Key.Key_Right:
+            self.audioPlayer.setPosition(round((self.selectedLine.value() + step) * 1000))
+        elif ev.key() == Qt.Key.Key_Left:
+            self.audioPlayer.setPosition(round((self.selectedLine.value() - step) * 1000))
 
     def addTag(self, state):
         color = self.manager.curType.color
