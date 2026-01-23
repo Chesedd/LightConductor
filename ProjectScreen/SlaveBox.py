@@ -3,6 +3,7 @@ from PyQt6.QtCore import *
 from PyQt6.QtGui import QAction
 from AssistanceTools.TagState import TagState
 from ProjectScreen.TagScreen import TagInfoScreen
+from AssistanceTools.FlowLayout import FlowLayout
 import bisect
 
 class SlaveBox(QWidget):
@@ -64,7 +65,7 @@ class SlaveBox(QWidget):
         waveSpace.layout.addWidget(waveWidget)
 
         tagsWidget = QWidget()
-        self.tagsLayout = QHBoxLayout()
+        self.tagsLayout = FlowLayout()
         tagsWidget.setLayout(self.tagsLayout)
 
         centralWidget = QWidget()
@@ -77,9 +78,9 @@ class SlaveBox(QWidget):
 
         mainWidget = QWidget()
         mainWidget.layout = QHBoxLayout(mainWidget)
-        mainWidget.layout.addWidget(centralWidget)
-        mainWidget.layout.addWidget(self.wave.manager)
-        mainWidget.layout.addWidget(self.tagInfo)
+        mainWidget.layout.addWidget(centralWidget, 3)
+        mainWidget.layout.addWidget(self.wave.manager, 2)
+        mainWidget.layout.addWidget(self.tagInfo, 1)
 
         self.addWidget(mainWidget)
 
