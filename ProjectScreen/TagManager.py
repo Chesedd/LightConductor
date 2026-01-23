@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QDialog,
-                             QLabel, QLineEdit, QToolButton, QButtonGroup, QMenu)
+                             QLabel, QLineEdit, QToolButton, QButtonGroup, QMenu, QScrollArea)
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QAction
 from ProjectScreen.TagType import TagType
@@ -27,9 +27,18 @@ class TagManager(QWidget):
         self.mainLayout = QVBoxLayout(self.mainWidget)
         self.setLayout(self.mainLayout)
 
+        self.scrollArea = QScrollArea()
+        self.scrollArea.setWidgetResizable(True)
+        self.scrollArea.setMaximumHeight(200)
+        self.innerWidget = QWidget()
+        self.innerArea = QVBoxLayout()
+        self.innerWidget.setLayout(self.innerArea)
+        self.scrollArea.setWidget(self.innerWidget)
+
         addButton = QPushButton("+ Add type")
         addButton.clicked.connect(self.showNewTypeDialog)
-        self.mainLayout.addWidget(addButton)
+        self.innerArea.addWidget(addButton)
+        self.mainLayout.addWidget(self.scrollArea)
 
     def showNewTypeDialog(self):
         dialog = newTypeDialog(self)
@@ -43,7 +52,7 @@ class TagManager(QWidget):
         button.setCheckable(True)
         button.clicked.connect(self.setNewType)
         self.buttons.addButton(button)
-        self.mainLayout.insertWidget(0, button)
+        self.innerArea.insertWidget(0, button)
         self.checkBox.addType(params["name"])
         self.newTypeCreate.emit(newType)
 

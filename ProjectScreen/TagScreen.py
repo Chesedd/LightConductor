@@ -1,4 +1,4 @@
-from  PyQt6.QtWidgets import QWidget, QLabel, QLineEdit, QVBoxLayout, QHBoxLayout, QPushButton
+from  PyQt6.QtWidgets import QWidget, QLabel, QLineEdit, QVBoxLayout, QHBoxLayout, QPushButton, QSizePolicy
 
 class TagInfoScreen(QWidget):
     def __init__(self, tagTypes):
