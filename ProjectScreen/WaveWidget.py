@@ -123,7 +123,7 @@ class WaveWidget(pg.PlotWidget):
 
         if self.sceneBoundingRect().contains(pos):
             mousePosition = self.vb.mapSceneToView(pos)
-            self.audioPlayer.setPosition(round(mousePosition.x() * 1000))
+            self.audioPlayer.setPosition(round(round(mousePosition.x(), 1) * 1000))
 
     def keyPressEvent(self, ev):
         step = 0.1
@@ -170,7 +170,8 @@ class WaveWidget(pg.PlotWidget):
 
         minutes = positionMs // 60000
         seconds = (positionMs % 60000) // 1000
-        timeStr = f"{minutes}:{seconds}"
+        ms = (positionMs % 60000) % 1000
+        timeStr = f"{minutes}:{seconds}:{ms}"
         self.positionUpdate.emit(positioRatio, timeStr)
 
     def playOrPause(self, action):
