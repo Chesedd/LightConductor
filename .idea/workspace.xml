@@ -4,11 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="f22a01fc-d6fa-4e31-a073-49c82c357fd4" name="Changes" comment="Add fullscreen when start">
-      <change afterPath="$PROJECT_DIR$/AssistanceTools/FlowLayout.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ProjectScreen/SlaveBox.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/SlaveBox.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ProjectScreen/TagManager.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/TagManager.py" afterDir="false" />
+    <list default="true" id="f22a01fc-d6fa-4e31-a073-49c82c357fd4" name="Changes" comment="Add flow layout for tagstates and tagtypes">
+      <change beforePath="$PROJECT_DIR$/ProjectScreen/WaveWidget.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/WaveWidget.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -304,7 +301,15 @@
       <option name="project" value="LOCAL" />
       <updated>1769164224560</updated>
     </task>
-    <option name="localTasksCounter" value="28" />
+    <task id="LOCAL-00028" summary="Add flow layout for tagstates and tagtypes">
+      <option name="closed" value="true" />
+      <created>1769210925330</created>
+      <option name="number" value="00028" />
+      <option name="presentableId" value="LOCAL-00028" />
+      <option name="project" value="LOCAL" />
+      <updated>1769210925330</updated>
+    </task>
+    <option name="localTasksCounter" value="29" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -331,7 +336,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Add rename and delete in context menu for boxes" />
     <MESSAGE value="Add more data for Tags. Add TagType and TagManager" />
     <MESSAGE value="Add color picker" />
     <MESSAGE value="Add color for tagButton" />
@@ -356,6 +360,7 @@
     <MESSAGE value="idk" />
     <MESSAGE value="Add left and right buttons action" />
     <MESSAGE value="Add fullscreen when start" />
-    <option name="LAST_COMMIT_MESSAGE" value="Add fullscreen when start" />
+    <MESSAGE value="Add flow layout for tagstates and tagtypes" />
+    <option name="LAST_COMMIT_MESSAGE" value="Add flow layout for tagstates and tagtypes" />
   </component>
 </project>
