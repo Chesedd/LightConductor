@@ -25,8 +25,10 @@ class TagState(QWidget):
         if state:
             self.circleState.setStyleSheet(
                 f"background-color: rgb({self.tagType.color});"
+                "border-radius: 10px;"
             )
         else:
             self.circleState.setStyleSheet(
                 f"background-color: rgb(0, 0, 0);"
+                "border-radius: 10px;"
             )

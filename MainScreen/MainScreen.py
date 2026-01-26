@@ -68,8 +68,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
         self.setWindowTitle("LightConductor")
-        self.showMaximized()
         self.project_system_init()
+        self.showMaximized()
 
     def project_system_init(self):
         self.project_manager = ProjectsManager()

@@ -89,6 +89,10 @@ class ProjectWindow(QMainWindow):
         waveButton.clicked.connect(self.showMasterDialog)
         self.layout.addWidget(waveButton)
 
+        loadButton = QPushButton("Load data")
+        loadButton.clicked.connect(self.loadData)
+        self.layout.addWidget(load)
+
     def initExistingData(self):
         self.audio, self.sr, self.audioPath = self.projectManager.loadAudioData()
         masters = self.projectManager.returnAllBoxes()
@@ -146,4 +150,7 @@ class ProjectWindow(QMainWindow):
         master = MasterBox(title=masterName, boxID=boxID, audio=self.audio, sr=self.sr, aydioPath=self.audioPath)
         self.masters[boxID] = master
         self.layout.addWidget(master)
+
+    def loadData(self):
+        return
 
