@@ -4,8 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="f22a01fc-d6fa-4e31-a073-49c82c357fd4" name="Changes" comment="Add flow layout for tagstates and tagtypes">
-      <change beforePath="$PROJECT_DIR$/ProjectScreen/WaveWidget.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/WaveWidget.py" afterDir="false" />
+    <list default="true" id="f22a01fc-d6fa-4e31-a073-49c82c357fd4" name="Changes" comment="Add more size for tags">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -309,7 +309,15 @@
       <option name="project" value="LOCAL" />
       <updated>1769210925330</updated>
     </task>
-    <option name="localTasksCounter" value="29" />
+    <task id="LOCAL-00029" summary="Add more size for tags">
+      <option name="closed" value="true" />
+      <created>1769211363693</created>
+      <option name="number" value="00029" />
+      <option name="presentableId" value="LOCAL-00029" />
+      <option name="project" value="LOCAL" />
+      <updated>1769211363693</updated>
+    </task>
+    <option name="localTasksCounter" value="30" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -336,7 +344,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Add more data for Tags. Add TagType and TagManager" />
     <MESSAGE value="Add color picker" />
     <MESSAGE value="Add color for tagButton" />
     <MESSAGE value="Add solo checked for buttons in tagmanager" />
@@ -361,6 +368,7 @@
     <MESSAGE value="Add left and right buttons action" />
     <MESSAGE value="Add fullscreen when start" />
     <MESSAGE value="Add flow layout for tagstates and tagtypes" />
-    <option name="LAST_COMMIT_MESSAGE" value="Add flow layout for tagstates and tagtypes" />
+    <MESSAGE value="Add more size for tags" />
+    <option name="LAST_COMMIT_MESSAGE" value="Add more size for tags" />
   </component>
 </project>
