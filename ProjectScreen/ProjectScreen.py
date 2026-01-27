@@ -11,6 +11,9 @@ from ProjectScreen.WaveWidget import WaveWidget
 from ProjectScreen.TagManager import TagManager
 from ProjectScreen.ProjectManager import ProjectManager
 from AssistanceTools.ChooseBox import  TagTypeChooseBox
+import socket
+import json
+import time
 
 from datetime import datetime
 
@@ -91,7 +94,7 @@ class ProjectWindow(QMainWindow):
 
         loadButton = QPushButton("Load data")
         loadButton.clicked.connect(self.loadData)
-        self.layout.addWidget(load)
+        self.layout.addWidget(loadButton)
 
     def initExistingData(self):
         self.audio, self.sr, self.audioPath = self.projectManager.loadAudioData()
@@ -152,5 +155,44 @@ class ProjectWindow(QMainWindow):
         self.layout.addWidget(master)
 
     def loadData(self):
-        return
+        data = self.dataPack()
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+
+        # Преобразуем данные в JSON строку
+        json_str = json.dumps(data)
+
+        # Широковещательный адрес (255.255.255.255 или сетевой broadcast)
+        # Лучше использовать сетевой broadcast адрес, например: 192.168.1.255
+        broadcast_address = '192.168.0.129'  # Общий broadcast
+
+        # Альтернативно, можно рассчитать broadcast адрес сети
+        # broadcast_address = '192.168.1.255'  # Для сети 192.168.1.0/24
+
+        try:
+            # Отправляем данные
+            sock.sendto(json_str.encode('utf-8'), (broadcast_address, 12345))
+            print(f"Sent broadcast to {broadcast_address}:{12345}")
+            print(f"Data: {json_str}")
+        except Exception as e:
+            print(f"Error sending broadcast: {e}")
+        finally:
+            sock.close()
+
+    def dataPack(self):
+        data = {}
+        for masterID in self.masters:
+            master = self.masters[masterID]
+            for slaveID in master.slaves:
+                slave = master.slaves[slaveID]
+                types = slave.wave.manager.types
+                for typeName in types:
+                    type = types[typeName]
+                    for tag in type.tags:
+                        time = round(tag.time * 1000)
+                        if time not in data:
+                            data[time] = {}
+                        data[time][type.pin] = tag.state
+        return data
 
