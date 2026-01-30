@@ -212,7 +212,8 @@ class TagDialog(QDialog):
 
     def uiCreate(self):
         stateText = QLabel("Состояние")
-        self.stateBar = QLineEdit()
+        self.stateBar = QComboBox()
+        self.stateBar.addItems(["On", "Off"])
         stateLayout = QHBoxLayout()
         stateLayout.addWidget(stateText)
         stateLayout.addWidget(self.stateBar)

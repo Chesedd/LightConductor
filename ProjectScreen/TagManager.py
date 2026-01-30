@@ -157,11 +157,39 @@ class newTypeDialog(QDialog):
         newPinLayout.addWidget(newPinText)
         newPinLayout.addWidget(self.newPinBar)
 
+        pinType = QWidget()
+        pinTypeText = QLabel("Pin type")
+        typeButtons = QButtonGroup()
+        typeButtons.setExclusive(True)
+        soloButton = QPushButton("solo")
+        soloButton.clicked.connect(self.disablePinAmount)
+        multiButton = QPushButton("multi")
+        multiButton.clicked.connect(self.enablePinAmount)
+        typeButtons.addButton(soloButton)
+        typeButtons.addButton(multiButton)
+        self.pinAmount = QLineEdit()
+        self.pinAmount.setEnabled(False)
+        pinTypeLayout = QHBoxLayout(pinType)
+        pinTypeLayout.addWidget(pinTypeText)
+        pinTypeLayout.addWidget(soloButton)
+        pinTypeLayout.addWidget(multiButton)
+        pinTypeLayout.addWidget(self.pinAmount)
+
+
+
         newTypeLayout.addWidget(newName)
         newTypeLayout.addWidget(self.colorPicker)
         newTypeLayout.addWidget(newPin)
+        newTypeLayout.addWidget(pinType)
 
         self.mainLayout.addWidget(self.newTypeParams)
+
+    def disablePinAmount(self):
+        self.pinAmount.setEnabled(False)
+        self.pinAmount.setText("1")
+
+    def enablePinAmount(self):
+        self.pinAmount.setEnabled(True)
 
     def initButtons(self):
         self.buttons = QWidget()
