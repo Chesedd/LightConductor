@@ -29,10 +29,10 @@ class Tag(InfiniteLine):
 
     def editParams(self, params):
         self.time = float(params["time"])
-        if params["state"] == "True":
-            self.state = True
+        if params["state"] == "1":
+            self.state = "1"
         else:
-            self.state = False
+            self.state = "0"
         self.setPos(self.time)
         self.type.editTag()
 

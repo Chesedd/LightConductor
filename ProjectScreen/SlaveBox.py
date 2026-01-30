@@ -205,7 +205,7 @@ class SlaveBox(QWidget):
         self.deleteLater()
 
 class TagDialog(QDialog):
-    tagCreated = pyqtSignal(bool)
+    tagCreated = pyqtSignal(str)
     def __init__(self, parent=None):
         super().__init__(parent)
         self.uiCreate()
@@ -234,10 +234,11 @@ class TagDialog(QDialog):
 
     def onOkClicked(self):
         state = self.stateBar.text()
-        if state=='On':
-            self.tagCreated.emit(True)
+        if state=='1':
+            self.tagCreated.emit("1")
         else:
-            self.tagCreated.emit(False)
+            self.tagCreated.emit("0")
+        print(state)
         self.accept()
 
 class RenameDialog(QDialog):
