@@ -4,6 +4,7 @@ from PyQt6.QtGui import QAction
 from AssistanceTools.TagState import TagState
 from ProjectScreen.TagScreen import TagInfoScreen
 from AssistanceTools.FlowLayout import FlowLayout
+from AssistanceTools.ColorPicker import ColorPicker
 import bisect
 
 class SlaveBox(QWidget):
@@ -97,7 +98,8 @@ class SlaveBox(QWidget):
         self.tagsLayout.addWidget(state)
 
     def createTag(self):
-        dialog = TagDialog(self)
+        curType = self.wave.manager.curType
+        dialog = TagDialog(curType.row, curType.table, self)
         dialog.tagCreated.connect(self.wave.addTag)
         dialog.exec()
 
@@ -204,43 +206,170 @@ class SlaveBox(QWidget):
         self.boxDeleted.emit(self.boxID)
         self.deleteLater()
 
+
+class ColorButton(QPushButton):
+    def __init__(self, text="", parent=None):
+        super().__init__(text, parent)
+        self.rgb = [0, 0, 0]
+        self.setStyleSheet("""
+                                QPushButton {
+                                    background-color: black;
+                                }
+                                QPushButton:checked {
+                                    border: 2px solid #ff9900; 
+                                    padding: 11px;
+                                }
+                            """)
+
+
+    def setColor(self, rgb):
+        self.rgb = rgb
+        self.setStyleSheet("""
+                                QPushButton {
+                                """
+                                    f"background-color: rgb({rgb[0]}, {rgb[1]}, {rgb[2]});"
+                                """
+                                }
+                                QPushButton:checked {
+                                    border: 2px solid #ff9900; 
+                                    padding: 11px;
+                                }
+                            """)
+
+
+
 class TagDialog(QDialog):
-    tagCreated = pyqtSignal(str)
-    def __init__(self, parent=None):
+    tagCreated = pyqtSignal(dict)
+    def __init__(self, rows, columns, parent=None):
         super().__init__(parent)
+        self.rows = rows
+        self.columns = columns
+        self.colors = []
         self.uiCreate()
 
     def uiCreate(self):
+        print(self.rows)
         stateText = QLabel("Состояние")
         self.stateBar = QComboBox()
         self.stateBar.addItems(["On", "Off"])
-        stateLayout = QHBoxLayout()
+        self.stateBar.currentTextChanged.connect(self.changeParams)
+        state = QWidget()
+        stateLayout = QHBoxLayout(state)
         stateLayout.addWidget(stateText)
         stateLayout.addWidget(self.stateBar)
+
+        self.params = QWidget()
+        self.paramsLayer = QVBoxLayout(self.params)
 
         okButton = QPushButton("Ok")
         okButton.clicked.connect(self.onOkClicked)
         cancelButton = QPushButton("Cancel")
         cancelButton.clicked.connect(self.reject)
-        buttonLayout = QHBoxLayout()
+        buttons = QWidget()
+        buttonLayout = QHBoxLayout(buttons)
         buttonLayout.addWidget(okButton)
         buttonLayout.addWidget(cancelButton)
 
         self.mainScreen = QWidget()
-        self.mainLayout = QVBoxLayout(self.mainScreen)
-        self.mainLayout.addLayout(stateLayout)
-        self.mainLayout.addLayout(buttonLayout)
+        self.mainLayout = QHBoxLayout(self.mainScreen)
+        stateWidget = QWidget()
+        stateLayout = QVBoxLayout(stateWidget)
+        stateLayout.addWidget(state)
+        stateLayout.addWidget(self.params)
+        stateLayout.addWidget(buttons)
+
+        colorPickerWidget = QWidget()
+        colorPickerLayout = QVBoxLayout(colorPickerWidget)
+
+        self.colorPicker = ColorPicker()
+        setButton = QPushButton("Set color")
+        setButton.clicked.connect(self.setColor)
+        dropButton = QPushButton("Drop color")
+        dropButton.clicked.connect(self.dropColor)
+
+        colorButtons = QWidget()
+        colorButtonsLayout = QHBoxLayout(colorButtons)
+        colorButtonsLayout.addWidget(setButton)
+        colorButtonsLayout.addWidget(dropButton)
+
+        colorPickerLayout.addWidget(self.colorPicker)
+        colorPickerLayout.addWidget(colorButtons)
+
+        self.mainLayout.addWidget(stateWidget)
+        self.mainLayout.addWidget(colorPickerWidget)
 
         self.setLayout(self.mainLayout)
 
+    def setColor(self):
+        button = self.buttonGroup.checkedButton()
+        if button:
+            rgb = [self.colorPicker.r, self.colorPicker.g, self.colorPicker.b]
+            button.setColor(rgb)
+
+    def dropColor(self):
+        button = self.buttonGroup.checkedButton()
+        if button:
+            rgb = [0, 0, 0]
+            button.setColor(rgb)
+
+    def changeParams(self, state):
+        if state == "On":
+            self.deleteAllWidgets(self.paramsLayer)
+
+            self.buttonGroup = QButtonGroup()
+            self.buttonGroup.setExclusive(True)
+
+            buttons = QWidget()
+            buttonsLayout = QVBoxLayout(buttons)
+            self.rowsLayouts = []
+            for i in range(self.rows):
+                row = QWidget()
+                rowLayout = QHBoxLayout(row)
+                buttonsLayout.addWidget(row)
+                self.rowsLayouts.append(rowLayout)
+                for j in range(self.columns):
+                    button = ColorButton()
+                    button.setFixedSize(20, 20)
+                    button.setCheckable(True)
+                    self.buttonGroup.addButton(button)
+                    rowLayout.addWidget(button)
+            self.paramsLayer.addWidget(buttons)
+
+        elif state == "Off":
+            self.deleteAllWidgets(self.paramsLayer)
+
     def onOkClicked(self):
-        state = self.stateBar.text()
-        if state=='1':
-            self.tagCreated.emit("1")
-        else:
-            self.tagCreated.emit("0")
-        print(state)
+        action = self.stateBar.currentText()
+        data = {}
+        if action=='On':
+            data["action"] = "On"
+            colors = []
+            for layout in self.rowsLayouts:
+                for i in range(layout.count()):
+                    button = layout.itemAt(i).widget()
+                    colors.append(button.rgb)
+            data["colors"] = colors
+            self.tagCreated.emit(data)
+        elif action == "Off":
+            data["action"] = "Off"
+            colors = [[0, 0, 0] for i in range(self.columns * self.rows)]
+            data["colors"] = colors
+            self.tagCreated.emit(data)
         self.accept()
+
+    def deleteAllWidgets(self, layout):
+        if layout is None:
+            return
+
+        while layout.count():
+            item = layout.takeAt(0)
+
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+            elif item.layout() is not None:
+                self.deleteAllWidgets(item.layout())  #
 
 class RenameDialog(QDialog):
     boxRenamed = pyqtSignal(str)

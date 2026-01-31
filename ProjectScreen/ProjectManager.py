@@ -46,7 +46,8 @@ class ProjectManager():
                     for tag in tagsOfType:
                         tagData = {}
                         tagData['time'] = tag.time
-                        tagData['state'] = tag.state
+                        tagData['action'] = tag.action
+                        tagData['colors'] = tag.colors
                         tagsData[tagID] = tagData
                         tagID+=1
                     typeData["tags"] = tagsData

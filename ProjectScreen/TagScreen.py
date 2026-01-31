@@ -24,12 +24,12 @@ class TagInfoScreen(QWidget):
         tagTimeLayout.addWidget(tagTime)
         tagTimeLayout.addWidget(self.tagTimeText)
 
-        tagState = QLabel("Tag state:")
-        self.tagStateText = QLineEdit()
-        self.tagStateText.setEnabled(False)
+        tagState = QLabel("Tag action:")
+        self.tagActionText = QLineEdit()
+        self.tagActionText.setEnabled(False)
         tagStateLayout = QHBoxLayout()
         tagStateLayout.addWidget(tagState)
-        tagStateLayout.addWidget(self.tagStateText)
+        tagStateLayout.addWidget(self.tagActionText)
 
         buttonLayout = QHBoxLayout()
         self.saveButton = QPushButton("Save")
@@ -51,8 +51,8 @@ class TagInfoScreen(QWidget):
         self.tagTypeText.setText(tag.type.name)
         self.tagTimeText.setText(str(tag.time))
         self.tagTimeText.setEnabled(True)
-        self.tagStateText.setText(str(tag.state))
-        self.tagStateText.setEnabled(True)
+        self.tagActionText.setText(str(tag.action))
+        self.tagActionText.setEnabled(True)
         self.saveButton.setEnabled(True)
         self.deleteButton.setEnabled(True)
 

@@ -2,13 +2,14 @@ from pyqtgraph import  InfiniteLine
 from PyQt6 import QtWidgets, QtCore
 
 class Tag(InfiniteLine):
-    def __init__(self, state=None, pos=None, angle=90, pen=None, movable=False, bounds=None,
+    def __init__(self, action=None, colors=None, pos=None, angle=90, pen=None, movable=False, bounds=None,
                  hoverPen=None, type=None, manager = None):
 
         super().__init__(pos=pos, angle=angle, pen=pen, movable=movable,
                          bounds=bounds, hoverPen=hoverPen, name=None)
         self.time = pos.x()
-        self.state = state
+        self.action = action
+        self.colors = colors
         self.type = type
         self.manager = manager
         self.setAcceptHoverEvents(True)

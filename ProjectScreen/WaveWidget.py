@@ -132,18 +132,17 @@ class WaveWidget(pg.PlotWidget):
         elif ev.key() == Qt.Key.Key_Left:
             self.audioPlayer.setPosition(round((self.selectedLine.value() - step) * 1000))
 
-    def addTag(self, state):
+    def addTag(self, data):
         color = self.manager.curType.color
         r, g, b = map(int, color.split(','))
-        tag = Tag(pos = self.selectedLine.pos(), angle=90, pen=pg.mkPen(QColor(r, g, b), width=3), state=state, type = self.manager.curType, manager = self.manager)
-        print(self.selectedLine.pos())
+        tag = Tag(pos = self.selectedLine.pos(), angle=90, pen=pg.mkPen(QColor(r, g, b), width=3), action=data["action"], colors=data["colors"], type = self.manager.curType, manager = self.manager)
         self.addItem(tag)
         self.manager.curType.addTag(tag)
 
-    def addExistingTag(self, params, type):
+    def addExistingTag(self, data, type):
         color = type.color
         r, g, b = map(int, color.split(','))
-        tag = Tag(pos=QPointF(params["time"], 0.0), angle=90, pen=pg.mkPen(QColor(r, g, b), width=3), state=params["state"], type = type, manager = self.manager)
+        tag = Tag(pos=QPointF(data["time"], 0.0), angle=90, pen=pg.mkPen(QColor(r, g, b), width=3), action=data["action"], colors=data["colors"], type = type, manager = self.manager)
         self.addItem(tag)
         type.addTag(tag)
         return tag
