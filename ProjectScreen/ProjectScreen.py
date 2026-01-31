@@ -126,6 +126,7 @@ class ProjectWindow(QMainWindow):
                     params['name'] = tagType
                     manager.addType(params)
                     type = manager.types[params['name']]
+                    print(type.table)
                     tags = []
                     for tagID in params['tags']:
                         print(params['tags'][tagID])

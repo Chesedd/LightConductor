@@ -37,6 +37,8 @@ class ProjectManager():
                     typeData = {}
                     typeData["color"] = type.color
                     typeData["pin"] = type.pin
+                    typeData["row"] = type.row
+                    typeData["table"] = type.table
 
                     tagsOfType = type.tags
                     tagID = 0

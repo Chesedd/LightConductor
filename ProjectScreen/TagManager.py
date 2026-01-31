@@ -47,7 +47,7 @@ class TagManager(QWidget):
         dialog.exec()
 
     def addType(self, params):
-        newType = TagType(params["color"], params["name"], params["pin"])
+        newType = TagType(params["color"], params["name"], params["pin"], params["row"], params["table"])
         self.types[params["name"]] = newType
         button = TagButton(newType, manager=self)
         button.setCheckable(True)
@@ -167,13 +167,29 @@ class newTypeDialog(QDialog):
         multiButton.clicked.connect(self.enablePinAmount)
         typeButtons.addButton(soloButton)
         typeButtons.addButton(multiButton)
-        self.pinAmount = QLineEdit()
-        self.pinAmount.setEnabled(False)
+
+        row = QWidget()
+        rowLayout = QVBoxLayout(row)
+        rowText = QLabel("Row")
+        self.pinAmountRow = QLineEdit()
+        self.pinAmountRow.setEnabled(False)
+        rowLayout.addWidget(rowText)
+        rowLayout.addWidget(self.pinAmountRow)
+
+        table = QWidget()
+        tableLayout = QVBoxLayout(table)
+        tableText = QLabel("Table")
+        self.pinAmountTable = QLineEdit()
+        self.pinAmountTable.setEnabled(False)
+        tableLayout.addWidget(tableText)
+        tableLayout.addWidget(self.pinAmountTable)
+
         pinTypeLayout = QHBoxLayout(pinType)
         pinTypeLayout.addWidget(pinTypeText)
         pinTypeLayout.addWidget(soloButton)
         pinTypeLayout.addWidget(multiButton)
-        pinTypeLayout.addWidget(self.pinAmount)
+        pinTypeLayout.addWidget(row)
+        pinTypeLayout.addWidget(table)
 
 
 
@@ -185,11 +201,14 @@ class newTypeDialog(QDialog):
         self.mainLayout.addWidget(self.newTypeParams)
 
     def disablePinAmount(self):
-        self.pinAmount.setEnabled(False)
-        self.pinAmount.setText("1")
+        self.pinAmountRow.setEnabled(False)
+        self.pinAmountRow.setText("1")
+        self.pinAmountTable.setEnabled(False)
+        self.pinAmountTable.setText("1")
 
     def enablePinAmount(self):
-        self.pinAmount.setEnabled(True)
+        self.pinAmountRow.setEnabled(True)
+        self.pinAmountTable.setEnabled(True)
 
     def initButtons(self):
         self.buttons = QWidget()
@@ -207,7 +226,9 @@ class newTypeDialog(QDialog):
         params = {
             "name": self.newNameBar.text(),
             "color": f"{self.colorPicker.r}, {self.colorPicker.g}, {self.colorPicker.b}",
-            "pin": self.newPinBar.text()
+            "pin": self.newPinBar.text(),
+            "row": int(self.pinAmountRow.text()),
+            "table": int(self.pinAmountTable.text()),
         }
         self.newType.emit(params)
         self.accept()
