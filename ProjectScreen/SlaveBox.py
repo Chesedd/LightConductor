@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import QAction
 from AssistanceTools.TagState import TagState
-from ProjectScreen.TagScreen import TagInfoScreen
+from ProjectScreen.TagScreen import TagInfoScreen, ColorButton
 from AssistanceTools.FlowLayout import FlowLayout
 from AssistanceTools.ColorPicker import ColorPicker
 import bisect
@@ -111,7 +111,7 @@ class SlaveBox(QWidget):
             pos = bisect.bisect_right(times, time) - 1
             if pos >= 0:
                 tag = tags[pos]
-                widget.changeState(tag.state)
+                widget.changeState(tag.action)
             else:
                 widget.changeState(False)
         self.timeLabel.setText(timeStr)
@@ -205,37 +205,6 @@ class SlaveBox(QWidget):
     def deleteBox(self):
         self.boxDeleted.emit(self.boxID)
         self.deleteLater()
-
-
-class ColorButton(QPushButton):
-    def __init__(self, text="", parent=None):
-        super().__init__(text, parent)
-        self.rgb = [0, 0, 0]
-        self.setStyleSheet("""
-                                QPushButton {
-                                    background-color: black;
-                                }
-                                QPushButton:checked {
-                                    border: 2px solid #ff9900; 
-                                    padding: 11px;
-                                }
-                            """)
-
-
-    def setColor(self, rgb):
-        self.rgb = rgb
-        self.setStyleSheet("""
-                                QPushButton {
-                                """
-                                    f"background-color: rgb({rgb[0]}, {rgb[1]}, {rgb[2]});"
-                                """
-                                }
-                                QPushButton:checked {
-                                    border: 2px solid #ff9900; 
-                                    padding: 11px;
-                                }
-                            """)
-
 
 
 class TagDialog(QDialog):
@@ -369,7 +338,7 @@ class TagDialog(QDialog):
                 widget.deleteLater()
 
             elif item.layout() is not None:
-                self.deleteAllWidgets(item.layout())  #
+                self.deleteAllWidgets(item.layout())
 
 class RenameDialog(QDialog):
     boxRenamed = pyqtSignal(str)
