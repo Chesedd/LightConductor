@@ -178,6 +178,7 @@ class ProjectWindow(QMainWindow):
 
         # Преобразуем данные в JSON строку
         json_str = json.dumps(data)
+        pins_str = json.dumps(pins)
 
         # Широковещательный адрес (255.255.255.255 или сетевой broadcast)
         # Лучше использовать сетевой broadcast адрес, например: 192.168.1.255
@@ -188,6 +189,8 @@ class ProjectWindow(QMainWindow):
 
         try:
             # Отправляем данные
+            sock.sendto("pins".encode('utf-8'), (broadcast_address, 12345))
+            sock.sendto(pins_str.encode('utf-8'), (broadcast_address, 12345))
             sock.sendto("partiture".encode('utf-8'), (broadcast_address, 12345))
             sock.sendto(json_str.encode('utf-8'), (broadcast_address, 12345))
             print(f"Sent broadcast to {broadcast_address}:{12345}")
