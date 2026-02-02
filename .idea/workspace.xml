@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="99af408d-ef41-45a2-93c5-5557f162aab5" name="Changes" comment="Remove excess import">
-      <change afterPath="$PROJECT_DIR$/AssistanceTools/SimpleDialog.py" afterDir="false" />
+    <list default="true" id="99af408d-ef41-45a2-93c5-5557f162aab5" name="Changes" comment="Refactor Main screen">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MainScreen/MainScreen.py" beforeDir="false" afterPath="$PROJECT_DIR$/MainScreen/MainScreen.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/MainScreen/ProjectsManager.py" beforeDir="false" afterPath="$PROJECT_DIR$/MainScreen/ProjectsManager.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/projects.json" beforeDir="false" afterPath="$PROJECT_DIR$/projects.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -47,19 +47,19 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "Python.MainScreen.executor": "Run",
-    "Python.ProjectsManager.executor": "Run",
-    "Python.main.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "RefactoringPt1",
-    "settings.editor.selected.configurable": "preferences.pluginManager"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;Python.MainScreen.executor&quot;: &quot;Run&quot;,
+    &quot;Python.ProjectsManager.executor&quot;: &quot;Run&quot;,
+    &quot;Python.main.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;RefactoringPt1&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="C:\Users\Chesed\PycharmProjects\LightConductor\ProjectScreen\PlateLogic" />
@@ -105,14 +105,31 @@
       <option name="project" value="LOCAL" />
       <updated>1770035005834</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="Refactor Main screen">
+      <option name="closed" value="true" />
+      <created>1770040987271</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1770040987271</updated>
+    </task>
+    <task id="LOCAL-00005" summary="Refactor Main screen">
+      <option name="closed" value="true" />
+      <created>1770041173277</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1770041173277</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Add corect delete for projects" />
     <MESSAGE value="Sort files in directories" />
     <MESSAGE value="Remove excess import" />
-    <option name="LAST_COMMIT_MESSAGE" value="Remove excess import" />
+    <MESSAGE value="Refactor Main screen" />
+    <option name="LAST_COMMIT_MESSAGE" value="Refactor Main screen" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

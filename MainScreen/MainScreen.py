@@ -78,7 +78,7 @@ class MainWindow(QMainWindow):
 
     #Загрузка существующих проектов
     def loadExistingProjects(self):
-        projects = self.projectManager.return_all_projects()
+        projects = self.projectManager.returnAllProjects()
         for projectId in projects:
             self.initProject(projects[projectId])
 
@@ -92,7 +92,7 @@ class MainWindow(QMainWindow):
     def initProject(self, data):
         if not data['id']:
             data['id'] = datetime.now().strftime("%Y%m%d%H%M%S%f")
-            self.projectManager.add_project(data)
+            self.projectManager.addProject(data)
 
         buttonsWidget = QWidget()
         buttonsLayout = QHBoxLayout(buttonsWidget)
@@ -120,7 +120,7 @@ class MainWindow(QMainWindow):
 
     #удаление проекта
     def deleteProject(self, projectId):
-        if self.projectManager.delete_project(projectId):
+        if self.projectManager.deleteProject(projectId):
             widget = self.projectWidgets[projectId]
             self.buttonLayout.removeWidget(widget)
             widget.setParent(None)

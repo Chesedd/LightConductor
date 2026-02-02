@@ -7,9 +7,10 @@ class ProjectsManager():
 
     def __init__(self, storage_file="projects.json"):
         self.storage_file = storage_file
-        self.projects = self.load_projects()
+        self.projects = self.loadProjects()
 
-    def load_projects(self):
+    #выгрузка проектов из json файла
+    def loadProjects(self):
         if os.path.exists(self.storage_file):
             try:
                 with open(self.storage_file, 'r', encoding='utf-8') as f:
@@ -23,28 +24,28 @@ class ProjectsManager():
                 return {}
         return {}
 
-    def save_projects(self):
+    #сохранение проектов в json файле
+    def saveProjects(self):
         with open(self.storage_file, 'w', encoding='utf-8') as f:
             json.dump(self.projects, f, indent=4, ensure_ascii=False)
 
-    def add_project(self, project_data):
-        project_id = datetime.now().strftime("%Y%m%d%H%M%S%f")
-        project_data['id'] = project_id
+    #обавление инициализированного проекта
+    def addProject(self, project_data):
         project_data['created_at'] = datetime.now().isoformat()
         os.mkdir(f"Projects/{project_data['project_name']}")
 
-        self.projects[project_id] = project_data
-        self.save_projects()
-        return project_id
+        self.projects[project_data["id"]] = project_data
+        self.saveProjects()
+        return
 
-    def delete_project(self, project_id):
+    def deleteProject(self, project_id):
         if project_id in self.projects:
             projectName = self.projects[project_id]["project_name"]
             shutil.rmtree(f"Projects/{projectName}")
             del self.projects[project_id]
-            self.save_projects()
+            self.saveProjects()
             return True
         return False
 
-    def return_all_projects(self):
+    def returnAllProjects(self):
         return self.projects
