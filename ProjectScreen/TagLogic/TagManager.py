@@ -1,12 +1,12 @@
 from PyQt6.QtWidgets import (QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QDialog,
-                             QLabel, QLineEdit, QToolButton, QButtonGroup, QMenu, QScrollArea, QApplication)
+                             QLabel, QLineEdit, QToolButton, QButtonGroup, QMenu, QScrollArea)
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QAction
-from ProjectScreen.TagType import TagType
+from ProjectScreen.TagLogic.TagType import TagType
 from AssistanceTools.ColorPicker import ColorPicker
 import pyqtgraph as pg
 from PyQt6.QtGui import QColor
-from ProjectScreen.SlaveBox import DeleteDialog
+from ProjectScreen.PlateLogic.SlaveBox import DeleteDialog
 from AssistanceTools.FlowLayout import FlowLayout
 
 class TagManager(QWidget):

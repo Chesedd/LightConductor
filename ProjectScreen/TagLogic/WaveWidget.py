@@ -7,10 +7,9 @@ import numpy as np
 
 import librosa
 
-from ProjectScreen.TagObject import Tag
+from ProjectScreen.TagLogic.TagObject import Tag
 from PyQt6.QtCore import pyqtSignal
-from ProjectScreen.TagManager import TagManager
-from AssistanceTools.ChooseBox import  TagTypeChooseBox
+
 
 class WaveWidget(pg.PlotWidget):
     positionUpdate = pyqtSignal(float, str)

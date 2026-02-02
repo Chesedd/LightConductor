@@ -1,14 +1,10 @@
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
-from PyQt6.QtGui import QAction
-from AssistanceTools.TagState import TagState
-from ProjectScreen.TagScreen import TagInfoScreen
-from ProjectScreen.SlaveBox import SlaveBox
-import bisect
-from ProjectScreen.TagManager import TagManager
+from ProjectScreen.PlateLogic.SlaveBox import SlaveBox
+from ProjectScreen.TagLogic.TagManager import TagManager
 from datetime import datetime
 from AssistanceTools.ChooseBox import  TagTypeChooseBox
-from ProjectScreen.WaveWidget import WaveWidget
+from ProjectScreen.TagLogic.WaveWidget import WaveWidget
 
 
 class newSlaveDialog(QDialog):

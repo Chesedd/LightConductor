@@ -5,15 +5,10 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QPushButton,
 from PyQt6.QtCore import pyqtSignal, Qt, QUrl
 from PyQt6.QtGui import QAction, QKeySequence
 import librosa
-from ProjectScreen.SlaveBox import SlaveBox
-from ProjectScreen.MasterBox import MasterBox
-from ProjectScreen.WaveWidget import WaveWidget
-from ProjectScreen.TagManager import TagManager
+from ProjectScreen.PlateLogic.MasterBox import MasterBox
 from ProjectScreen.ProjectManager import ProjectManager
-from AssistanceTools.ChooseBox import  TagTypeChooseBox
 import socket
 import json
-import time
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 
 from datetime import datetime

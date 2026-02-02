@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import QAction
 from AssistanceTools.TagState import TagState
-from ProjectScreen.TagScreen import TagInfoScreen, ColorButton
+from ProjectScreen.TagLogic.TagScreen import TagInfoScreen, ColorButton
 from AssistanceTools.FlowLayout import FlowLayout
 from AssistanceTools.ColorPicker import ColorPicker
 import bisect
