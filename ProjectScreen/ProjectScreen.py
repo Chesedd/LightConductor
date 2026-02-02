@@ -192,7 +192,11 @@ class ProjectWindow(QMainWindow):
             sock.sendto("pins".encode('utf-8'), (broadcast_address, 12345))
             sock.sendto(pins_str.encode('utf-8'), (broadcast_address, 12345))
             sock.sendto("partiture".encode('utf-8'), (broadcast_address, 12345))
-            sock.sendto(json_str.encode('utf-8'), (broadcast_address, 12345))
+            for slave in data:
+                json_str = json.dumps(data[slave])
+                sock.sendto(slave.encode('utf-8'), (broadcast_address, 12345))
+                sock.sendto(json_str.encode('utf-8'), (broadcast_address, 12345))
+            sock.sendto("end".encode('utf-8'), (broadcast_address, 12345))
             print(f"Sent broadcast to {broadcast_address}:{12345}")
             print(f"Data: {json_str}")
         except Exception as e:
