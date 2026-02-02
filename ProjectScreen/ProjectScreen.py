@@ -171,7 +171,7 @@ class ProjectWindow(QMainWindow):
         self.layout.addWidget(master)
 
     def loadData(self):
-        data = self.dataPack()
+        pins, data = self.dataPack()
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -199,20 +199,25 @@ class ProjectWindow(QMainWindow):
 
     def dataPack(self):
         data = {}
+        pins = {}
         for masterID in self.masters:
             master = self.masters[masterID]
             for slaveID in master.slaves:
                 slave = master.slaves[slaveID]
                 data[slave.slavePin] = {}
+                pins[slave.slavePin] = {}
                 types = slave.wave.manager.types
                 for typeName in types:
                     type = types[typeName]
+                    pins[slave.slavePin][type.pin] = type.table*type.row
                     for tag in type.tags:
                         time = round(tag.time * 1000)
                         if time not in data:
                             data[slave.slavePin][time] = {}
-                        data[slave.slavePin][time][type.pin] = tag.state
-        return data
+                        data[slave.slavePin][time][type.pin] = {}
+                        data[slave.slavePin][time][type.pin]["action"] = tag.action
+                        data[slave.slavePin][time][type.pin]["colors"] = tag.colors
+        return pins, data
 
     def startShow(self):
         self.audioPlayer.setPosition(0)
