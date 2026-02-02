@@ -12,17 +12,23 @@ from ProjectScreen.WaveWidget import WaveWidget
 
 
 class newSlaveDialog(QDialog):
-    slaveCreated = pyqtSignal(str)
+    slaveCreated = pyqtSignal(dict)
     def __init__(self, parent=None):
         super().__init__(parent)
         self.uiCreate()
 
     def uiCreate(self):
-        slaveNameText = QLabel("Master's name")
+        slaveNameText = QLabel("Slave's name")
         self.slaveNameBar = QLineEdit()
         slaveNameLayout = QHBoxLayout()
         slaveNameLayout.addWidget(slaveNameText)
         slaveNameLayout.addWidget(self.slaveNameBar)
+
+        pinText = QLabel("Slave pin")
+        self.pinBar = QLineEdit()
+        pinLayout = QHBoxLayout()
+        pinLayout.addWidget(pinText)
+        pinLayout.addWidget(self.pinBar)
 
         okButton = QPushButton("Ok")
         okButton.clicked.connect(self.onOkClicked)
@@ -35,13 +41,16 @@ class newSlaveDialog(QDialog):
         self.mainScreen = QWidget()
         self.mainLayout = QVBoxLayout(self.mainScreen)
         self.mainLayout.addLayout(slaveNameLayout)
+        self.mainLayout.addLayout(pinLayout)
         self.mainLayout.addLayout(buttonLayout)
 
         self.setLayout(self.mainLayout)
 
     def onOkClicked(self):
-        slaveTitle = self.slaveNameBar.text()
-        self.slaveCreated.emit(slaveTitle)
+        data = {}
+        data["name"] = self.slaveNameBar.text()
+        data["pin"] = self.pinBar.text()
+        self.slaveCreated.emit(data)
         self.accept()
 
 class MasterBox(QWidget):
@@ -124,13 +133,13 @@ class MasterBox(QWidget):
         dialog = newSlaveDialog(self)
         dialog.slaveCreated.connect(self.addSlave)
         dialog.exec()
-    def addSlave(self, slaveTitle, boxID=None):
+    def addSlave(self, slaveData, boxID=None):
         chooseBox = TagTypeChooseBox("Visible tags")
         manager = TagManager(chooseBox)
         wave = WaveWidget(self.audio, self.sr, manager, chooseBox, self.audioPath)
         if boxID is None:
             boxID = datetime.now().strftime("%Y%m%d%H%M%S%f")
-        slave = SlaveBox(title=slaveTitle, boxID=boxID, wave=wave)
+        slave = SlaveBox(title=slaveData["name"], boxID=boxID, wave=wave, slavePin=slaveData["pin"])
         slave.boxDeleted.connect(self.deleteSlavesData)
 
         self.slaves[boxID] = slave

@@ -9,13 +9,15 @@ import bisect
 
 class SlaveBox(QWidget):
     boxDeleted = pyqtSignal(str)
-    def __init__(self, title="", parent=None, boxID='', wave=None):
+    def __init__(self, title="", parent=None, boxID='', wave=None, slavePin = ''):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         self.mainLayout = QVBoxLayout(self)
         self.mainLayout.setContentsMargins(0, 0, 0, 0)
         self.mainLayout.setSpacing(0)
+
+        self.slavePin = slavePin
 
         self.title = title
         self.boxID = boxID
@@ -29,7 +31,7 @@ class SlaveBox(QWidget):
         self.mainLayout.addWidget(self.toggleButton)
         self.mainLayout.addWidget(self.contentArea)
 
-        self.toggleButton.setText("▼ "+title)
+        self.toggleButton.setText(f"▼ {title} (pin: {slavePin})")
 
         self.initUI()
 

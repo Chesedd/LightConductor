@@ -55,6 +55,7 @@ class ProjectManager():
                     typesData[type.name] = typeData
                 slavesData[slaveID] = {}
                 slavesData[slaveID]['name'] = saveSlave.title
+                slavesData[slaveID]['pin'] = saveSlave.slavePin
                 slavesData[slaveID]['id'] = saveSlave.boxID
                 slavesData[slaveID]['tagTypes'] = typesData
             self.boxes[masterID] = {}

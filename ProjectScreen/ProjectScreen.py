@@ -118,8 +118,11 @@ class ProjectWindow(QMainWindow):
             masterWidget = self.masters[master["id"]]
             for slaveID in slaves:
                 slave = slaves[slaveID]
+                slaveData = {}
+                slaveData["name"] = slave["name"]
+                slaveData["pin"] = slave["pin"]
                 tagTypes = slave['tagTypes']
-                masterWidget.addSlave(slave["name"], slave["id"])
+                masterWidget.addSlave(slaveData, slave["id"])
                 manager = self.masters[master["id"]].slaves[slave["id"]].wave.manager
                 for tagType in tagTypes:
                     params = tagTypes[tagType]
