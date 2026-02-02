@@ -203,14 +203,15 @@ class ProjectWindow(QMainWindow):
             master = self.masters[masterID]
             for slaveID in master.slaves:
                 slave = master.slaves[slaveID]
+                data[slave.slavePin] = {}
                 types = slave.wave.manager.types
                 for typeName in types:
                     type = types[typeName]
                     for tag in type.tags:
                         time = round(tag.time * 1000)
                         if time not in data:
-                            data[time] = {}
-                        data[time][type.pin] = tag.state
+                            data[slave.slavePin][time] = {}
+                        data[slave.slavePin][time][type.pin] = tag.state
         return data
 
     def startShow(self):
