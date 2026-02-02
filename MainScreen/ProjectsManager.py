@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 from datetime import datetime
 
 class ProjectsManager():
@@ -12,7 +13,12 @@ class ProjectsManager():
         if os.path.exists(self.storage_file):
             try:
                 with open(self.storage_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    projectsData = json.load(f)
+                    returnData = {}
+                    for projId in projectsData:
+                        if os.path.exists(f"Projects/{projectsData[projId]['project_name']}"):
+                            returnData[projId] = projectsData[projId]
+                    return returnData
             except (json.JSONDecodeError, KeyError):
                 return {}
         return {}
@@ -34,7 +40,7 @@ class ProjectsManager():
     def delete_project(self, project_id):
         if project_id in self.projects:
             projectName = self.projects[project_id]["project_name"]
-            os.rmdir(f"Projects/{projectName}")
+            shutil.rmtree(f"Projects/{projectName}")
             del self.projects[project_id]
             self.save_projects()
             return True
