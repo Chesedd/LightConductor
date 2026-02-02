@@ -1,7 +1,7 @@
 from MainScreen.ProjectsManager import  ProjectsManager
 from PyQt6.QtWidgets import (
     QMainWindow, QPushButton, QVBoxLayout,
-    QHBoxLayout, QWidget, QLabel, QLineEdit)
+    QHBoxLayout, QWidget)
 from PyQt6.QtCore import pyqtSignal
 from ProjectScreen.ProjectScreen import ProjectWindow
 from datetime import datetime
