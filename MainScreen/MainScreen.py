@@ -1,148 +1,134 @@
 from MainScreen.ProjectsManager import  ProjectsManager
 from PyQt6.QtWidgets import (
-    QMainWindow, QPushButton, QDialog, QVBoxLayout,
+    QMainWindow, QPushButton, QVBoxLayout,
     QHBoxLayout, QWidget, QLabel, QLineEdit)
 from PyQt6.QtCore import pyqtSignal
 from ProjectScreen.ProjectScreen import ProjectWindow
+from datetime import datetime
+from AssistanceTools.SimpleDialog import SimpleDialog
 
-class NewProjectScreen(QDialog):
-    project_created = pyqtSignal(dict)
+class NewProjectScreen(SimpleDialog):
+    projectCreated = pyqtSignal(dict)
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Новый проект")
         self.setModal(True)
-        self.params_create()
-        self.buttons_create()
 
-        main_layout = QVBoxLayout()
-        main_layout.addWidget(self.params)
-        main_layout.addWidget(self.buttons)
-        self.setLayout(main_layout)
+        mainLayout = QVBoxLayout()
+        self.setLayout(mainLayout)
 
-    def params_create(self):
-        project_name_text = QLabel("Название проекта")
-        self.project_name_bar = QLineEdit()
-        project_name_layout = QHBoxLayout()
-        project_name_layout.addWidget(project_name_text)
-        project_name_layout.addWidget(self.project_name_bar)
+        self.paramsCreate()
+        self.buttonsCreate()
 
-        song_name_text = QLabel("Трек")
-        self.song_name_bar = QLineEdit()
-        song_name_layout = QHBoxLayout()
-        song_name_layout.addWidget(song_name_text)
-        song_name_layout.addWidget(self.song_name_bar)
+    #создание баров под название и трек
+    def paramsCreate(self):
+        self.projectNameBar = self.LabelAndLine("Название проекта")
+        self.songNameBar = self.LabelAndLine("Трек")
 
-        self.params = QWidget()
-        params_layout = QVBoxLayout(self.params)
-        params_layout.addLayout(project_name_layout)
-        params_layout.addLayout(song_name_layout)
 
-    def buttons_create(self):
-        self.buttons = QWidget()
-        buttons_layout = QHBoxLayout(self.buttons)
-        ok_btn = QPushButton("OK")
-        ok_btn.clicked.connect(self.on_ok_clicked)
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        buttons_layout.addWidget(ok_btn)
-        buttons_layout.addWidget(cancel_btn)
+    #создание ok и cancel
+    def buttonsCreate(self):
+        okBtn = self.OkAndCancel()
+        okBtn.clicked.connect(self.onOkClicked)
 
-    def on_ok_clicked(self):
+    def onOkClicked(self):
         data = {
-            'project_name': self.project_name_bar.text(),
-            'song_name': self.song_name_bar.text()
+            'project_name': self.projectNameBar.text(),
+            'song_name': self.songNameBar.text(),
+            'id': ''
         }
-        self.project_created.emit(data)
+        self.projectCreated.emit(data)
         self.accept()
-
-class NewProjectButton(QPushButton):
-    def __init__(self):
-        super().__init__()
-
-        self.setFixedHeight(80)
-        self.setText("New project")
 
 class MainWindow(QMainWindow):
 
     def __init__(self):
         super(MainWindow, self).__init__()
-        self.setWindowTitle("LightConductor")
-        self.project_system_init()
+
+        self.projectManager = ProjectsManager() #проектный мэнеджер
+        self.projectWidgets = {} # айди проекта -> бокс с кнопками
+
+        self.initUI()
+        self.loadExistingProjects()
         self.showMaximized()
 
-    def project_system_init(self):
-        self.project_manager = ProjectsManager()
+    #инициализация интерфейса
+    def initUI(self):
+        self.setWindowTitle("LightConductor")
 
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        self.layout = QVBoxLayout(central_widget)
+        centralWidget = QWidget()
+        self.setCentralWidget(centralWidget)
+        self.layout = QVBoxLayout(centralWidget)
         self.layout.addStretch(1)
 
-        button_container = QWidget()
-        self.layout.addWidget(button_container)
-        self.button_layout = QVBoxLayout(button_container)
-        self.button_layout.setSpacing(0)
-        self.button_layout.setContentsMargins(0, 0, 0, 0)
+        self.createUIButtons()
 
-        new_project_btn = NewProjectButton()
-        new_project_btn.clicked.connect(self.show_project_dialog)
-        self.button_layout.addWidget(new_project_btn)
+    #создание пространства под кнопки и кнопки нового проекта
+    def createUIButtons(self):
+        buttonContainer = QWidget()
+        self.buttonLayout = QVBoxLayout(buttonContainer)
+        self.layout.addWidget(buttonContainer)
+        self.buttonLayout.setSpacing(0)
+        self.buttonLayout.setContentsMargins(0, 0, 0, 0)
 
-        self.project_widgets = {}
-        self.load_existing_projects()
+        newProjectBtn = QPushButton("New project")
+        newProjectBtn.setFixedHeight(80)
+        newProjectBtn.clicked.connect(self.showProjectDialog)
+        self.buttonLayout.addWidget(newProjectBtn)
 
-    def load_existing_projects(self):
-        projects = self.project_manager.return_all_projects()
-        for project_id, project_data in projects.items():
-            self.create_project_widget(project_data)
+    #Загрузка существующих проектов
+    def loadExistingProjects(self):
+        projects = self.projectManager.return_all_projects()
+        for projectId in projects:
+            self.initProject(projects[projectId])
 
-
-    def show_project_dialog(self):
+    #открытие диалога нового проекта
+    def showProjectDialog(self):
         dialog = NewProjectScreen(self)
-        dialog.project_created.connect(self.create_project)
+        dialog.projectCreated.connect(self.initProject)
         dialog.exec()
 
-    def create_project(self, data):
-        prject_id = self.project_manager.add_project(data)
+    #создание нового проекта/инициализация старого
+    def initProject(self, data):
+        if not data['id']:
+            data['id'] = datetime.now().strftime("%Y%m%d%H%M%S%f")
+            self.projectManager.add_project(data)
 
-        self.create_project_widget(data)
+        buttonsWidget = QWidget()
+        buttonsLayout = QHBoxLayout(buttonsWidget)
+        buttonsLayout.setSpacing(0)
 
-    def create_project_widget(self, data):
-        project_id = data['id']
+        projectBtn = self.createProjectButton(data['project_name'], buttonsLayout, 10)
+        projectBtn.clicked.connect(lambda checked, pdata=data: self.openProject(pdata))
 
-        buttons_widget = QWidget()
-        buttons_layout = QHBoxLayout(buttons_widget)
-        buttons_layout.setSpacing(0)
+        renameButton = self.createProjectButton('Rename', buttonsLayout, 1)
 
-        project_btn = QPushButton(data['project_name'])
-        project_btn.setFixedHeight(60)
-        project_btn.clicked.connect(lambda checked, pdata=data: self.open_project(pdata))
-        buttons_layout.addWidget(project_btn)
-        buttons_layout.setStretchFactor(project_btn, 10)
+        deleteButton = self.createProjectButton("Delete", buttonsLayout, 1)
+        deleteButton.clicked.connect(lambda checked, pid=data['id']: self.deleteProject(pid))
 
-        rename_button = QPushButton("R")
-        rename_button.setFixedHeight(60)
-        buttons_layout.addWidget(rename_button)
-        buttons_layout.setStretchFactor(rename_button, 1)
+        self.buttonLayout.insertWidget(self.buttonLayout.count() - 1, buttonsWidget)
 
-        delete_button = QPushButton("D")
-        delete_button.setFixedHeight(60)
-        delete_button.clicked.connect(lambda checked, pid=project_id: self.delete_project(pid))
-        buttons_layout.addWidget(delete_button)
-        buttons_layout.setStretchFactor(delete_button, 1)
+        self.projectWidgets[data['id']] = buttonsWidget
 
-        self.button_layout.insertWidget(self.button_layout.count() - 1,   buttons_widget)
+    #создание кнопки для бокса проектных кнопок
+    def createProjectButton(self, text, buttonLayout, stretch):
+        button = QPushButton(text)
+        button.setFixedHeight(60)
+        buttonLayout.addWidget(button)
+        buttonLayout.setStretchFactor(button, stretch)
+        return button
 
-        self.project_widgets[project_id] = buttons_widget
-
-    def delete_project(self, project_id):
-        if self.project_manager.delete_project(project_id):
-            widget = self.project_widgets[project_id]
-            self.button_layout.removeWidget(widget)
+    #удаление проекта
+    def deleteProject(self, projectId):
+        if self.projectManager.delete_project(projectId):
+            widget = self.projectWidgets[projectId]
+            self.buttonLayout.removeWidget(widget)
             widget.setParent(None)
             widget.deleteLater()
-            del self.project_widgets[project_id]
-    def open_project(self, project_data):
+            del self.projectWidgets[projectId]
+
+    #открытие проекта
+    def openProject(self, project_data):
         self.project = ProjectWindow(project_data)
         self.project.show()
         self.hide()
