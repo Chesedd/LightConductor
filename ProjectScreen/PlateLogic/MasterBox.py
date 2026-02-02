@@ -1,5 +1,7 @@
-from PyQt6.QtWidgets import *
-from PyQt6.QtCore import *
+from PyQt6.QtWidgets import (
+    QDialog, QLabel, QLineEdit, QHBoxLayout, QVBoxLayout, QPushButton,
+    QScrollArea, QWidget, QSizePolicy, QFrame)
+from PyQt6.QtCore import pyqtSignal, Qt
 from ProjectScreen.PlateLogic.SlaveBox import SlaveBox
 from ProjectScreen.TagLogic.TagManager import TagManager
 from datetime import datetime

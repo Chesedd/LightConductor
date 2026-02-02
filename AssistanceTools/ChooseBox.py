@@ -1,7 +1,6 @@
-import sys
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout,
-    QHBoxLayout, QCheckBox, QGroupBox, QScrollArea
+    QWidget, QVBoxLayout,
+    QCheckBox, QGroupBox, QScrollArea
 )
 from PyQt6.QtCore import pyqtSignal
 

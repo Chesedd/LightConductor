@@ -1,4 +1,4 @@
-from  PyQt6.QtWidgets import QWidget, QLabel, QLineEdit, QVBoxLayout, QHBoxLayout, QPushButton, QSizePolicy, QButtonGroup
+from  PyQt6.QtWidgets import QWidget, QLabel, QLineEdit, QVBoxLayout, QHBoxLayout, QPushButton, QButtonGroup
 from AssistanceTools.ColorPicker import ColorPicker
 
 class ColorButton(QPushButton):

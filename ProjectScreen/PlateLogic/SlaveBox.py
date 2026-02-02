@@ -1,5 +1,7 @@
-from PyQt6.QtWidgets import *
-from PyQt6.QtCore import *
+from PyQt6.QtWidgets import (
+    QDialog, QLabel, QLineEdit, QHBoxLayout, QVBoxLayout, QPushButton,
+    QScrollArea, QWidget, QSizePolicy, QFrame, QMenu, QComboBox, QButtonGroup)
+from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtGui import QAction
 from AssistanceTools.TagState import TagState
 from ProjectScreen.TagLogic.TagScreen import TagInfoScreen, ColorButton

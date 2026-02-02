@@ -1,4 +1,3 @@
-import sys
 from MainScreen.ProjectsManager import  ProjectsManager
 from PyQt6.QtWidgets import (
     QMainWindow, QPushButton, QDialog, QVBoxLayout,

@@ -1,5 +1,8 @@
-from PyQt6.QtWidgets import *
-from PyQt6.QtCore import *
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QLabel, QSlider, QHBoxLayout,
+    QLineEdit
+)
+from PyQt6.QtCore import Qt
 
 class ColorPicker(QWidget):
     def __init__(self):
