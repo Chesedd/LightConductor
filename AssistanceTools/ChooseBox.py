@@ -26,8 +26,6 @@ class TagTypeChooseBox(QGroupBox):
         self.mainLauout.addWidget(self.scrollArea)
         self.setLayout(self.mainLauout)
 
-
-
     def addType(self, title):
         buttonChecker = QCheckBox(title)
         buttonChecker.toggled.connect(self.onStateChanged)

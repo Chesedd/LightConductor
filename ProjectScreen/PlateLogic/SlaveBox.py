@@ -276,7 +276,7 @@ class TagDialog(QDialog):
     def setColor(self):
         button = self.buttonGroup.checkedButton()
         if button:
-            rgb = [self.colorPicker.r, self.colorPicker.g, self.colorPicker.b]
+            rgb = [self.colorPicker.rgb[0], self.colorPicker.rgb[1], self.colorPicker.rgb[2]]
             button.setColor(rgb)
 
     def dropColor(self):

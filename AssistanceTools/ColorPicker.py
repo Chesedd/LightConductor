@@ -7,26 +7,24 @@ from PyQt6.QtCore import Qt
 class ColorPicker(QWidget):
     def __init__(self):
         super().__init__()
+        self.slidersLabels = []
+        self.rgb = [0, 0, 0]
         self.initUI()
 
     def initUI(self):
-        mainLayout = QVBoxLayout()
+        mainLayout = QVBoxLayout(self)
 
         title = QLabel("Color")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         mainLayout.addWidget(title)
 
-        self.sliderR, self.labelR = self.createSliderBox("R", 0, 255)
-        self.sliderG, self.labelG = self.createSliderBox("G", 0, 255)
-        self.sliderB, self.labelB = self.createSliderBox("B", 0, 255)
-
         slidersLayout = QVBoxLayout()
-        slidersLayout.addWidget(self.labelR)
-        slidersLayout.addWidget(self.sliderR)
-        slidersLayout.addWidget(self.labelG)
-        slidersLayout.addWidget(self.sliderG)
-        slidersLayout.addWidget(self.labelB)
-        slidersLayout.addWidget(self.sliderB)
+        for color in "RGB":
+            slider, label = self.createSliderBox(color, 0, 255)
+            slidersLayout.addWidget(label)
+            slidersLayout.addWidget(slider)
+            self.slidersLabels.append([slider, label])
+
         mainLayout.addLayout(slidersLayout)
 
         self.colorSquare = QLabel()
@@ -34,9 +32,9 @@ class ColorPicker(QWidget):
         self.colorSquare.setStyleSheet("background-color: rgb(0, 0, 0); border: 2px solid black;")
         mainLayout.addWidget(self.colorSquare, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        self.setLayout(mainLayout)
         self.updateColor()
 
+    #создание слайдера и лайна под цвет
     def createSliderBox(self, labelText, minVal, maxVal):
         container = QWidget()
         layout = QHBoxLayout(container)
@@ -71,19 +69,14 @@ class ColorPicker(QWidget):
             pass
 
     def updateColor(self):
-        self.r = self.sliderR.value()
-        self.g = self.sliderG.value()
-        self.b = self.sliderB.value()
+        for i in range(3):
+            self.rgb[i] = self.slidersLabels[i][0].value()
 
         self.colorSquare.setStyleSheet(
-            f"background-color: rgb({self.r}, {self.g}, {self.b}); "
+            f"background-color: rgb({self.rgb[0]}, {self.rgb[1]}, {self.rgb[2]}); "
             f"border: 2px solid black;"
         )
 
-        for slider, labelWidget in [
-            (self.sliderR, self.labelR),
-            (self.sliderG, self.labelG),
-            (self.sliderB, self.labelB)
-        ]:
+        for slider, labelWidget in self.slidersLabels:
             valueEdit = labelWidget.layout().itemAt(1).widget()
             valueEdit.setText(str(slider.value()))

@@ -87,10 +87,9 @@ class editDialog(QDialog):
 
         self.colorPicker = ColorPicker()
         color = self.type.color
-        r, g, b = map(int, color.split(','))
-        self.colorPicker.sliderR.setValue(r)
-        self.colorPicker.sliderG.setValue(g)
-        self.colorPicker.sliderB.setValue(b)
+        rgb = map(int, color.split(','))
+        for i in range(3):
+            self.colorPicker.slidersLabels[i][0].setValue(rgb[i])
 
         newPin = QWidget()
         newPinText = QLabel("Pin")
@@ -120,7 +119,7 @@ class editDialog(QDialog):
     def on_ok_clicked(self):
         params = {
             "name": self.newNameBar.text(),
-            "color": f"{self.colorPicker.r}, {self.colorPicker.g}, {self.colorPicker.b}",
+            "color": f"{self.colorPicker.rgb[0]}, {self.colorPicker.rgb[1]}, {self.colorPicker.rgb[2]}",
             "pin": self.newPinBar.text()
         }
         self.editType.emit(params)
@@ -225,7 +224,7 @@ class newTypeDialog(QDialog):
     def on_ok_clicked(self):
         params = {
             "name": self.newNameBar.text(),
-            "color": f"{self.colorPicker.r}, {self.colorPicker.g}, {self.colorPicker.b}",
+            "color": f"{self.colorPicker.rgb[0]}, {self.colorPicker.rgb[1]}, {self.colorPicker.rgb[2]}",
             "pin": self.newPinBar.text(),
             "row": int(self.pinAmountRow.text()),
             "table": int(self.pinAmountTable.text()),
