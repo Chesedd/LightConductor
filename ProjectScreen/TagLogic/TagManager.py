@@ -57,6 +57,7 @@ class TagManager(QWidget):
 
         self.checkBox.addType(params["name"])
         self.newTypeCreate.emit(newType)
+        return newType
 
     def setNewType(self):
         self.curType = self.buttons.checkedButton().tagType
@@ -189,8 +190,6 @@ class newTypeDialog(QDialog):
         pinTypeLayout.addWidget(multiButton)
         pinTypeLayout.addWidget(row)
         pinTypeLayout.addWidget(table)
-
-
 
         newTypeLayout.addWidget(newName)
         newTypeLayout.addWidget(self.colorPicker)

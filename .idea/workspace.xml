@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="99af408d-ef41-45a2-93c5-5557f162aab5" name="Changes" comment="Refactor projects manager">
-      <change beforePath="$PROJECT_DIR$/AssistanceTools/ChooseBox.py" beforeDir="false" afterPath="$PROJECT_DIR$/AssistanceTools/ChooseBox.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AssistanceTools/ColorPicker.py" beforeDir="false" afterPath="$PROJECT_DIR$/AssistanceTools/ColorPicker.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ProjectScreen/PlateLogic/SlaveBox.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/PlateLogic/SlaveBox.py" afterDir="false" />
+    <list default="true" id="99af408d-ef41-45a2-93c5-5557f162aab5" name="Changes" comment="Refactor project manager">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectScreen/ProjectScreen.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/ProjectScreen.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ProjectScreen/TagLogic/TagManager.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/TagLogic/TagManager.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ProjectScreen/TagLogic/TagScreen.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectScreen/TagLogic/TagScreen.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -53,9 +51,12 @@
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "Python.ColorPicker.executor": "Run",
     "Python.MainScreen.executor": "Run",
+    "Python.ProjectManager.executor": "Run",
+    "Python.ProjectScreen.executor": "Run",
     "Python.ProjectsManager.executor": "Run",
     "Python.SlaveBox.executor": "Run",
     "Python.TagScreen.executor": "Run",
+    "Python.TagState.executor": "Run",
     "Python.main.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
@@ -133,7 +134,23 @@
       <option name="project" value="LOCAL" />
       <updated>1770059811540</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="Refactor color picker">
+      <option name="closed" value="true" />
+      <created>1770061577529</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1770061577529</updated>
+    </task>
+    <task id="LOCAL-00008" summary="Refactor project manager">
+      <option name="closed" value="true" />
+      <created>1770063652244</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1770063652244</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -142,7 +159,9 @@
     <MESSAGE value="Remove excess import" />
     <MESSAGE value="Refactor Main screen" />
     <MESSAGE value="Refactor projects manager" />
-    <option name="LAST_COMMIT_MESSAGE" value="Refactor projects manager" />
+    <MESSAGE value="Refactor color picker" />
+    <MESSAGE value="Refactor project manager" />
+    <option name="LAST_COMMIT_MESSAGE" value="Refactor project manager" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
