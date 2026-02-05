@@ -1,48 +1,27 @@
-from PyQt6.QtWidgets import (
-    QDialog, QLabel, QLineEdit, QHBoxLayout, QVBoxLayout, QPushButton,
-    QScrollArea, QWidget, QSizePolicy, QFrame)
-from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtWidgets import QVBoxLayout, QPushButton
+from PyQt6.QtCore import pyqtSignal
 from ProjectScreen.PlateLogic.SlaveBox import SlaveBox
 from ProjectScreen.TagLogic.TagManager import TagManager
 from datetime import datetime
 from AssistanceTools.ChooseBox import  TagTypeChooseBox
+from AssistanceTools.SimpleDialog import SimpleDialog
 from ProjectScreen.TagLogic.WaveWidget import WaveWidget
+from AssistanceTools.DropBox import DropBox
 
-
-class newSlaveDialog(QDialog):
+class newSlaveDialog(SimpleDialog):
     slaveCreated = pyqtSignal(dict)
     def __init__(self, parent=None):
         super().__init__(parent)
         self.uiCreate()
 
     def uiCreate(self):
-        slaveNameText = QLabel("Slave's name")
-        self.slaveNameBar = QLineEdit()
-        slaveNameLayout = QHBoxLayout()
-        slaveNameLayout.addWidget(slaveNameText)
-        slaveNameLayout.addWidget(self.slaveNameBar)
+        self.mainLayout = QVBoxLayout(self)
 
-        pinText = QLabel("Slave pin")
-        self.pinBar = QLineEdit()
-        pinLayout = QHBoxLayout()
-        pinLayout.addWidget(pinText)
-        pinLayout.addWidget(self.pinBar)
+        self.slaveNameBar = self.LabelAndLine("Slave's name")
+        self.pinBar = self.LabelAndLine("Slave pin")
 
-        okButton = QPushButton("Ok")
+        okButton = self.OkAndCancel()
         okButton.clicked.connect(self.onOkClicked)
-        cancelButton = QPushButton("Cancel")
-        cancelButton.clicked.connect(self.reject)
-        buttonLayout = QHBoxLayout()
-        buttonLayout.addWidget(okButton)
-        buttonLayout.addWidget(cancelButton)
-
-        self.mainScreen = QWidget()
-        self.mainLayout = QVBoxLayout(self.mainScreen)
-        self.mainLayout.addLayout(slaveNameLayout)
-        self.mainLayout.addLayout(pinLayout)
-        self.mainLayout.addLayout(buttonLayout)
-
-        self.setLayout(self.mainLayout)
 
     def onOkClicked(self):
         data = {}
@@ -51,15 +30,9 @@ class newSlaveDialog(QDialog):
         self.slaveCreated.emit(data)
         self.accept()
 
-class MasterBox(QWidget):
-    boxDeleted = pyqtSignal(str)
+class MasterBox(DropBox):
     def __init__(self, title="", parent=None, boxID='', audio=None, sr=None, aydioPath=None):
         super().__init__(parent)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-
-        self.mainLayout = QVBoxLayout(self)
-        self.mainLayout.setContentsMargins(0, 0, 0, 0)
-        self.mainLayout.setSpacing(0)
 
         self.title = title
         self.boxID = boxID
@@ -69,68 +42,20 @@ class MasterBox(QWidget):
 
         self.slaves = {}
 
-        self.createTitleButton()
-        self.createContentArea()
-
-        self.mainLayout.addWidget(self.toggleButton)
-        self.mainLayout.addWidget(self.contentArea)
-
         self.toggleButton.setText("▼ "+title)
-    def createTitleButton(self):
-        self.toggleButton = QPushButton()
-        self.toggleButton.setCheckable(True)
-        self.toggleButton.setChecked(False)
-        self.toggleButton.setStyleSheet("""
-            QPushButton {
-                text-align: left;
-                padding: 8px;
-                border: 1px solid #ccc;
-                background-color: #f0f0f0;
-            }
-            QPushButton:hover {
-                background-color: #e0e0e0;
-            }
-            QPushButton:checked {
-                background-color: #d0d0d0;
-                border-bottom: none;
-            }
-        """)
-        self.toggleButton.toggled.connect(self.onToggled)
+        self.initSlaveButton()
 
-    def createContentArea(self):
-        self.contentArea = QScrollArea()
-        self.contentArea.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.contentArea.setMaximumHeight(0)
-        self.contentArea.setMinimumHeight(0)
-        self.contentArea.setFrameShape(QFrame.Shape.NoFrame)
-        self.contentArea.setWidgetResizable(True)
 
-        self.contentWidget = QWidget()
-        self.contentLayout = QVBoxLayout(self.contentWidget)
-        self.contentLayout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.contentLayout.setSpacing(5)
-        self.contentLayout.setContentsMargins(10, 10, 10, 10)
-        self.contentArea.setWidget(self.contentWidget)
-
+    def initSlaveButton(self):
         newSlaveButton = QPushButton("New slave")
         newSlaveButton.clicked.connect(self.showSlaveDialog)
         self.contentLayout.addWidget(newSlaveButton)
-
-    def onToggled(self, checked):
-        if checked:
-            self.toggleButton.setText("► " + self.toggleButton.text()[2:])
-            self.contentArea.setMaximumHeight(16777215)
-            self.contentArea.setMinimumHeight(600)
-        else:
-            self.toggleButton.setText("▼ " + self.toggleButton.text()[2:])
-            self.contentArea.setMaximumHeight(0)
-            self.contentArea.setMinimumHeight(0)
-
 
     def showSlaveDialog(self):
         dialog = newSlaveDialog(self)
         dialog.slaveCreated.connect(self.addSlave)
         dialog.exec()
+
     def addSlave(self, slaveData, boxID=None):
         chooseBox = TagTypeChooseBox("Visible tags")
         manager = TagManager(chooseBox)
