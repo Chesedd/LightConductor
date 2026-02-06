@@ -1,4 +1,4 @@
-from  PyQt6.QtWidgets import QWidget, QLabel, QLineEdit, QVBoxLayout, QHBoxLayout, QPushButton, QSizePolicy, QButtonGroup
+from  PyQt6.QtWidgets import QWidget, QLabel, QLineEdit, QVBoxLayout, QHBoxLayout, QPushButton, QButtonGroup
 from AssistanceTools.ColorPicker import ColorPicker
 
 class ColorButton(QPushButton):
@@ -55,6 +55,18 @@ class TagInfoScreen(QWidget):
         self.tagState = QWidget()
         self.tagStateLayout = QVBoxLayout(self.tagState)
 
+        tagTime, tagAction = self.initMainLabels()
+
+        paramsLayout.addWidget(tagTypeWidget)
+        paramsLayout.addWidget(self.tagState)
+        paramsLayout.addWidget(tagTime)
+        paramsLayout.addWidget(tagAction)
+        paramsLayout.addWidget(self.initMainButtons())
+
+        self.mainLayout.addWidget(params)
+        self.mainLayout.addWidget(self.initColorWidget())
+
+    def initMainLabels(self):
         tagTime = QLabel("Tag time:")
         self.tagTimeText = QLineEdit()
         self.tagTimeText.setEnabled(False)
@@ -71,6 +83,9 @@ class TagInfoScreen(QWidget):
         tagActionLayout.addWidget(tagAction)
         tagActionLayout.addWidget(self.tagActionText)
 
+        return tagTimeWidget, tagActionWidget
+
+    def initMainButtons(self):
         buttonWidget = QWidget()
         buttonLayout = QHBoxLayout(buttonWidget)
         self.saveButton = QPushButton("Save")
@@ -82,12 +97,10 @@ class TagInfoScreen(QWidget):
         buttonLayout.addWidget(self.saveButton)
         buttonLayout.addWidget(self.deleteButton)
 
-        paramsLayout.addWidget(tagTypeWidget)
-        paramsLayout.addWidget(self.tagState)
-        paramsLayout.addWidget(tagTimeWidget)
-        paramsLayout.addWidget(tagActionWidget)
-        paramsLayout.addWidget(buttonWidget)
+        return buttonWidget
 
+
+    def initColorWidget(self):
         colorPickerWidget = QWidget()
         colorPickerLayout = QVBoxLayout(colorPickerWidget)
 
@@ -105,13 +118,13 @@ class TagInfoScreen(QWidget):
         colorPickerLayout.addWidget(self.colorPicker)
         colorPickerLayout.addWidget(colorButtons)
 
-        self.mainLayout.addWidget(params)
-        self.mainLayout.addWidget(colorPickerWidget)
+        return colorPickerWidget
 
     def setColor(self):
         button = self.buttons.checkedButton()
         if button:
-            rgb = [self.colorPicker.r, self.colorPicker.g, self.colorPicker.b]
+            rgb = [self.colorPicker.rgb[0], self.colorPicker.rgb[1], self.colorPicker.rgb[2]]
+            print(rgb)
             button.setColor(rgb)
 
     def dropColor(self):

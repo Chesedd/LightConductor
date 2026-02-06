@@ -1,13 +1,14 @@
 from PyQt6.QtWidgets import (QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QDialog,
-                             QLabel, QLineEdit, QToolButton, QButtonGroup, QMenu, QScrollArea, QApplication)
+                             QLabel, QLineEdit, QToolButton, QButtonGroup, QMenu, QScrollArea)
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QAction
-from ProjectScreen.TagType import TagType
+from ProjectScreen.TagLogic.TagType import TagType
 from AssistanceTools.ColorPicker import ColorPicker
 import pyqtgraph as pg
 from PyQt6.QtGui import QColor
-from ProjectScreen.SlaveBox import DeleteDialog
+from ProjectScreen.PlateLogic.SlaveBox import DeleteDialog
 from AssistanceTools.FlowLayout import FlowLayout
+from AssistanceTools.SimpleDialog import SimpleDialog
 
 class TagManager(QWidget):
     newTypeCreate = pyqtSignal(TagType)
@@ -57,148 +58,71 @@ class TagManager(QWidget):
 
         self.checkBox.addType(params["name"])
         self.newTypeCreate.emit(newType)
+        return newType
 
     def setNewType(self):
         self.curType = self.buttons.checkedButton().tagType
 
-class editDialog(QDialog):
+class editDialog(SimpleDialog):
     editType = pyqtSignal(dict)
 
     def __init__(self, parent=None, tagType = None):
         super().__init__(parent=parent)
         self.type = tagType
         self.setWindowTitle(self.type.name)
-        self.mainWidget = QWidget()
-        self.mainLayout = QVBoxLayout(self.mainWidget)
+        self.mainLayout = QVBoxLayout(self)
         self.initParams()
-        self.initButtons()
-        self.setLayout(self.mainLayout)
 
     def initParams(self):
-        self.newTypeParams = QWidget()
-        newTypeLayout = QVBoxLayout(self.newTypeParams)
-
-        newName = QWidget()
-        newNameText = QLabel("Name")
-        self.newNameBar = QLineEdit(self.type.name)
-        newNameLayout = QHBoxLayout(newName)
-        newNameLayout.addWidget(newNameText)
-        newNameLayout.addWidget(self.newNameBar)
+        self.newNameBar = self.LabelAndLine("Name")
 
         self.colorPicker = ColorPicker()
         color = self.type.color
-        r, g, b = map(int, color.split(','))
-        self.colorPicker.sliderR.setValue(r)
-        self.colorPicker.sliderG.setValue(g)
-        self.colorPicker.sliderB.setValue(b)
+        rgb = list(map(int, color.split(',')))
+        for i in range(3):
+            self.colorPicker.slidersLabels[i][0].setValue(rgb[i])
+        self.layout().addWidget(self.colorPicker)
 
-        newPin = QWidget()
-        newPinText = QLabel("Pin")
-        self.newPinBar = QLineEdit(self.type.pin)
-        newPinLayout = QHBoxLayout(newPin)
-        newPinLayout.addWidget(newPinText)
-        newPinLayout.addWidget(self.newPinBar)
+        self.newPinBar = self.LabelAndLine("Pin")
 
-        newTypeLayout.addWidget(newName)
-        newTypeLayout.addWidget(self.colorPicker)
-        newTypeLayout.addWidget(newPin)
+        okBtn = self.OkAndCancel()
+        okBtn.clicked.connect(self.onOkClicked)
 
-        self.mainLayout.addWidget(self.newTypeParams)
-
-    def initButtons(self):
-        self.buttons = QWidget()
-        buttonsLayout = QHBoxLayout(self.buttons)
-        ok_btn = QPushButton("OK")
-        ok_btn.clicked.connect(self.on_ok_clicked)
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        buttonsLayout.addWidget(ok_btn)
-        buttonsLayout.addWidget(cancel_btn)
-
-        self.mainLayout.addWidget(self.buttons)
-
-    def on_ok_clicked(self):
+    def onOkClicked(self):
         params = {
             "name": self.newNameBar.text(),
-            "color": f"{self.colorPicker.r}, {self.colorPicker.g}, {self.colorPicker.b}",
+            "color": f"{self.colorPicker.rgb[0]}, {self.colorPicker.rgb[1]}, {self.colorPicker.rgb[2]}",
             "pin": self.newPinBar.text()
         }
         self.editType.emit(params)
         self.accept()
 
-class newTypeDialog(QDialog):
+class newTypeDialog(SimpleDialog):
     newType = pyqtSignal(dict)
     def __init__(self, parent=None):
         super().__init__(parent=parent)
         self.setWindowTitle("New tag type")
-        self.mainWidget = QWidget()
-        self.mainLayout = QVBoxLayout(self.mainWidget)
+        self.mainLayout = QVBoxLayout(self)
         self.initParams()
-        self.initButtons()
-        self.setLayout(self.mainLayout)
 
     def initParams(self):
-        self.newTypeParams = QWidget()
-        newTypeLayout = QVBoxLayout(self.newTypeParams)
-
-        newName = QWidget()
-        newNameText = QLabel("Name")
-        self.newNameBar = QLineEdit()
-        newNameLayout = QHBoxLayout(newName)
-        newNameLayout.addWidget(newNameText)
-        newNameLayout.addWidget(self.newNameBar)
+        self.newNameBar = self.LabelAndLine("Name")
 
         self.colorPicker = ColorPicker()
+        self.layout().addWidget(self.colorPicker)
 
-        newPin = QWidget()
-        newPinText = QLabel("Pin")
-        self.newPinBar = QLineEdit()
-        newPinLayout = QHBoxLayout(newPin)
-        newPinLayout.addWidget(newPinText)
-        newPinLayout.addWidget(self.newPinBar)
+        self.newPinBar = self.LabelAndLine("Pin")
 
-        pinType = QWidget()
-        pinTypeText = QLabel("Pin type")
-        typeButtons = QButtonGroup()
-        typeButtons.setExclusive(True)
-        soloButton = QPushButton("solo")
-        soloButton.clicked.connect(self.disablePinAmount)
-        multiButton = QPushButton("multi")
-        multiButton.clicked.connect(self.enablePinAmount)
-        typeButtons.addButton(soloButton)
-        typeButtons.addButton(multiButton)
+        self.layout().addWidget(self.initPinTypeButtons())
 
-        row = QWidget()
-        rowLayout = QVBoxLayout(row)
-        rowText = QLabel("Row")
-        self.pinAmountRow = QLineEdit()
+        self.pinAmountRow = self.LabelAndLine("Row")
         self.pinAmountRow.setEnabled(False)
-        rowLayout.addWidget(rowText)
-        rowLayout.addWidget(self.pinAmountRow)
 
-        table = QWidget()
-        tableLayout = QVBoxLayout(table)
-        tableText = QLabel("Table")
-        self.pinAmountTable = QLineEdit()
+        self.pinAmountTable = self.LabelAndLine("Table")
         self.pinAmountTable.setEnabled(False)
-        tableLayout.addWidget(tableText)
-        tableLayout.addWidget(self.pinAmountTable)
 
-        pinTypeLayout = QHBoxLayout(pinType)
-        pinTypeLayout.addWidget(pinTypeText)
-        pinTypeLayout.addWidget(soloButton)
-        pinTypeLayout.addWidget(multiButton)
-        pinTypeLayout.addWidget(row)
-        pinTypeLayout.addWidget(table)
-
-
-
-        newTypeLayout.addWidget(newName)
-        newTypeLayout.addWidget(self.colorPicker)
-        newTypeLayout.addWidget(newPin)
-        newTypeLayout.addWidget(pinType)
-
-        self.mainLayout.addWidget(self.newTypeParams)
+        okBtn = self.OkAndCancel()
+        okBtn.clicked.connect(self.onOkClicked)
 
     def disablePinAmount(self):
         self.pinAmountRow.setEnabled(False)
@@ -210,22 +134,28 @@ class newTypeDialog(QDialog):
         self.pinAmountRow.setEnabled(True)
         self.pinAmountTable.setEnabled(True)
 
-    def initButtons(self):
-        self.buttons = QWidget()
-        buttonsLayout = QHBoxLayout(self.buttons)
-        ok_btn = QPushButton("OK")
-        ok_btn.clicked.connect(self.on_ok_clicked)
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        buttonsLayout.addWidget(ok_btn)
-        buttonsLayout.addWidget(cancel_btn)
+    def initPinTypeButtons(self):
+        pinType = QWidget()
+        pinTypeLayout = QHBoxLayout(pinType)
+        pinTypeText = QLabel("Pin type")
+        typeButtons = QButtonGroup()
+        typeButtons.setExclusive(True)
+        soloButton = QPushButton("solo")
+        soloButton.clicked.connect(self.disablePinAmount)
+        multiButton = QPushButton("multi")
+        multiButton.clicked.connect(self.enablePinAmount)
+        typeButtons.addButton(soloButton)
+        typeButtons.addButton(multiButton)
+        pinTypeLayout.addWidget(pinTypeText)
+        pinTypeLayout.addWidget(soloButton)
+        pinTypeLayout.addWidget(multiButton)
 
-        self.mainLayout.addWidget(self.buttons)
+        return pinType
 
-    def on_ok_clicked(self):
+    def onOkClicked(self):
         params = {
             "name": self.newNameBar.text(),
-            "color": f"{self.colorPicker.r}, {self.colorPicker.g}, {self.colorPicker.b}",
+            "color": f"{self.colorPicker.rgb[0]}, {self.colorPicker.rgb[1]}, {self.colorPicker.rgb[2]}",
             "pin": self.newPinBar.text(),
             "row": int(self.pinAmountRow.text()),
             "table": int(self.pinAmountTable.text()),

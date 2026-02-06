@@ -1,50 +1,31 @@
 import os.path
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QPushButton,
-                            QFileDialog, QHBoxLayout,
-                            QLabel, QDialog, QLineEdit)
+                            QFileDialog)
 from PyQt6.QtCore import pyqtSignal, Qt, QUrl
 from PyQt6.QtGui import QAction, QKeySequence
 import librosa
-from ProjectScreen.SlaveBox import SlaveBox
-from ProjectScreen.MasterBox import MasterBox
-from ProjectScreen.WaveWidget import WaveWidget
-from ProjectScreen.TagManager import TagManager
+from ProjectScreen.PlateLogic.MasterBox import MasterBox
 from ProjectScreen.ProjectManager import ProjectManager
-from AssistanceTools.ChooseBox import  TagTypeChooseBox
+from AssistanceTools.SimpleDialog import SimpleDialog
 import socket
 import json
-import time
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 
 from datetime import datetime
 
-class newMasterDialog(QDialog):
+#Диалог создания нового мастера
+class newMasterDialog(SimpleDialog):
     masterCreated = pyqtSignal(str)
     def __init__(self, parent=None):
         super().__init__(parent)
         self.uiCreate()
 
     def uiCreate(self):
-        masterNameText = QLabel("Master's name")
-        self.masterNameBar = QLineEdit()
-        masterNameLayout = QHBoxLayout()
-        masterNameLayout.addWidget(masterNameText)
-        masterNameLayout.addWidget(self.masterNameBar)
+        self.mainLayout = QVBoxLayout(self)
 
-        okButton = QPushButton("Ok")
+        self.masterNameBar = self.LabelAndLine("Master's name")
+        okButton = self.OkAndCancel()
         okButton.clicked.connect(self.onOkClicked)
-        cancelButton = QPushButton("Cancel")
-        cancelButton.clicked.connect(self.reject)
-        buttonLayout = QHBoxLayout()
-        buttonLayout.addWidget(okButton)
-        buttonLayout.addWidget(cancelButton)
-
-        self.mainScreen = QWidget()
-        self.mainLayout = QVBoxLayout(self.mainScreen)
-        self.mainLayout.addLayout(masterNameLayout)
-        self.mainLayout.addLayout(buttonLayout)
-
-        self.setLayout(self.mainLayout)
 
     def onOkClicked(self):
         masterTitle = self.masterNameBar.text()
@@ -57,12 +38,6 @@ class ProjectWindow(QMainWindow):
     def __init__(self, project_data):
         super().__init__()
         self.masters = {}
-
-        saveAction = QAction("Save", self)
-        saveAction.setShortcut(QKeySequence("Ctrl+S"))
-        saveAction.triggered.connect(self.saveData)
-        self.addAction(saveAction)
-
         self.project_data = project_data
         self.audio = None
         self.sr = None
@@ -71,10 +46,19 @@ class ProjectWindow(QMainWindow):
         self.boxes = {}
         self.audioPath = None
 
+        self.initActions()
         self.init_ui()
         self.initExistingData()
         self.initAudioPlayer()
 
+    #создание действий под горячие клавиши
+    def initActions(self):
+        saveAction = QAction("Save", self)
+        saveAction.setShortcut(QKeySequence("Ctrl+S"))
+        saveAction.triggered.connect(self.saveData)
+        self.addAction(saveAction)
+
+    # создание аудио плеера
     def initAudioPlayer(self):
         if self.audio is not None:
             self.audioPlayer = QMediaPlayer()
@@ -92,6 +76,10 @@ class ProjectWindow(QMainWindow):
         self.layout.setSpacing(0)
         self.layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
+        self.initButtons()
+
+    #создание кнопок под юай
+    def initButtons(self):
         addButton = QPushButton("Add track")
         addButton.clicked.connect(self.addTrack)
         self.layout.addWidget(addButton)
@@ -118,23 +106,29 @@ class ProjectWindow(QMainWindow):
             masterWidget = self.masters[master["id"]]
             for slaveID in slaves:
                 slave = slaves[slaveID]
-                slaveData = {}
-                slaveData["name"] = slave["name"]
-                slaveData["pin"] = slave["pin"]
-                tagTypes = slave['tagTypes']
-                masterWidget.addSlave(slaveData, slave["id"])
-                manager = self.masters[master["id"]].slaves[slave["id"]].wave.manager
+                tagTypes, manager = self.initSlave(slave, masterWidget, master)
+                wave = self.masters[master["id"]].slaves[slave["id"]].wave
                 for tagType in tagTypes:
                     params = tagTypes[tagType]
                     params['name'] = tagType
-                    manager.addType(params)
-                    type = manager.types[params['name']]
-                    print(type.table)
-                    tags = []
-                    for tagID in params['tags']:
-                        print(params['tags'][tagID])
-                        tags.append(self.masters[master["id"]].slaves[slave["id"]].wave.addExistingTag(params['tags'][tagID], type))
-                    type.addExistingTags(tags)
+                    self.initTypeAndTags(params, manager, wave)
+
+
+    def initSlave(self, slave, masterWidget, master):
+        slaveData = {}
+        slaveData["name"] = slave["name"]
+        slaveData["pin"] = slave["pin"]
+        masterWidget.addSlave(slaveData, slave["id"])
+        tagTypes = slave['tagTypes']
+        manager = self.masters[master["id"]].slaves[slave["id"]].wave.manager
+        return tagTypes, manager
+
+    def initTypeAndTags(self, params, manager, wave):
+        type = manager.addType(params)
+        tags = []
+        for tagID in params['tags']:
+            tags.append(wave.addExistingTag(params['tags'][tagID], type))
+        type.addExistingTags(tags)
 
     def saveData(self):
         print("Save")

@@ -34,36 +34,48 @@ class ProjectManager():
                 typesData = {}
                 for tagType in tagTypes:
                     type = tagTypes[tagType]
-                    typeData = {}
-                    typeData["color"] = type.color
-                    typeData["pin"] = type.pin
-                    typeData["row"] = type.row
-                    typeData["table"] = type.table
-
                     tagsOfType = type.tags
                     tagID = 0
                     tagsData = {}
                     for tag in tagsOfType:
-                        tagData = {}
-                        tagData['time'] = tag.time
-                        tagData['action'] = tag.action
-                        tagData['colors'] = tag.colors
-                        tagsData[tagID] = tagData
+                        tagsData[tagID] = self.packTag(tag)
                         tagID+=1
-                    typeData["tags"] = tagsData
-
-                    typesData[type.name] = typeData
-                slavesData[slaveID] = {}
-                slavesData[slaveID]['name'] = saveSlave.title
-                slavesData[slaveID]['pin'] = saveSlave.slavePin
-                slavesData[slaveID]['id'] = saveSlave.boxID
-                slavesData[slaveID]['tagTypes'] = typesData
-            self.boxes[masterID] = {}
-            self.boxes[masterID]['name'] = saveMaster.title
-            self.boxes[masterID]['id'] = saveMaster.boxID
-            self.boxes[masterID]['slaves'] = slavesData
+                    typesData[type.name] = self.packType(type, tagsData)
+                slavesData[slaveID] = self.packSlave(saveSlave, typesData)
+            self.boxes[masterID] = self.packMaster(saveMaster, slavesData)
         with open(f"Projects/{self.projectName}/{self.dataFile}", 'w', encoding='utf-8') as f:
             json.dump(self.boxes, f, indent=4, ensure_ascii=False)
+
+    def packMaster(self, master, slavesData):
+        masterData = {}
+        masterData['name'] = master.title
+        masterData['id'] = master.boxID
+        masterData['slaves'] = slavesData
+        return masterData
+
+    def packSlave(self, slave, typesData):
+        slavedata = {}
+        slavedata['name'] = slave.title
+        slavedata['pin'] = slave.slavePin
+        slavedata['id'] = slave.boxID
+        slavedata['tagTypes'] = typesData
+        return slavedata
+
+    def packType(self, type, tagsData):
+        typeData = {}
+        typeData["color"] = type.color
+        typeData["pin"] = type.pin
+        typeData["row"] = type.row
+        typeData["table"] = type.table
+        typeData["tags"] = tagsData
+        return typeData
+
+    def packTag(self, tag):
+        tagData = {}
+        tagData['time'] = tag.time
+        tagData['action'] = tag.action
+        tagData['colors'] = tag.colors
+        return tagData
 
     def loadData(self):
         if os.path.exists(f"Projects/{self.projectName}/{self.dataFile}"):

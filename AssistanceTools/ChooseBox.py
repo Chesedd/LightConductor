@@ -1,7 +1,6 @@
-import sys
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout,
-    QHBoxLayout, QCheckBox, QGroupBox, QScrollArea
+    QWidget, QVBoxLayout,
+    QCheckBox, QGroupBox, QScrollArea
 )
 from PyQt6.QtCore import pyqtSignal
 
@@ -26,8 +25,6 @@ class TagTypeChooseBox(QGroupBox):
         self.mainLauout = QVBoxLayout()
         self.mainLauout.addWidget(self.scrollArea)
         self.setLayout(self.mainLauout)
-
-
 
     def addType(self, title):
         buttonChecker = QCheckBox(title)

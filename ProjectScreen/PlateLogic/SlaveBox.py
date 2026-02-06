@@ -1,21 +1,20 @@
-from PyQt6.QtWidgets import *
-from PyQt6.QtCore import *
+from PyQt6.QtWidgets import (
+    QDialog, QLabel, QLineEdit, QHBoxLayout, QVBoxLayout, QPushButton,
+    QWidget, QMenu, QComboBox, QButtonGroup)
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QAction
+
+from AssistanceTools.SimpleDialog import SimpleDialog
 from AssistanceTools.TagState import TagState
-from ProjectScreen.TagScreen import TagInfoScreen, ColorButton
+from ProjectScreen.TagLogic.TagScreen import TagInfoScreen, ColorButton
 from AssistanceTools.FlowLayout import FlowLayout
 from AssistanceTools.ColorPicker import ColorPicker
+from AssistanceTools.DropBox import DropBox
 import bisect
 
-class SlaveBox(QWidget):
-    boxDeleted = pyqtSignal(str)
+class SlaveBox(DropBox):
     def __init__(self, title="", parent=None, boxID='', wave=None, slavePin = ''):
         super().__init__(parent)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-
-        self.mainLayout = QVBoxLayout(self)
-        self.mainLayout.setContentsMargins(0, 0, 0, 0)
-        self.mainLayout.setSpacing(0)
 
         self.slavePin = slavePin
 
@@ -25,12 +24,6 @@ class SlaveBox(QWidget):
         self.wave = wave
         self.wave.manager.box = self
 
-        self.createTitleButton()
-        self.createContentArea()
-
-        self.mainLayout.addWidget(self.toggleButton)
-        self.mainLayout.addWidget(self.contentArea)
-
         self.toggleButton.setText(f"▼ {title} (pin: {slavePin})")
 
         self.initUI()
@@ -39,32 +32,14 @@ class SlaveBox(QWidget):
         self.wave.positionUpdate.connect(self.onPositionUpdate)
         self.wave.manager.newTypeCreate.connect(self.addTagState)
 
-        addButton = QPushButton("Add tag")
-        addButton.clicked.connect(self.createTag)
-        tagWaveButtons = QWidget()
-        tagWaveButtons.layout = QVBoxLayout(tagWaveButtons)
-        tagWaveButtons.layout.addWidget(self.wave.chooseBox)
-        tagWaveButtons.layout.addWidget(addButton)
-
-        waveButtons = QWidget()
-        waveButtons.layout = QHBoxLayout(waveButtons)
-        self.playButton = QPushButton("Play")
-        self.playButton.clicked.connect(self.playOrPause)
-        self.playAndPauseButton = QPushButton("Play+Pause")
-        self.playAndPauseButton.clicked.connect(self.wave.playAndPause)
-        self.timeLabel = QLabel("time")
-        waveButtons.layout.addWidget(self.playButton)
-        waveButtons.layout.addWidget(self.playAndPauseButton)
-        waveButtons.layout.addWidget(self.timeLabel)
-
         waveWidget = QWidget()
         waveWidget.layout = QVBoxLayout(waveWidget)
-        waveWidget.layout.addWidget(waveButtons)
+        waveWidget.layout.addWidget(self.initWaveButtons())
         waveWidget.layout.addWidget(self.wave)
 
         waveSpace = QWidget()
         waveSpace.layout = QHBoxLayout(waveSpace)
-        waveSpace.layout.addWidget(tagWaveButtons)
+        waveSpace.layout.addWidget(self.initTagWaveButtons())
         waveSpace.layout.addWidget(waveWidget)
 
         tagsWidget = QWidget()
@@ -79,13 +54,37 @@ class SlaveBox(QWidget):
         self.tagInfo = TagInfoScreen(tagTypes=self.wave.manager.types)
         self.wave.manager.tagScreen = self.tagInfo
 
-        mainWidget = QWidget()
-        mainWidget.layout = QHBoxLayout(mainWidget)
-        mainWidget.layout.addWidget(centralWidget, 3)
-        mainWidget.layout.addWidget(self.wave.manager, 2)
-        mainWidget.layout.addWidget(self.tagInfo, 1)
+        self.mainWidget = QWidget()
+        self.mainLayout = QHBoxLayout(self.mainWidget)
+        self.mainLayout.addWidget(centralWidget, 3)
+        self.mainLayout.addWidget(self.wave.manager, 2)
+        self.mainLayout.addWidget(self.tagInfo, 1)
 
-        self.addWidget(mainWidget)
+        self.addWidget(self.mainWidget)
+
+    def initTagWaveButtons(self):
+        addButton = QPushButton("Add tag")
+        addButton.clicked.connect(self.createTag)
+        tagWaveButtons = QWidget()
+        tagWaveButtons.layout = QVBoxLayout(tagWaveButtons)
+        tagWaveButtons.layout.addWidget(self.wave.chooseBox)
+        tagWaveButtons.layout.addWidget(addButton)
+
+        return tagWaveButtons
+
+    def initWaveButtons(self):
+        waveButtons = QWidget()
+        waveButtons.layout = QHBoxLayout(waveButtons)
+        self.playButton = QPushButton("Play")
+        self.playButton.clicked.connect(self.playOrPause)
+        self.playAndPauseButton = QPushButton("Play+Pause")
+        self.playAndPauseButton.clicked.connect(self.wave.playAndPause)
+        self.timeLabel = QLabel("time")
+        waveButtons.layout.addWidget(self.playButton)
+        waveButtons.layout.addWidget(self.playAndPauseButton)
+        waveButtons.layout.addWidget(self.timeLabel)
+
+        return waveButtons
 
     def playOrPause(self):
         state = self.playButton.text()
@@ -118,43 +117,6 @@ class SlaveBox(QWidget):
                 widget.changeState(False)
         self.timeLabel.setText(timeStr)
 
-    def createTitleButton(self):
-        self.toggleButton = QPushButton()
-        self.toggleButton.setCheckable(True)
-        self.toggleButton.setChecked(False)
-        self.toggleButton.setStyleSheet("""
-            QPushButton {
-                text-align: left;
-                padding: 8px;
-                border: 1px solid #ccc;
-                background-color: #f0f0f0;
-            }
-            QPushButton:hover {
-                background-color: #e0e0e0;
-            }
-            QPushButton:checked {
-                background-color: #d0d0d0;
-                border-bottom: none;
-            }
-        """)
-        self.toggleButton.toggled.connect(self.onToggled)
-
-    def createContentArea(self):
-        self.contentArea = QScrollArea()
-        self.contentArea.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.contentArea.setMaximumHeight(0)
-        self.contentArea.setMinimumHeight(0)
-        self.contentArea.setFrameShape(QFrame.Shape.NoFrame)
-        self.contentArea.setWidgetResizable(True)
-
-        self.contentWidget = QWidget()
-        self.contentLayout = QVBoxLayout(self.contentWidget)
-        self.contentLayout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.contentLayout.setSpacing(5)
-        self.contentLayout.setContentsMargins(10, 10, 10, 10)
-        self.contentArea.setWidget(self.contentWidget)
-
-
     def contextMenuEvent(self, a0):
         menu = QMenu(self)
 
@@ -167,16 +129,6 @@ class SlaveBox(QWidget):
         menu.addAction(deleteAction)
 
         menu.exec(a0.globalPos())
-
-    def onToggled(self, checked):
-        if checked:
-            self.toggleButton.setText("► " + self.toggleButton.text()[2:])
-            self.contentArea.setMaximumHeight(16777215)
-            self.contentArea.setMinimumHeight(200)
-        else:
-            self.toggleButton.setText("▼ " + self.toggleButton.text()[2:])
-            self.contentArea.setMaximumHeight(0)
-            self.contentArea.setMinimumHeight(0)
 
     def addWidget(self, widget):
         self.contentLayout.addWidget(widget)
@@ -219,7 +171,23 @@ class TagDialog(QDialog):
         self.uiCreate()
 
     def uiCreate(self):
-        print(self.rows)
+        self.params = QWidget()
+        self.paramsLayer = QVBoxLayout(self.params)
+
+        self.mainScreen = QWidget()
+        self.mainLayout = QHBoxLayout(self.mainScreen)
+        stateWidget = QWidget()
+        stateLayout = QVBoxLayout(stateWidget)
+        stateLayout.addWidget(self.initStateDropBox())
+        stateLayout.addWidget(self.params)
+        stateLayout.addWidget(self.initButtons())
+
+        self.mainLayout.addWidget(stateWidget)
+        self.mainLayout.addWidget(self.initColorPickerWidget())
+
+        self.setLayout(self.mainLayout)
+
+    def initStateDropBox(self):
         stateText = QLabel("Состояние")
         self.stateBar = QComboBox()
         self.stateBar.addItems(["On", "Off"])
@@ -229,9 +197,9 @@ class TagDialog(QDialog):
         stateLayout.addWidget(stateText)
         stateLayout.addWidget(self.stateBar)
 
-        self.params = QWidget()
-        self.paramsLayer = QVBoxLayout(self.params)
+        return state
 
+    def initButtons(self):
         okButton = QPushButton("Ok")
         okButton.clicked.connect(self.onOkClicked)
         cancelButton = QPushButton("Cancel")
@@ -241,14 +209,9 @@ class TagDialog(QDialog):
         buttonLayout.addWidget(okButton)
         buttonLayout.addWidget(cancelButton)
 
-        self.mainScreen = QWidget()
-        self.mainLayout = QHBoxLayout(self.mainScreen)
-        stateWidget = QWidget()
-        stateLayout = QVBoxLayout(stateWidget)
-        stateLayout.addWidget(state)
-        stateLayout.addWidget(self.params)
-        stateLayout.addWidget(buttons)
+        return buttons
 
+    def initColorPickerWidget(self):
         colorPickerWidget = QWidget()
         colorPickerLayout = QVBoxLayout(colorPickerWidget)
 
@@ -266,15 +229,12 @@ class TagDialog(QDialog):
         colorPickerLayout.addWidget(self.colorPicker)
         colorPickerLayout.addWidget(colorButtons)
 
-        self.mainLayout.addWidget(stateWidget)
-        self.mainLayout.addWidget(colorPickerWidget)
-
-        self.setLayout(self.mainLayout)
+        return colorPickerWidget
 
     def setColor(self):
         button = self.buttonGroup.checkedButton()
         if button:
-            rgb = [self.colorPicker.r, self.colorPicker.g, self.colorPicker.b]
+            rgb = [self.colorPicker.rgb[0], self.colorPicker.rgb[1], self.colorPicker.rgb[2]]
             button.setColor(rgb)
 
     def dropColor(self):
@@ -342,13 +302,15 @@ class TagDialog(QDialog):
             elif item.layout() is not None:
                 self.deleteAllWidgets(item.layout())
 
-class RenameDialog(QDialog):
+class RenameDialog(SimpleDialog):
     boxRenamed = pyqtSignal(str)
     def __init__(self, parent=None):
         super().__init__(parent)
         self.initUI()
 
     def initUI(self):
+        self.mainLayout = QVBoxLayout(self)
+
         self.setWindowTitle("Rename box")
         newNameText = QLabel("Insert new title")
         self.newNameBar = QLineEdit()
@@ -356,22 +318,13 @@ class RenameDialog(QDialog):
         newNameLayout = QHBoxLayout(self.newNameParams)
         newNameLayout.addWidget(newNameText)
         newNameLayout.addWidget(self.newNameBar)
-
-        self.buttons = QWidget()
-        buttonsLayout = QHBoxLayout(self.buttons)
-        ok_btn = QPushButton("OK")
-        ok_btn.clicked.connect(self.on_ok_clicked)
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        buttonsLayout.addWidget(ok_btn)
-        buttonsLayout.addWidget(cancel_btn)
-
-        self.mainLayout = QVBoxLayout()
         self.mainLayout.addWidget(self.newNameParams)
-        self.mainLayout.addWidget(self.buttons)
-        self.setLayout(self.mainLayout)
 
-    def on_ok_clicked(self):
+        okBtn = self.OkAndCancel()
+        okBtn.clicked.connect(self.onOkClicked)
+
+
+    def onOkClicked(self):
         self.boxRenamed.emit(self.newNameBar.text())
         self.accept()
 
@@ -389,7 +342,7 @@ class DeleteDialog(QDialog):
         self.buttons = QWidget()
         buttonsLayout = QHBoxLayout(self.buttons)
         ok_btn = QPushButton("OK")
-        ok_btn.clicked.connect(self.on_ok_clicked)
+        ok_btn.clicked.connect(self.onOkClicked)
         cancel_btn = QPushButton("Cancel")
         cancel_btn.clicked.connect(self.reject)
         buttonsLayout.addWidget(ok_btn)
@@ -400,6 +353,6 @@ class DeleteDialog(QDialog):
         self.mainLayout.addWidget(self.buttons)
         self.setLayout(self.mainLayout)
 
-    def on_ok_clicked(self):
+    def onOkClicked(self):
         self.boxDelete.emit()
         self.accept()
