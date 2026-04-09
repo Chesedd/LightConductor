@@ -4,8 +4,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import pyqtSignal
 from ProjectScreen.ProjectScreen import ProjectWindow
 from AssistanceTools.SimpleDialog import SimpleDialog
-from lightconductor.infrastructure import LegacyProjectsRepository
-from lightconductor.presentation import MainScreenController
+from lightconductor.infrastructure.legacy_projects_repository import LegacyProjectsRepository
+from lightconductor.presentation.main_controller import MainScreenController
 
 class NewProjectScreen(SimpleDialog):
     projectCreated = pyqtSignal(dict)
@@ -132,7 +132,6 @@ class MainWindow(QMainWindow):
         self.project = ProjectWindow(project_data)
         self.project.show()
         self.hide()
-
 
 
 

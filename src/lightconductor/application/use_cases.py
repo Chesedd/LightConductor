@@ -20,12 +20,19 @@ class BuildShowPayloadUseCase:
                 pins.setdefault(slave.pin, {})
 
                 for tag_type in slave.tag_types.values():
-                    pins[slave.pin][tag_type.pin] = tag_type.rows * tag_type.columns
+                    segment_size = tag_type.rows * tag_type.columns
+                    try:
+                        segment_start = int(tag_type.pin)
+                    except (TypeError, ValueError):
+                        segment_start = 0
+                    pins[slave.pin][tag_type.name] = segment_size
 
                     for tag in tag_type.tags:
                         timestamp = round(tag.time_seconds * 1000)
                         payload[slave.pin].setdefault(timestamp, {})
-                        payload[slave.pin][timestamp][tag_type.pin] = {
+                        payload[slave.pin][timestamp][tag_type.name] = {
+                            "segment_start": segment_start,
+                            "segment_size": segment_size,
                             "action": tag.action,
                             "colors": tag.colors,
                         }
