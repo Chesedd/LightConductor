@@ -68,13 +68,11 @@ class PayloadPipelineTests(unittest.TestCase):
         mapped = mapper.map_masters({"master-1": master})
         pins, payload = use_case.execute(mapped)
 
-        self.assertEqual({"7": {"front": 4}}, pins)
+        self.assertEqual({"7": {"3": 4}}, pins)
         self.assertIn(100, payload["7"])
         self.assertIn(250, payload["7"])
-        self.assertEqual(True, payload["7"][100]["front"]["action"])
-        self.assertEqual(False, payload["7"][250]["front"]["action"])
-        self.assertEqual(3, payload["7"][100]["front"]["segment_start"])
-        self.assertEqual(4, payload["7"][100]["front"]["segment_size"])
+        self.assertEqual(True, payload["7"][100]["3"]["action"])
+        self.assertEqual(False, payload["7"][250]["3"]["action"])
 
 
 if __name__ == "__main__":

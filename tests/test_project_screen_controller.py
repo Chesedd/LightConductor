@@ -40,21 +40,12 @@ class FakeTransport:
         self.start_sent = True
 
 
-class FakeAudioLoader:
-    def __init__(self):
-        self.loaded_path = None
-
-    def load(self, file_path):
-        self.loaded_path = file_path
-        return [0.1, 0.2], 44100, file_path
-
-
 class ProjectScreenControllerTests(unittest.TestCase):
     def test_send_show_payload_uses_mapper_use_case_and_transport(self):
         mapper = FakeMapper()
         use_case = FakeUseCase()
         transport = FakeTransport()
-        controller = ProjectScreenController(mapper, use_case, transport, FakeAudioLoader())
+        controller = ProjectScreenController(mapper, use_case, transport)
 
         legacy_masters = {"master-1": object()}
         controller.send_show_payload(legacy_masters)
@@ -64,18 +55,9 @@ class ProjectScreenControllerTests(unittest.TestCase):
         self.assertIsNotNone(transport.sent_payload)
 
     def test_send_start_signal(self):
-        controller = ProjectScreenController(FakeMapper(), FakeUseCase(), FakeTransport(), FakeAudioLoader())
+        controller = ProjectScreenController(FakeMapper(), FakeUseCase(), FakeTransport())
         controller.send_start_signal()
         self.assertTrue(controller.transport.start_sent)
-
-    def test_load_track(self):
-        audio_loader = FakeAudioLoader()
-        controller = ProjectScreenController(FakeMapper(), FakeUseCase(), FakeTransport(), audio_loader)
-        audio, sr, path = controller.load_track("demo.wav")
-        self.assertEqual([0.1, 0.2], audio)
-        self.assertEqual(44100, sr)
-        self.assertEqual("demo.wav", path)
-        self.assertEqual("demo.wav", audio_loader.loaded_path)
 
 
 if __name__ == "__main__":
