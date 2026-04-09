@@ -1,9 +1,7 @@
-import os.path
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QPushButton,
                             QFileDialog)
 from PyQt6.QtCore import pyqtSignal, Qt, QUrl
 from PyQt6.QtGui import QAction, QKeySequence
-import librosa
 from ProjectScreen.PlateLogic.MasterBox import MasterBox
 from ProjectScreen.ProjectManager import ProjectManager
 from AssistanceTools.SimpleDialog import SimpleDialog
@@ -145,12 +143,13 @@ class ProjectWindow(QMainWindow):
             "",
             "Аудио файлы (*.mp3, *.wav, *.flac, *.ogg, *.m4a);;Все файлы (*)"
         )
-        if not os.path.exists(filePath):
-            print("File not exist")
+        if not filePath:
             return
         try:
-            self.audioPath = filePath
-            self.audio, self.sr = librosa.load(filePath, sr=None, mono=True)
+            self.audio, self.sr, self.audioPath = self.showController.load_track(filePath)
+            self.initAudioPlayer()
+        except FileNotFoundError:
+            print("File not exist")
         except Exception as e:
             print(e)
             return
