@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QDialog,
-                             QLabel, QLineEdit, QToolButton, QButtonGroup, QMenu, QScrollArea)
+                             QLabel, QLineEdit, QToolButton, QButtonGroup, QMenu, QScrollArea, QComboBox)
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QAction
 from ProjectScreen.TagLogic.TagType import TagType
