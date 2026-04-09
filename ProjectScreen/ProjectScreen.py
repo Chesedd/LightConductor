@@ -129,6 +129,7 @@ class ProjectWindow(QMainWindow):
         slaveData = {}
         slaveData["name"] = slave["name"]
         slaveData["pin"] = slave["pin"]
+        slaveData["led_count"] = slave.get("led_count", 0)
         masterWidget.addSlave(slaveData, slave["id"])
         tagTypes = slave['tagTypes']
         manager = self.masters[master["id"]].slaves[slave["id"]].wave.manager

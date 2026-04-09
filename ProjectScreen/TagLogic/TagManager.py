@@ -9,6 +9,7 @@ from PyQt6.QtGui import QColor
 from ProjectScreen.PlateLogic.SlaveBox import DeleteDialog
 from AssistanceTools.FlowLayout import FlowLayout
 from AssistanceTools.SimpleDialog import SimpleDialog
+from lightconductor.application.range_allocator import available_starts
 
 class TagManager(QWidget):
     newTypeCreate = pyqtSignal(TagType)
@@ -37,15 +38,27 @@ class TagManager(QWidget):
         self.innerWidget.setLayout(self.innerArea)
         self.scrollArea.setWidget(self.innerWidget)
 
-        addButton = QPushButton("+ Add type")
+        addButton = QPushButton("+ Add range")
         addButton.clicked.connect(self.showNewTypeDialog)
         self.innerArea.addWidget(addButton)
         self.mainLayout.addWidget(self.scrollArea)
 
     def showNewTypeDialog(self):
-        dialog = newTypeDialog(self)
+        led_count = self.box.ledCount if self.box else 0
+        dialog = newTypeDialog(self, led_count=led_count, occupied_ranges=self.getOccupiedRanges())
         dialog.newType.connect(self.addType)
         dialog.exec()
+
+    def getOccupiedRanges(self):
+        ranges = []
+        for tag_type in self.types.values():
+            try:
+                start = int(tag_type.pin)
+            except ValueError:
+                start = 0
+            size = int(tag_type.row) * int(tag_type.table)
+            ranges.append((start, size))
+        return ranges
 
     def addType(self, params):
         newType = TagType(params["color"], params["name"], params["pin"], params["row"], params["table"])
@@ -99,9 +112,11 @@ class editDialog(SimpleDialog):
 
 class newTypeDialog(SimpleDialog):
     newType = pyqtSignal(dict)
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, led_count=0, occupied_ranges=None):
         super().__init__(parent=parent)
-        self.setWindowTitle("New tag type")
+        self.setWindowTitle("New range")
+        self.led_count = led_count
+        self.occupied_ranges = occupied_ranges or []
         self.mainLayout = QVBoxLayout(self)
         self.initParams()
 
@@ -111,33 +126,46 @@ class newTypeDialog(SimpleDialog):
         self.colorPicker = ColorPicker()
         self.layout().addWidget(self.colorPicker)
 
-        self.newPinBar = self.LabelAndLine("Segment start")
-        self.newPinBar.setText("0")
+        self.rangeLengthBar = self.LabelAndLine("Range length")
+        self.rangeLengthBar.setText("1")
 
-        self.pinAmountRow = self.LabelAndLine("Row")
-        self.pinAmountRow.setText("1")
+        self.rangeStartLabel = QLabel("Range start")
+        self.rangeStartCombo = QComboBox()
+        rangeStartWidget = QWidget()
+        rangeStartLayout = QHBoxLayout(rangeStartWidget)
+        rangeStartLayout.addWidget(self.rangeStartLabel)
+        rangeStartLayout.addWidget(self.rangeStartCombo)
+        self.layout().addWidget(rangeStartWidget)
 
-        self.pinAmountTable = self.LabelAndLine("Table")
-        self.pinAmountTable.setText("1")
+        self.rangeLengthBar.textChanged.connect(self.refreshStartChoices)
+        self.refreshStartChoices()
 
         okBtn = self.OkAndCancel()
         okBtn.clicked.connect(self.onOkClicked)
 
+    def refreshStartChoices(self):
+        try:
+            length = int(self.rangeLengthBar.text())
+        except ValueError:
+            length = 1
+        starts = available_starts(self.led_count, self.occupied_ranges, length)
+        if not starts and self.led_count == 0:
+            starts = [0]
+        self.rangeStartCombo.clear()
+        self.rangeStartCombo.addItems([str(start) for start in starts])
+
     def onOkClicked(self):
         try:
-            row = int(self.pinAmountRow.text())
+            length = int(self.rangeLengthBar.text())
         except ValueError:
-            row = 1
-        try:
-            table = int(self.pinAmountTable.text())
-        except ValueError:
-            table = 1
+            length = 1
+        start = self.rangeStartCombo.currentText() or "0"
         params = {
             "name": self.newNameBar.text(),
             "color": f"{self.colorPicker.rgb[0]}, {self.colorPicker.rgb[1]}, {self.colorPicker.rgb[2]}",
-            "pin": self.newPinBar.text(),
-            "row": row,
-            "table": table,
+            "pin": start,
+            "row": 1,
+            "table": length,
         }
         self.newType.emit(params)
         self.accept()

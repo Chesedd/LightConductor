@@ -67,3 +67,5 @@ Domain never depends on any outer layer.
 ## QoL decisions in progress
 - Slave uses one hardware control pin.
 - Tag types represent LED strip segments (`segment_start` + `segment_size`) instead of extra per-type control pins.
+- Each slave stores total LED count.
+- New ranges are allocated only from currently free LEDs (non-overlapping selection).
