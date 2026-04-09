@@ -157,6 +157,7 @@ class ProjectWindow(QMainWindow):
         try:
             self.audio, self.sr, self.audioPath = self.showController.load_track(filePath)
             self.initAudioPlayer()
+            self.updateSlavesAudio()
         except FileNotFoundError:
             print("File not exist")
         except Exception as e:
@@ -174,6 +175,16 @@ class ProjectWindow(QMainWindow):
         master = MasterBox(title=masterName, boxID=boxID, audio=self.audio, sr=self.sr, aydioPath=self.audioPath)
         self.masters[boxID] = master
         self.layout.addWidget(master)
+
+    def updateSlavesAudio(self):
+        for master in self.masters.values():
+            master.audio = self.audio
+            master.sr = self.sr
+            master.audioPath = self.audioPath
+            for slave in master.slaves.values():
+                slave.wave.setAudioData(self.audio, self.sr, self.audioPath)
+                slave.wave.clear()
+                slave.wave.init_ui()
 
     def loadData(self):
         try:
