@@ -3,7 +3,7 @@ class TagType():
     def __init__(self, color, name, pin, row, table):
         self.setColor(color)
         self.setName(name)
-        self.setPin(pin)
+        self.setPin(pin)  # legacy field name, now stores segment start index
         self.setRow(row)
         self.setTable(table)
         self.tags = []
@@ -22,6 +22,10 @@ class TagType():
 
     def setPin(self, pin):
         self.pin = pin
+
+    @property
+    def segment_start(self):
+        return self.pin
 
     def addTag(self, tag):
         index = bisect.bisect_left([t.time for t in self.tags], tag.time)
