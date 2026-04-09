@@ -13,10 +13,11 @@ from AssistanceTools.DropBox import DropBox
 import bisect
 
 class SlaveBox(DropBox):
-    def __init__(self, title="", parent=None, boxID='', wave=None, slavePin = ''):
+    def __init__(self, title="", parent=None, boxID='', wave=None, slavePin = '', ledCount=0):
         super().__init__(parent)
 
         self.slavePin = slavePin
+        self.ledCount = ledCount
 
         self.title = title
         self.boxID = boxID
@@ -24,7 +25,7 @@ class SlaveBox(DropBox):
         self.wave = wave
         self.wave.manager.box = self
 
-        self.toggleButton.setText(f"▼ {title} (pin: {slavePin})")
+        self.toggleButton.setText(f"▼ {title} (pin: {slavePin}, leds: {ledCount})")
 
         self.initUI()
 
