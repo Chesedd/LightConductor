@@ -83,7 +83,7 @@ class editDialog(SimpleDialog):
             self.colorPicker.slidersLabels[i][0].setValue(rgb[i])
         self.layout().addWidget(self.colorPicker)
 
-        self.newPinBar = self.LabelAndLine("Pin")
+        self.newPinBar = self.LabelAndLine("Segment start")
 
         okBtn = self.OkAndCancel()
         okBtn.clicked.connect(self.onOkClicked)
@@ -111,54 +111,33 @@ class newTypeDialog(SimpleDialog):
         self.colorPicker = ColorPicker()
         self.layout().addWidget(self.colorPicker)
 
-        self.newPinBar = self.LabelAndLine("Pin")
-
-        self.layout().addWidget(self.initPinTypeButtons())
+        self.newPinBar = self.LabelAndLine("Segment start")
+        self.newPinBar.setText("0")
 
         self.pinAmountRow = self.LabelAndLine("Row")
-        self.pinAmountRow.setEnabled(False)
+        self.pinAmountRow.setText("1")
 
         self.pinAmountTable = self.LabelAndLine("Table")
-        self.pinAmountTable.setEnabled(False)
+        self.pinAmountTable.setText("1")
 
         okBtn = self.OkAndCancel()
         okBtn.clicked.connect(self.onOkClicked)
 
-    def disablePinAmount(self):
-        self.pinAmountRow.setEnabled(False)
-        self.pinAmountRow.setText("1")
-        self.pinAmountTable.setEnabled(False)
-        self.pinAmountTable.setText("1")
-
-    def enablePinAmount(self):
-        self.pinAmountRow.setEnabled(True)
-        self.pinAmountTable.setEnabled(True)
-
-    def initPinTypeButtons(self):
-        pinType = QWidget()
-        pinTypeLayout = QHBoxLayout(pinType)
-        pinTypeText = QLabel("Pin type")
-        typeButtons = QButtonGroup()
-        typeButtons.setExclusive(True)
-        soloButton = QPushButton("solo")
-        soloButton.clicked.connect(self.disablePinAmount)
-        multiButton = QPushButton("multi")
-        multiButton.clicked.connect(self.enablePinAmount)
-        typeButtons.addButton(soloButton)
-        typeButtons.addButton(multiButton)
-        pinTypeLayout.addWidget(pinTypeText)
-        pinTypeLayout.addWidget(soloButton)
-        pinTypeLayout.addWidget(multiButton)
-
-        return pinType
-
     def onOkClicked(self):
+        try:
+            row = int(self.pinAmountRow.text())
+        except ValueError:
+            row = 1
+        try:
+            table = int(self.pinAmountTable.text())
+        except ValueError:
+            table = 1
         params = {
             "name": self.newNameBar.text(),
             "color": f"{self.colorPicker.rgb[0]}, {self.colorPicker.rgb[1]}, {self.colorPicker.rgb[2]}",
             "pin": self.newPinBar.text(),
-            "row": int(self.pinAmountRow.text()),
-            "table": int(self.pinAmountTable.text()),
+            "row": row,
+            "table": table,
         }
         self.newType.emit(params)
         self.accept()
@@ -187,7 +166,7 @@ class TagButton(QToolButton):
         )
 
         self.name = QLabel(self.tagType.name)
-        self.pin = QLabel(self.tagType.pin)
+        self.pin = QLabel(f"seg:{self.tagType.pin}")
 
         containerLayout.addWidget(self.color)
         containerLayout.addWidget(self.name)
@@ -229,7 +208,7 @@ class TagButton(QToolButton):
         )
 
         self.name = QLabel(self.tagType.name)
-        self.pin = QLabel(self.tagType.pin)
+        self.pin = QLabel(f"seg:{self.tagType.pin}")
 
 
     def showDeleteDialog(self):
@@ -247,5 +226,3 @@ class TagButton(QToolButton):
             if state.tagType.name == self.tagType.name:
                 state.deleteLater()
         self.deleteLater()
-
-
