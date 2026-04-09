@@ -98,8 +98,9 @@ class ProjectWindow(QMainWindow):
         self.layout.addWidget(showButton)
 
     def initExistingData(self):
-        self.audio, self.sr, self.audioPath = self.projectManager.loadAudioData()
-        masters = self.projectManager.returnAllBoxes()
+        snapshot = self.sessionController.load_session()
+        self.audio, self.sr, self.audioPath = snapshot.audio, snapshot.sample_rate, snapshot.audio_path
+        masters = snapshot.boxes
         for masterID in masters:
             master = masters[masterID]
             slaves = master['slaves']
@@ -133,8 +134,7 @@ class ProjectWindow(QMainWindow):
 
     def saveData(self):
         print("Save")
-        self.projectManager.saveAudioData(self.audio, self.sr)
-        self.projectManager.saveData(self.masters)
+        self.sessionController.save_session(self.audio, self.sr, self.masters)
 
     def addTrack(self):
         filePath, _ = QFileDialog.getOpenFileName(
