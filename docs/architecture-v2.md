@@ -33,16 +33,12 @@ Adapters for concrete technologies.
 - File/json adapters for project persistence.
 - UDP broadcast sender.
 - Audio loading/saving adapter.
-- Current audio adapter: `LibrosaAudioLoader`.
 
 ### 4) Presentation (`src/lightconductor/presentation`)
 Qt UI and controllers.
 
 - Widgets stay focused on rendering and collecting user actions.
 - Controllers map UI actions to use-cases.
-- Current controllers:
-  - `MainScreenController`
-  - `ProjectScreenController`
 
 ## Dependency direction
 `presentation -> application -> domain`
@@ -52,9 +48,9 @@ Domain never depends on any outer layer.
 
 ## Migration strategy (incremental)
 1. Introduce domain models and application ports/use-cases (done in this step).
-2. Add infrastructure adapters that wrap current managers (`ProjectsManager`, `ProjectManager`) (in progress).
-3. Move serialization/packaging logic (`dataPack`) into an application use-case (done).
-4. Introduce presentation controllers and reduce business logic in widgets (in progress).
+2. Add infrastructure adapters that wrap current managers (`ProjectsManager`, `ProjectManager`).
+3. Move serialization/packaging logic (`dataPack`) into an application use-case.
+4. Introduce presentation controllers and reduce business logic in widgets.
 5. Replace legacy managers and direct socket/file calls from UI classes.
 
 ## Definition of done for architecture migration

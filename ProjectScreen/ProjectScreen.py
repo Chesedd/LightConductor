@@ -8,8 +8,6 @@ from AssistanceTools.SimpleDialog import SimpleDialog
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from lightconductor.application import BuildShowPayloadUseCase
 from lightconductor.infrastructure import LegacyMastersMapper, UdpShowTransport, UdpTransportConfig
-from lightconductor.infrastructure.audio_loader import LibrosaAudioLoader
-from lightconductor.presentation import ProjectScreenController
 
 from datetime import datetime
 
@@ -45,12 +43,9 @@ class ProjectWindow(QMainWindow):
         self.projectManager = ProjectManager(self.project_data['project_name'])
         self.boxes = {}
         self.audioPath = None
-        self.showController = ProjectScreenController(
-            mapper=LegacyMastersMapper(),
-            payload_use_case=BuildShowPayloadUseCase(),
-            transport=UdpShowTransport(UdpTransportConfig(host="192.168.0.129", port=12345)),
-            audio_loader=LibrosaAudioLoader(),
-        )
+        self.payloadUseCase = BuildShowPayloadUseCase()
+        self.legacyMapper = LegacyMastersMapper()
+        self.showTransport = UdpShowTransport(UdpTransportConfig(host="192.168.0.129", port=12345))
 
         self.initActions()
         self.init_ui()
@@ -172,8 +167,10 @@ class ProjectWindow(QMainWindow):
         self.layout.addWidget(master)
 
     def loadData(self):
+        masters = self.legacyMapper.map_masters(self.masters)
+        pins, data = self.payloadUseCase.execute(masters)
         try:
-            self.showController.send_show_payload(self.masters)
+            self.showTransport.send_payload(pins, data)
             print("Show payload sent")
         except Exception as e:
             print(f"Error sending payload: {e}")
@@ -185,7 +182,7 @@ class ProjectWindow(QMainWindow):
         self.audioPlayer.setPosition(0)
 
         try:
-            self.showController.send_start_signal()
+            self.showTransport.send_start()
             print("Start signal sent")
         except Exception as e:
             print(f"Error sending broadcast: {e}")
