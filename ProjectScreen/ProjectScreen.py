@@ -1,15 +1,15 @@
-import os.path
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QPushButton,
                             QFileDialog)
 from PyQt6.QtCore import pyqtSignal, Qt, QUrl
 from PyQt6.QtGui import QAction, QKeySequence
-import librosa
 from ProjectScreen.PlateLogic.MasterBox import MasterBox
 from ProjectScreen.ProjectManager import ProjectManager
 from AssistanceTools.SimpleDialog import SimpleDialog
-import socket
-import json
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
+from lightconductor.application import BuildShowPayloadUseCase
+from lightconductor.infrastructure import LegacyMastersMapper, UdpShowTransport, UdpTransportConfig
+from lightconductor.infrastructure.audio_loader import LibrosaAudioLoader
+from lightconductor.presentation import ProjectScreenController
 
 from datetime import datetime
 
@@ -45,6 +45,12 @@ class ProjectWindow(QMainWindow):
         self.projectManager = ProjectManager(self.project_data['project_name'])
         self.boxes = {}
         self.audioPath = None
+        self.showController = ProjectScreenController(
+            mapper=LegacyMastersMapper(),
+            payload_use_case=BuildShowPayloadUseCase(),
+            transport=UdpShowTransport(UdpTransportConfig(host="192.168.0.129", port=12345)),
+            audio_loader=LibrosaAudioLoader(),
+        )
 
         self.initActions()
         self.init_ui()
@@ -142,12 +148,13 @@ class ProjectWindow(QMainWindow):
             "",
             "Аудио файлы (*.mp3, *.wav, *.flac, *.ogg, *.m4a);;Все файлы (*)"
         )
-        if not os.path.exists(filePath):
-            print("File not exist")
+        if not filePath:
             return
         try:
-            self.audioPath = filePath
-            self.audio, self.sr = librosa.load(filePath, sr=None, mono=True)
+            self.audio, self.sr, self.audioPath = self.showController.load_track(filePath)
+            self.initAudioPlayer()
+        except FileNotFoundError:
+            print("File not exist")
         except Exception as e:
             print(e)
             return
@@ -165,74 +172,21 @@ class ProjectWindow(QMainWindow):
         self.layout.addWidget(master)
 
     def loadData(self):
-        pins, data = self.dataPack()
-
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-
-        # Преобразуем данные в JSON строку
-        json_str = json.dumps(data)
-        pins_str = json.dumps(pins)
-
-        # Широковещательный адрес (255.255.255.255 или сетевой broadcast)
-        # Лучше использовать сетевой broadcast адрес, например: 192.168.1.255
-        broadcast_address = '192.168.0.129'  # Общий broadcast
-
-        # Альтернативно, можно рассчитать broadcast адрес сети
-        # broadcast_address = '192.168.1.255'  # Для сети 192.168.1.0/24
-
         try:
-            # Отправляем данные
-            sock.sendto("pins".encode('utf-8'), (broadcast_address, 12345))
-            sock.sendto(pins_str.encode('utf-8'), (broadcast_address, 12345))
-            sock.sendto("partiture".encode('utf-8'), (broadcast_address, 12345))
-            for slave in data:
-                json_str = json.dumps(data[slave])
-                sock.sendto(slave.encode('utf-8'), (broadcast_address, 12345))
-                sock.sendto(json_str.encode('utf-8'), (broadcast_address, 12345))
-            sock.sendto("end".encode('utf-8'), (broadcast_address, 12345))
-            print(f"Sent broadcast to {broadcast_address}:{12345}")
-            print(f"Data: {json_str}")
+            self.showController.send_show_payload(self.masters)
+            print("Show payload sent")
         except Exception as e:
-            print(f"Error sending broadcast: {e}")
-        finally:
-            sock.close()
-
-    def dataPack(self):
-        data = {}
-        pins = {}
-        for masterID in self.masters:
-            master = self.masters[masterID]
-            for slaveID in master.slaves:
-                slave = master.slaves[slaveID]
-                data[slave.slavePin] = {}
-                pins[slave.slavePin] = {}
-                types = slave.wave.manager.types
-                for typeName in types:
-                    type = types[typeName]
-                    pins[slave.slavePin][type.pin] = type.table*type.row
-                    for tag in type.tags:
-                        time = round(tag.time * 1000)
-                        if time not in data:
-                            data[slave.slavePin][time] = {}
-                        data[slave.slavePin][time][type.pin] = {}
-                        data[slave.slavePin][time][type.pin]["action"] = tag.action
-                        data[slave.slavePin][time][type.pin]["colors"] = tag.colors
-        return pins, data
+            print(f"Error sending payload: {e}")
 
     def startShow(self):
+        if not hasattr(self, "audioPlayer"):
+            print("Audio player is not initialized. Add a track first.")
+            return
         self.audioPlayer.setPosition(0)
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-
-        broadcast_address = '192.168.0.129'  # Общий broadcast
 
         try:
-            # Отправляем данные
-            sock.sendto("start".encode('utf-8'), (broadcast_address, 12345))
-            print(f"Sent broadcast to {broadcast_address}:{12345}")
+            self.showController.send_start_signal()
+            print("Start signal sent")
         except Exception as e:
             print(f"Error sending broadcast: {e}")
-        finally:
-            sock.close()
         self.audioPlayer.play()
