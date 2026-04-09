@@ -1,11 +1,11 @@
-from MainScreen.ProjectsManager import  ProjectsManager
 from PyQt6.QtWidgets import (
     QMainWindow, QPushButton, QVBoxLayout,
     QHBoxLayout, QWidget)
 from PyQt6.QtCore import pyqtSignal
 from ProjectScreen.ProjectScreen import ProjectWindow
-from datetime import datetime
 from AssistanceTools.SimpleDialog import SimpleDialog
+from lightconductor.infrastructure import LegacyProjectsRepository
+from lightconductor.presentation import MainScreenController
 
 class NewProjectScreen(SimpleDialog):
     projectCreated = pyqtSignal(dict)
@@ -45,7 +45,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
 
-        self.projectManager = ProjectsManager() #проектный мэнеджер
+        self.controller = MainScreenController(LegacyProjectsRepository())
         self.projectWidgets = {} # айди проекта -> бокс с кнопками
 
         self.initUI()
@@ -78,22 +78,22 @@ class MainWindow(QMainWindow):
 
     #Загрузка существующих проектов
     def loadExistingProjects(self):
-        projects = self.projectManager.returnAllProjects()
-        for projectId in projects:
-            self.initProject(projects[projectId])
+        projects = self.controller.list_projects()
+        for project in projects:
+            self.initProject(project, persist=False)
 
     #открытие диалога нового проекта
     def showProjectDialog(self):
         dialog = NewProjectScreen(self)
-        dialog.projectCreated.connect(self.initProject)
+        dialog.projectCreated.connect(self.createAndInitProject)
         dialog.exec()
 
-    #создание нового проекта/инициализация старого
-    def initProject(self, data):
-        if not data['id']:
-            data['id'] = datetime.now().strftime("%Y%m%d%H%M%S%f")
-            self.projectManager.addProject(data)
+    def createAndInitProject(self, data):
+        project = self.controller.create_project(data["project_name"], data["song_name"])
+        self.initProject(project, persist=False)
 
+    #создание нового проекта/инициализация старого
+    def initProject(self, data, persist=False):
         buttonsWidget = QWidget()
         buttonsLayout = QHBoxLayout(buttonsWidget)
         buttonsLayout.setSpacing(0)
@@ -120,7 +120,7 @@ class MainWindow(QMainWindow):
 
     #удаление проекта
     def deleteProject(self, projectId):
-        if self.projectManager.deleteProject(projectId):
+        if self.controller.delete_project(projectId):
             widget = self.projectWidgets[projectId]
             self.buttonLayout.removeWidget(widget)
             widget.setParent(None)
@@ -132,7 +132,6 @@ class MainWindow(QMainWindow):
         self.project = ProjectWindow(project_data)
         self.project.show()
         self.hide()
-
 
 
 
