@@ -18,6 +18,7 @@ class TagType:
     rows: int
     columns: int
     color: List[int] = field(default_factory=lambda: [255, 255, 255])
+    topology: List[int] = field(default_factory=list)
     tags: List[Tag] = field(default_factory=list)
 
 

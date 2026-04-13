@@ -61,7 +61,14 @@ class TagManager(QWidget):
         return ranges
 
     def addType(self, params):
-        newType = TagType(params["color"], params["name"], params["pin"], params["row"], params["table"])
+        newType = TagType(
+            params["color"],
+            params["name"],
+            params["pin"],
+            params["row"],
+            params["table"],
+            params.get("topology"),
+        )
         self.types[params["name"]] = newType
         button = TagButton(newType, manager=self)
         button.setCheckable(True)
@@ -128,6 +135,15 @@ class newTypeDialog(SimpleDialog):
 
         self.rangeLengthBar = self.LabelAndLine("Range length")
         self.rangeLengthBar.setText("1")
+        self.rowsBar = self.LabelAndLine("Grid rows")
+        self.rowsBar.setText("1")
+        self.columnsBar = self.LabelAndLine("Grid columns")
+        self.columnsBar.setText("1")
+
+        self.topology = None
+        topologyButton = QPushButton("Configure topology")
+        topologyButton.clicked.connect(self.configureTopology)
+        self.layout().addWidget(topologyButton)
 
         self.rangeStartLabel = QLabel("Range start")
         self.rangeStartCombo = QComboBox()
@@ -159,16 +175,103 @@ class newTypeDialog(SimpleDialog):
             length = int(self.rangeLengthBar.text())
         except ValueError:
             length = 1
+        try:
+            rows = int(self.rowsBar.text())
+        except ValueError:
+            rows = 1
+        try:
+            cols = int(self.columnsBar.text())
+        except ValueError:
+            cols = 1
+        if rows <= 0:
+            rows = 1
+        if cols <= 0:
+            cols = 1
         start = self.rangeStartCombo.currentText() or "0"
+        topology = self.topology
+        if topology is None or len(topology) != length:
+            topology = [i for i in range(length)]
         params = {
             "name": self.newNameBar.text(),
             "color": f"{self.colorPicker.rgb[0]}, {self.colorPicker.rgb[1]}, {self.colorPicker.rgb[2]}",
             "pin": start,
-            "row": 1,
-            "table": length,
+            "row": rows,
+            "table": cols,
+            "topology": topology,
         }
         self.newType.emit(params)
         self.accept()
+
+    def configureTopology(self):
+        try:
+            length = int(self.rangeLengthBar.text())
+        except ValueError:
+            length = 1
+        try:
+            rows = int(self.rowsBar.text())
+        except ValueError:
+            rows = 1
+        try:
+            cols = int(self.columnsBar.text())
+        except ValueError:
+            cols = 1
+
+        dialog = TopologyDialog(rows=max(1, rows), cols=max(1, cols), led_count=max(1, length), order=self.topology, parent=self)
+        if dialog.exec():
+            self.topology = dialog.order
+
+
+class TopologyDialog(QDialog):
+    def __init__(self, rows, cols, led_count, order=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Range topology")
+        self.rows = rows
+        self.cols = cols
+        self.led_count = led_count
+        self.order = list(order) if order else []
+        self.buttons = {}
+
+        layout = QVBoxLayout(self)
+        gridWidget = QWidget()
+        gridLayout = QVBoxLayout(gridWidget)
+        for r in range(self.rows):
+            rowWidget = QWidget()
+            rowLayout = QHBoxLayout(rowWidget)
+            for c in range(self.cols):
+                index = r * self.cols + c
+                btn = QPushButton("")
+                btn.setCheckable(True)
+                btn.setFixedSize(36, 36)
+                btn.clicked.connect(lambda checked, i=index: self.toggleCell(i))
+                self.buttons[index] = btn
+                rowLayout.addWidget(btn)
+            gridLayout.addWidget(rowWidget)
+        layout.addWidget(gridWidget)
+
+        okBtn = QPushButton("OK")
+        okBtn.clicked.connect(self.accept)
+        layout.addWidget(okBtn)
+
+        self.syncButtons()
+
+    def toggleCell(self, index):
+        if index in self.order:
+            self.order.remove(index)
+        else:
+            if len(self.order) >= self.led_count:
+                return
+            self.order.append(index)
+        self.syncButtons()
+
+    def syncButtons(self):
+        for index, btn in self.buttons.items():
+            if index in self.order:
+                position = self.order.index(index)
+                btn.setChecked(True)
+                btn.setText(str(position))
+            else:
+                btn.setChecked(False)
+                btn.setText("")
 
 class TagButton(QToolButton):
     def __init__(self, tagType, manager=None):

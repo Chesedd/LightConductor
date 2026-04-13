@@ -30,6 +30,7 @@ class LegacyMastersMapper:
                         rows=legacy_type.row,
                         columns=legacy_type.table,
                         color=legacy_type.color,
+                        topology=list(getattr(legacy_type, "topology", [])),
                         tags=[],
                     )
 

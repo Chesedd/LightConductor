@@ -67,9 +67,10 @@ class ProjectManager():
         typeData["color"] = type.color
         typeData["pin"] = type.pin
         typeData["segment_start"] = type.pin
-        typeData["segment_size"] = type.table * type.row
+        typeData["segment_size"] = len(type.topology)
         typeData["row"] = type.row
         typeData["table"] = type.table
+        typeData["topology"] = type.topology
         typeData["tags"] = tagsData
         return typeData
 

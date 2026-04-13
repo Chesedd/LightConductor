@@ -136,6 +136,10 @@ class ProjectWindow(QMainWindow):
         return tagTypes, manager
 
     def initTypeAndTags(self, params, manager, wave):
+        if "topology" not in params:
+            rows = params.get("row", 1)
+            cols = params.get("table", 1)
+            params["topology"] = [i for i in range(rows * cols)]
         type = manager.addType(params)
         tags = []
         for tagID in params['tags']:

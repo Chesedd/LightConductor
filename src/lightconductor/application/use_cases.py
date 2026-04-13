@@ -20,7 +20,7 @@ class BuildShowPayloadUseCase:
                 pins.setdefault(slave.pin, {})
 
                 for tag_type in slave.tag_types.values():
-                    segment_size = tag_type.rows * tag_type.columns
+                    segment_size = len(getattr(tag_type, "topology", [])) or (tag_type.rows * tag_type.columns)
                     try:
                         segment_start = int(tag_type.pin)
                     except (TypeError, ValueError):
