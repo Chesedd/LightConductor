@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QDialog,
-                             QLabel, QLineEdit, QToolButton, QButtonGroup, QMenu, QScrollArea)
+                             QLabel, QLineEdit, QToolButton, QButtonGroup, QMenu, QScrollArea, QComboBox)
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QAction
 from ProjectScreen.TagLogic.TagType import TagType
@@ -9,6 +9,7 @@ from PyQt6.QtGui import QColor
 from ProjectScreen.PlateLogic.SlaveBox import DeleteDialog
 from AssistanceTools.FlowLayout import FlowLayout
 from AssistanceTools.SimpleDialog import SimpleDialog
+from lightconductor.application.range_allocator import available_starts
 
 class TagManager(QWidget):
     newTypeCreate = pyqtSignal(TagType)
@@ -37,18 +38,37 @@ class TagManager(QWidget):
         self.innerWidget.setLayout(self.innerArea)
         self.scrollArea.setWidget(self.innerWidget)
 
-        addButton = QPushButton("+ Add type")
+        addButton = QPushButton("+ Add range")
         addButton.clicked.connect(self.showNewTypeDialog)
         self.innerArea.addWidget(addButton)
         self.mainLayout.addWidget(self.scrollArea)
 
     def showNewTypeDialog(self):
-        dialog = newTypeDialog(self)
+        led_count = self.box.ledCount if self.box else 0
+        dialog = newTypeDialog(self, led_count=led_count, occupied_ranges=self.getOccupiedRanges())
         dialog.newType.connect(self.addType)
         dialog.exec()
 
+    def getOccupiedRanges(self):
+        ranges = []
+        for tag_type in self.types.values():
+            try:
+                start = int(tag_type.pin)
+            except ValueError:
+                start = 0
+            size = int(tag_type.row) * int(tag_type.table)
+            ranges.append((start, size))
+        return ranges
+
     def addType(self, params):
-        newType = TagType(params["color"], params["name"], params["pin"], params["row"], params["table"])
+        newType = TagType(
+            params["color"],
+            params["name"],
+            params["pin"],
+            params["row"],
+            params["table"],
+            params.get("topology"),
+        )
         self.types[params["name"]] = newType
         button = TagButton(newType, manager=self)
         button.setCheckable(True)
@@ -83,7 +103,7 @@ class editDialog(SimpleDialog):
             self.colorPicker.slidersLabels[i][0].setValue(rgb[i])
         self.layout().addWidget(self.colorPicker)
 
-        self.newPinBar = self.LabelAndLine("Pin")
+        self.newPinBar = self.LabelAndLine("Segment start")
 
         okBtn = self.OkAndCancel()
         okBtn.clicked.connect(self.onOkClicked)
@@ -99,9 +119,11 @@ class editDialog(SimpleDialog):
 
 class newTypeDialog(SimpleDialog):
     newType = pyqtSignal(dict)
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, led_count=0, occupied_ranges=None):
         super().__init__(parent=parent)
-        self.setWindowTitle("New tag type")
+        self.setWindowTitle("New range")
+        self.led_count = led_count
+        self.occupied_ranges = occupied_ranges or []
         self.mainLayout = QVBoxLayout(self)
         self.initParams()
 
@@ -111,57 +133,145 @@ class newTypeDialog(SimpleDialog):
         self.colorPicker = ColorPicker()
         self.layout().addWidget(self.colorPicker)
 
-        self.newPinBar = self.LabelAndLine("Pin")
+        self.rangeLengthBar = self.LabelAndLine("Range length")
+        self.rangeLengthBar.setText("1")
+        self.rowsBar = self.LabelAndLine("Grid rows")
+        self.rowsBar.setText("1")
+        self.columnsBar = self.LabelAndLine("Grid columns")
+        self.columnsBar.setText("1")
 
-        self.layout().addWidget(self.initPinTypeButtons())
+        self.topology = None
+        topologyButton = QPushButton("Configure topology")
+        topologyButton.clicked.connect(self.configureTopology)
+        self.layout().addWidget(topologyButton)
 
-        self.pinAmountRow = self.LabelAndLine("Row")
-        self.pinAmountRow.setEnabled(False)
+        self.rangeStartLabel = QLabel("Range start")
+        self.rangeStartCombo = QComboBox()
+        rangeStartWidget = QWidget()
+        rangeStartLayout = QHBoxLayout(rangeStartWidget)
+        rangeStartLayout.addWidget(self.rangeStartLabel)
+        rangeStartLayout.addWidget(self.rangeStartCombo)
+        self.layout().addWidget(rangeStartWidget)
 
-        self.pinAmountTable = self.LabelAndLine("Table")
-        self.pinAmountTable.setEnabled(False)
+        self.rangeLengthBar.textChanged.connect(self.refreshStartChoices)
+        self.refreshStartChoices()
 
         okBtn = self.OkAndCancel()
         okBtn.clicked.connect(self.onOkClicked)
 
-    def disablePinAmount(self):
-        self.pinAmountRow.setEnabled(False)
-        self.pinAmountRow.setText("1")
-        self.pinAmountTable.setEnabled(False)
-        self.pinAmountTable.setText("1")
-
-    def enablePinAmount(self):
-        self.pinAmountRow.setEnabled(True)
-        self.pinAmountTable.setEnabled(True)
-
-    def initPinTypeButtons(self):
-        pinType = QWidget()
-        pinTypeLayout = QHBoxLayout(pinType)
-        pinTypeText = QLabel("Pin type")
-        typeButtons = QButtonGroup()
-        typeButtons.setExclusive(True)
-        soloButton = QPushButton("solo")
-        soloButton.clicked.connect(self.disablePinAmount)
-        multiButton = QPushButton("multi")
-        multiButton.clicked.connect(self.enablePinAmount)
-        typeButtons.addButton(soloButton)
-        typeButtons.addButton(multiButton)
-        pinTypeLayout.addWidget(pinTypeText)
-        pinTypeLayout.addWidget(soloButton)
-        pinTypeLayout.addWidget(multiButton)
-
-        return pinType
+    def refreshStartChoices(self):
+        try:
+            length = int(self.rangeLengthBar.text())
+        except ValueError:
+            length = 1
+        starts = available_starts(self.led_count, self.occupied_ranges, length)
+        if not starts and self.led_count == 0:
+            starts = [0]
+        self.rangeStartCombo.clear()
+        self.rangeStartCombo.addItems([str(start) for start in starts])
 
     def onOkClicked(self):
+        try:
+            length = int(self.rangeLengthBar.text())
+        except ValueError:
+            length = 1
+        try:
+            rows = int(self.rowsBar.text())
+        except ValueError:
+            rows = 1
+        try:
+            cols = int(self.columnsBar.text())
+        except ValueError:
+            cols = 1
+        if rows <= 0:
+            rows = 1
+        if cols <= 0:
+            cols = 1
+        start = self.rangeStartCombo.currentText() or "0"
+        topology = self.topology
+        if topology is None or len(topology) != length:
+            topology = [i for i in range(length)]
         params = {
             "name": self.newNameBar.text(),
             "color": f"{self.colorPicker.rgb[0]}, {self.colorPicker.rgb[1]}, {self.colorPicker.rgb[2]}",
-            "pin": self.newPinBar.text(),
-            "row": int(self.pinAmountRow.text()),
-            "table": int(self.pinAmountTable.text()),
+            "pin": start,
+            "row": rows,
+            "table": cols,
+            "topology": topology,
         }
         self.newType.emit(params)
         self.accept()
+
+    def configureTopology(self):
+        try:
+            length = int(self.rangeLengthBar.text())
+        except ValueError:
+            length = 1
+        try:
+            rows = int(self.rowsBar.text())
+        except ValueError:
+            rows = 1
+        try:
+            cols = int(self.columnsBar.text())
+        except ValueError:
+            cols = 1
+
+        dialog = TopologyDialog(rows=max(1, rows), cols=max(1, cols), led_count=max(1, length), order=self.topology, parent=self)
+        if dialog.exec():
+            self.topology = dialog.order
+
+
+class TopologyDialog(QDialog):
+    def __init__(self, rows, cols, led_count, order=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Range topology")
+        self.rows = rows
+        self.cols = cols
+        self.led_count = led_count
+        self.order = list(order) if order else []
+        self.buttons = {}
+
+        layout = QVBoxLayout(self)
+        gridWidget = QWidget()
+        gridLayout = QVBoxLayout(gridWidget)
+        for r in range(self.rows):
+            rowWidget = QWidget()
+            rowLayout = QHBoxLayout(rowWidget)
+            for c in range(self.cols):
+                index = r * self.cols + c
+                btn = QPushButton("")
+                btn.setCheckable(True)
+                btn.setFixedSize(36, 36)
+                btn.clicked.connect(lambda checked, i=index: self.toggleCell(i))
+                self.buttons[index] = btn
+                rowLayout.addWidget(btn)
+            gridLayout.addWidget(rowWidget)
+        layout.addWidget(gridWidget)
+
+        okBtn = QPushButton("OK")
+        okBtn.clicked.connect(self.accept)
+        layout.addWidget(okBtn)
+
+        self.syncButtons()
+
+    def toggleCell(self, index):
+        if index in self.order:
+            self.order.remove(index)
+        else:
+            if len(self.order) >= self.led_count:
+                return
+            self.order.append(index)
+        self.syncButtons()
+
+    def syncButtons(self):
+        for index, btn in self.buttons.items():
+            if index in self.order:
+                position = self.order.index(index)
+                btn.setChecked(True)
+                btn.setText(str(position))
+            else:
+                btn.setChecked(False)
+                btn.setText("")
 
 class TagButton(QToolButton):
     def __init__(self, tagType, manager=None):
@@ -187,7 +297,7 @@ class TagButton(QToolButton):
         )
 
         self.name = QLabel(self.tagType.name)
-        self.pin = QLabel(self.tagType.pin)
+        self.pin = QLabel(f"seg:{self.tagType.pin}")
 
         containerLayout.addWidget(self.color)
         containerLayout.addWidget(self.name)
@@ -229,7 +339,7 @@ class TagButton(QToolButton):
         )
 
         self.name = QLabel(self.tagType.name)
-        self.pin = QLabel(self.tagType.pin)
+        self.pin = QLabel(f"seg:{self.tagType.pin}")
 
 
     def showDeleteDialog(self):
@@ -247,5 +357,3 @@ class TagButton(QToolButton):
             if state.tagType.name == self.tagType.name:
                 state.deleteLater()
         self.deleteLater()
-
-

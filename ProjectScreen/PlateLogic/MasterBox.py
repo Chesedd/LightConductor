@@ -19,6 +19,8 @@ class newSlaveDialog(SimpleDialog):
 
         self.slaveNameBar = self.LabelAndLine("Slave's name")
         self.pinBar = self.LabelAndLine("Slave pin")
+        self.ledCountBar = self.LabelAndLine("LED count")
+        self.ledCountBar.setText("60")
 
         okButton = self.OkAndCancel()
         okButton.clicked.connect(self.onOkClicked)
@@ -27,6 +29,10 @@ class newSlaveDialog(SimpleDialog):
         data = {}
         data["name"] = self.slaveNameBar.text()
         data["pin"] = self.pinBar.text()
+        try:
+            data["led_count"] = int(self.ledCountBar.text())
+        except ValueError:
+            data["led_count"] = 60
         self.slaveCreated.emit(data)
         self.accept()
 
@@ -62,7 +68,13 @@ class MasterBox(DropBox):
         wave = WaveWidget(self.audio, self.sr, manager, chooseBox, self.audioPath)
         if boxID is None:
             boxID = datetime.now().strftime("%Y%m%d%H%M%S%f")
-        slave = SlaveBox(title=slaveData["name"], boxID=boxID, wave=wave, slavePin=slaveData["pin"])
+        slave = SlaveBox(
+            title=slaveData["name"],
+            boxID=boxID,
+            wave=wave,
+            slavePin=slaveData["pin"],
+            ledCount=slaveData.get("led_count", 0),
+        )
         slave.boxDeleted.connect(self.deleteSlavesData)
 
         self.slaves[boxID] = slave

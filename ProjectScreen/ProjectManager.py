@@ -57,6 +57,7 @@ class ProjectManager():
         slavedata = {}
         slavedata['name'] = slave.title
         slavedata['pin'] = slave.slavePin
+        slavedata['led_count'] = slave.ledCount
         slavedata['id'] = slave.boxID
         slavedata['tagTypes'] = typesData
         return slavedata
@@ -65,8 +66,11 @@ class ProjectManager():
         typeData = {}
         typeData["color"] = type.color
         typeData["pin"] = type.pin
+        typeData["segment_start"] = type.pin
+        typeData["segment_size"] = len(type.topology)
         typeData["row"] = type.row
         typeData["table"] = type.table
+        typeData["topology"] = type.topology
         typeData["tags"] = tagsData
         return typeData
 
