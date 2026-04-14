@@ -13,6 +13,10 @@ class ColorButton(QPushButton):
                                     border: 2px solid #ff9900; 
                                     padding: 11px;
                                 }
+                                QPushButton:disabled {
+                                    background-color: #2f2f2f;
+                                    border: 1px dashed #7a7a7a;
+                                }
                             """)
 
 
@@ -27,6 +31,10 @@ class ColorButton(QPushButton):
                                 QPushButton:checked {
                                     border: 2px solid #ff9900; 
                                     padding: 11px;
+                                }
+                                QPushButton:disabled {
+                                    background-color: #2f2f2f;
+                                    border: 1px dashed #7a7a7a;
                                 }
                             """)
 
@@ -158,9 +166,11 @@ class TagInfoScreen(QWidget):
                     color = colors[color_index_by_cell[cell]]
                     button.setColor(color)
                     button.setEnabled(True)
+                    button.setText("")
                 else:
                     button.setColor([0, 0, 0])
                     button.setEnabled(False)
+                    button.setText("·")
                 button.setFixedSize(20, 20)
                 button.setCheckable(True)
                 self.buttons.addButton(button)

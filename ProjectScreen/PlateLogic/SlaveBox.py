@@ -268,6 +268,7 @@ class TagDialog(QDialog):
                     rowLayout.addWidget(button)
                     if (i * self.columns + j) not in self.topology:
                         button.setEnabled(False)
+                        button.setText("·")
             self.paramsLayer.addWidget(buttons)
 
         elif state == "Off":
