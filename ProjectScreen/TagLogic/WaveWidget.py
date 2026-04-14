@@ -143,9 +143,20 @@ class WaveWidget(pg.PlotWidget):
             self.audioPlayer.setPosition(round((self.selectedLine.value() - step) * 1000))
 
     def addTag(self, data):
+        self.addTagAtTime(data, self.selectedLine.pos().x())
+
+    def addTagAtTime(self, data, time):
         color = self.manager.curType.color
         r, g, b = map(int, color.split(','))
-        tag = Tag(pos = self.selectedLine.pos(), angle=90, pen=pg.mkPen(QColor(r, g, b), width=3), action=data["action"], colors=data["colors"], type = self.manager.curType, manager = self.manager)
+        tag = Tag(
+            pos=QPointF(time, 0.0),
+            angle=90,
+            pen=pg.mkPen(QColor(r, g, b), width=3),
+            action=data["action"],
+            colors=data["colors"],
+            type=self.manager.curType,
+            manager=self.manager,
+        )
         self.addItem(tag)
         self.manager.curType.addTag(tag)
 
