@@ -187,6 +187,9 @@ class newTypeDialog(SimpleDialog):
             rows = 1
         if cols <= 0:
             cols = 1
+        max_leds_in_grid = rows * cols
+        if length > max_leds_in_grid:
+            length = max_leds_in_grid
         start = self.rangeStartCombo.currentText() or "0"
         topology = self.topology
         if topology is None or len(topology) != length:
@@ -229,9 +232,13 @@ class TopologyDialog(QDialog):
         self.cols = cols
         self.led_count = led_count
         self.order = list(order) if order else []
+        if len(self.order) > self.led_count:
+            self.order = self.order[:self.led_count]
         self.buttons = {}
 
         layout = QVBoxLayout(self)
+        self.counterLabel = QLabel("")
+        layout.addWidget(self.counterLabel)
         gridWidget = QWidget()
         gridLayout = QVBoxLayout(gridWidget)
         for r in range(self.rows):
@@ -250,6 +257,7 @@ class TopologyDialog(QDialog):
 
         okBtn = QPushButton("OK")
         okBtn.clicked.connect(self.accept)
+        self.okBtn = okBtn
         layout.addWidget(okBtn)
 
         self.syncButtons()
@@ -272,6 +280,8 @@ class TopologyDialog(QDialog):
             else:
                 btn.setChecked(False)
                 btn.setText("")
+        self.counterLabel.setText(f"Selected LEDs: {len(self.order)}/{self.led_count}")
+        self.okBtn.setEnabled(len(self.order) == self.led_count)
 
 class TagButton(QToolButton):
     def __init__(self, tagType, manager=None):

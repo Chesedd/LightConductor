@@ -70,3 +70,4 @@ Domain never depends on any outer layer.
 - Each slave stores total LED count.
 - New ranges are allocated only from currently free LEDs (non-overlapping selection).
 - Each range can define custom topology on a grid (cell-to-led ordering) for tag editing.
+- Grid may be larger than LED count, but topology editor enforces exact selected LED count per range.
