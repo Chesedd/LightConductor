@@ -11,7 +11,7 @@ from AssistanceTools.FlowLayout import FlowLayout
 from AssistanceTools.ColorPicker import ColorPicker
 from AssistanceTools.DropBox import DropBox
 import bisect
-from lightconductor.application.patterns import solid_fill
+from lightconductor.application.patterns import apply_fill_range, solid_fill
 
 class SlaveBox(DropBox):
     def __init__(self, title="", parent=None, boxID='', wave=None, slavePin = '', ledCount=0):
@@ -233,8 +233,23 @@ class TagDialog(QDialog):
         colorButtonsLayout.addWidget(fillButton)
         colorButtonsLayout.addWidget(dropButton)
 
+        rangeFillWidget = QWidget()
+        rangeFillLayout = QHBoxLayout(rangeFillWidget)
+        rangeFillLayout.addWidget(QLabel("Range from"))
+        self.rangeFromBar = QLineEdit("0")
+        self.rangeFromBar.setFixedWidth(50)
+        rangeFillLayout.addWidget(self.rangeFromBar)
+        rangeFillLayout.addWidget(QLabel("to"))
+        self.rangeToBar = QLineEdit("0")
+        self.rangeToBar.setFixedWidth(50)
+        rangeFillLayout.addWidget(self.rangeToBar)
+        fillRangeButton = QPushButton("Fill range")
+        fillRangeButton.clicked.connect(self.fillRangeColors)
+        rangeFillLayout.addWidget(fillRangeButton)
+
         colorPickerLayout.addWidget(self.colorPicker)
         colorPickerLayout.addWidget(colorButtons)
+        colorPickerLayout.addWidget(rangeFillWidget)
 
         return colorPickerWidget
 
@@ -257,6 +272,30 @@ class TagDialog(QDialog):
         for button in self.buttonGroup.buttons():
             if button.isEnabled():
                 button.setColor(rgb)
+
+    def fillRangeColors(self):
+        if not hasattr(self, "rowsLayouts"):
+            return
+        try:
+            start = int(self.rangeFromBar.text())
+        except ValueError:
+            start = 0
+        try:
+            end = int(self.rangeToBar.text())
+        except ValueError:
+            end = start
+        rgb = [self.colorPicker.rgb[0], self.colorPicker.rgb[1], self.colorPicker.rgb[2]]
+
+        ordered_buttons = []
+        for cell_index in self.topology:
+            row = cell_index // self.columns
+            col = cell_index % self.columns
+            ordered_buttons.append(self.rowsLayouts[row].itemAt(col).widget())
+
+        current_colors = [button.rgb for button in ordered_buttons]
+        updated_colors = apply_fill_range(current_colors, start, end, rgb)
+        for button, color in zip(ordered_buttons, updated_colors):
+            button.setColor(color)
 
     def changeParams(self, state):
         if state == "On":
@@ -283,6 +322,9 @@ class TagDialog(QDialog):
                         button.setEnabled(False)
                         button.setText("·")
             self.paramsLayer.addWidget(buttons)
+            max_index = max(0, len(self.topology) - 1)
+            self.rangeFromBar.setText("0")
+            self.rangeToBar.setText(str(max_index))
 
         elif state == "Off":
             self.deleteAllWidgets(self.paramsLayer)
