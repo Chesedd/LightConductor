@@ -16,18 +16,29 @@ class WaveWidget(pg.PlotWidget):
     def __init__(self, audioData, sr, manager, chooseBox, audioPath):
         super().__init__()
         self.manager = manager
-        self.audioData = audioData
-        self.sr = sr
         self.chooseBox = chooseBox
-        self.audioPath = audioPath
         self.chooseBox.stateChanged.connect(self.editTagTypeOnWave)
-
-        self.duration = len(self.audioData)/self.sr
-        self.durationMs = librosa.get_duration(y=self.audioData, sr=self.sr)
         self.vb = self.getViewBox()
+        self.setAudioData(audioData, sr, audioPath)
 
         self.init_ui()
         self.setupMouse()
+
+    def setAudioData(self, audioData, sr, audioPath):
+        self.audioPath = audioPath
+        if audioData is None or sr in (None, 0):
+            self.audioData = np.array([0.0], dtype=float)
+            self.sr = 1
+            self.duration = 1.0
+            self.durationMs = 0.0
+            self.hasAudio = False
+            return
+
+        self.audioData = audioData
+        self.sr = sr
+        self.duration = len(self.audioData) / self.sr
+        self.durationMs = librosa.get_duration(y=self.audioData, sr=self.sr)
+        self.hasAudio = True
 
     def init_ui(self):
         self.initAudioPlayer()
@@ -132,9 +143,20 @@ class WaveWidget(pg.PlotWidget):
             self.audioPlayer.setPosition(round((self.selectedLine.value() - step) * 1000))
 
     def addTag(self, data):
+        self.addTagAtTime(data, self.selectedLine.pos().x())
+
+    def addTagAtTime(self, data, time):
         color = self.manager.curType.color
         r, g, b = map(int, color.split(','))
-        tag = Tag(pos = self.selectedLine.pos(), angle=90, pen=pg.mkPen(QColor(r, g, b), width=3), action=data["action"], colors=data["colors"], type = self.manager.curType, manager = self.manager)
+        tag = Tag(
+            pos=QPointF(time, 0.0),
+            angle=90,
+            pen=pg.mkPen(QColor(r, g, b), width=3),
+            action=data["action"],
+            colors=data["colors"],
+            type=self.manager.curType,
+            manager=self.manager,
+        )
         self.addItem(tag)
         self.manager.curType.addTag(tag)
 
@@ -157,7 +179,8 @@ class WaveWidget(pg.PlotWidget):
 
     def initAudioPlayer(self):
         self.audioPlayer = QMediaPlayer()
-        self.audioPlayer.setSource(QUrl.fromLocalFile(self.audioPath))
+        if self.audioPath:
+            self.audioPlayer.setSource(QUrl.fromLocalFile(self.audioPath))
         self.audioOutput = QAudioOutput()
         self.audioPlayer.setAudioOutput(self.audioOutput)
         self.audioPlayer.positionChanged.connect(self.onPositionChanged)
@@ -180,4 +203,3 @@ class WaveWidget(pg.PlotWidget):
     def playAndPause(self):
         self.audioPlayer.play()
         QTimer.singleShot(100, self.audioPlayer.pause)
-

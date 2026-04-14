@@ -25,16 +25,18 @@ class DropBox(QWidget):
         self.toggleButton.setStyleSheet("""
             QPushButton {
                 text-align: left;
-                padding: 8px;
-                border: 1px solid #ccc;
-                background-color: #f0f0f0;
+                padding: 10px 12px;
+                border: 1px solid #2e353d;
+                border-radius: 8px;
+                background-color: #1b2026;
             }
             QPushButton:hover {
-                background-color: #e0e0e0;
+                background-color: #242b33;
             }
             QPushButton:checked {
-                background-color: #d0d0d0;
-                border-bottom: none;
+                background-color: #2a323b;
+                border-bottom-left-radius: 0px;
+                border-bottom-right-radius: 0px;
             }
         """)
         self.toggleButton.toggled.connect(self.onToggled)
@@ -45,13 +47,14 @@ class DropBox(QWidget):
         self.contentArea.setMaximumHeight(0)
         self.contentArea.setMinimumHeight(0)
         self.contentArea.setFrameShape(QFrame.Shape.NoFrame)
+        self.contentArea.setStyleSheet("QScrollArea { border: 1px solid #2e353d; border-top: none; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }")
         self.contentArea.setWidgetResizable(True)
 
         self.contentWidget = QWidget()
         self.contentLayout = QVBoxLayout(self.contentWidget)
         self.contentLayout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.contentLayout.setSpacing(5)
-        self.contentLayout.setContentsMargins(10, 10, 10, 10)
+        self.contentLayout.setSpacing(8)
+        self.contentLayout.setContentsMargins(12, 12, 12, 12)
         self.contentArea.setWidget(self.contentWidget)
 
     def onToggled(self, checked):
