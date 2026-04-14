@@ -11,12 +11,14 @@ from AssistanceTools.FlowLayout import FlowLayout
 from AssistanceTools.ColorPicker import ColorPicker
 from AssistanceTools.DropBox import DropBox
 import bisect
+from lightconductor.application.patterns import solid_fill
 
 class SlaveBox(DropBox):
-    def __init__(self, title="", parent=None, boxID='', wave=None, slavePin = ''):
+    def __init__(self, title="", parent=None, boxID='', wave=None, slavePin = '', ledCount=0):
         super().__init__(parent)
 
         self.slavePin = slavePin
+        self.ledCount = ledCount
 
         self.title = title
         self.boxID = boxID
@@ -24,7 +26,7 @@ class SlaveBox(DropBox):
         self.wave = wave
         self.wave.manager.box = self
 
-        self.toggleButton.setText(f"▼ {title} (pin: {slavePin})")
+        self.toggleButton.setText(f"▼ {title} (pin: {slavePin}, leds: {ledCount})")
 
         self.initUI()
 
@@ -100,7 +102,7 @@ class SlaveBox(DropBox):
 
     def createTag(self):
         curType = self.wave.manager.curType
-        dialog = TagDialog(curType.row, curType.table, self)
+        dialog = TagDialog(curType.row, curType.table, curType.topology, self)
         dialog.tagCreated.connect(self.wave.addTag)
         dialog.exec()
 
@@ -163,10 +165,11 @@ class SlaveBox(DropBox):
 
 class TagDialog(QDialog):
     tagCreated = pyqtSignal(dict)
-    def __init__(self, rows, columns, parent=None):
+    def __init__(self, rows, columns, topology, parent=None):
         super().__init__(parent)
         self.rows = rows
         self.columns = columns
+        self.topology = topology
         self.colors = []
         self.uiCreate()
 
@@ -186,6 +189,7 @@ class TagDialog(QDialog):
         self.mainLayout.addWidget(self.initColorPickerWidget())
 
         self.setLayout(self.mainLayout)
+        self.changeParams("On")
 
     def initStateDropBox(self):
         stateText = QLabel("Состояние")
@@ -218,12 +222,15 @@ class TagDialog(QDialog):
         self.colorPicker = ColorPicker()
         setButton = QPushButton("Set color")
         setButton.clicked.connect(self.setColor)
+        fillButton = QPushButton("Fill active LEDs")
+        fillButton.clicked.connect(self.fillAllActiveColors)
         dropButton = QPushButton("Drop color")
         dropButton.clicked.connect(self.dropColor)
 
         colorButtons = QWidget()
         colorButtonsLayout = QHBoxLayout(colorButtons)
         colorButtonsLayout.addWidget(setButton)
+        colorButtonsLayout.addWidget(fillButton)
         colorButtonsLayout.addWidget(dropButton)
 
         colorPickerLayout.addWidget(self.colorPicker)
@@ -242,6 +249,14 @@ class TagDialog(QDialog):
         if button:
             rgb = [0, 0, 0]
             button.setColor(rgb)
+
+    def fillAllActiveColors(self):
+        if not hasattr(self, "buttonGroup"):
+            return
+        rgb = [self.colorPicker.rgb[0], self.colorPicker.rgb[1], self.colorPicker.rgb[2]]
+        for button in self.buttonGroup.buttons():
+            if button.isEnabled():
+                button.setColor(rgb)
 
     def changeParams(self, state):
         if state == "On":
@@ -264,6 +279,9 @@ class TagDialog(QDialog):
                     button.setCheckable(True)
                     self.buttonGroup.addButton(button)
                     rowLayout.addWidget(button)
+                    if (i * self.columns + j) not in self.topology:
+                        button.setEnabled(False)
+                        button.setText("·")
             self.paramsLayer.addWidget(buttons)
 
         elif state == "Off":
@@ -275,15 +293,16 @@ class TagDialog(QDialog):
         if action=='On':
             data["action"] = "On"
             colors = []
-            for layout in self.rowsLayouts:
-                for i in range(layout.count()):
-                    button = layout.itemAt(i).widget()
-                    colors.append(button.rgb)
+            for cell_index in self.topology:
+                row = cell_index // self.columns
+                col = cell_index % self.columns
+                button = self.rowsLayouts[row].itemAt(col).widget()
+                colors.append(button.rgb)
             data["colors"] = colors
             self.tagCreated.emit(data)
         elif action == "Off":
             data["action"] = "Off"
-            colors = [[0, 0, 0] for i in range(self.columns * self.rows)]
+            colors = solid_fill(len(self.topology), [0, 0, 0])
             data["colors"] = colors
             self.tagCreated.emit(data)
         self.accept()
