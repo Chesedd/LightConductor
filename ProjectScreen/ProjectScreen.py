@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QPushButton,
+from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
                             QFileDialog)
 from PyQt6.QtCore import pyqtSignal, Qt, QUrl
 from PyQt6.QtGui import QAction, QKeySequence
@@ -88,28 +88,45 @@ class ProjectWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         self.layout = QVBoxLayout(central_widget)
-        self.layout.setSpacing(0)
+        self.layout.setContentsMargins(16, 16, 16, 16)
+        self.layout.setSpacing(12)
         self.layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        title = QLabel(f"Project: {self.project_data['project_name']}")
+        title.setStyleSheet("font-size: 18px; font-weight: 600;")
+        self.layout.addWidget(title)
 
         self.initButtons()
 
     #создание кнопок под юай
     def initButtons(self):
+        controls = QWidget()
+        controlsLayout = QHBoxLayout(controls)
+        controlsLayout.setContentsMargins(0, 0, 0, 0)
+        controlsLayout.setSpacing(8)
+
         addButton = QPushButton("Add track")
         addButton.clicked.connect(self.addTrack)
-        self.layout.addWidget(addButton)
+        controlsLayout.addWidget(addButton)
 
         waveButton = QPushButton("Add master")
         waveButton.clicked.connect(self.showMasterDialog)
-        self.layout.addWidget(waveButton)
+        controlsLayout.addWidget(waveButton)
 
         loadButton = QPushButton("Load data")
         loadButton.clicked.connect(self.loadData)
-        self.layout.addWidget(loadButton)
+        controlsLayout.addWidget(loadButton)
 
         showButton = QPushButton("Start show")
         showButton.clicked.connect(self.startShow)
-        self.layout.addWidget(showButton)
+        showButton.setStyleSheet(
+            "QPushButton { background-color: #2d6a4f; border: 1px solid #3f8a68; font-weight: 600; }"
+            "QPushButton:hover { background-color: #347a5a; }"
+        )
+        controlsLayout.addWidget(showButton)
+        controlsLayout.addStretch(1)
+
+        self.layout.addWidget(controls)
 
     def initExistingData(self):
         snapshot = self.sessionController.load_session()
