@@ -11,6 +11,7 @@ from AssistanceTools.FlowLayout import FlowLayout
 from AssistanceTools.ColorPicker import ColorPicker
 from AssistanceTools.DropBox import DropBox
 import bisect
+from lightconductor.application.patterns import solid_fill
 
 class SlaveBox(DropBox):
     def __init__(self, title="", parent=None, boxID='', wave=None, slavePin = '', ledCount=0):
@@ -188,6 +189,7 @@ class TagDialog(QDialog):
         self.mainLayout.addWidget(self.initColorPickerWidget())
 
         self.setLayout(self.mainLayout)
+        self.changeParams("On")
 
     def initStateDropBox(self):
         stateText = QLabel("Состояние")
@@ -220,12 +222,15 @@ class TagDialog(QDialog):
         self.colorPicker = ColorPicker()
         setButton = QPushButton("Set color")
         setButton.clicked.connect(self.setColor)
+        fillButton = QPushButton("Fill active LEDs")
+        fillButton.clicked.connect(self.fillAllActiveColors)
         dropButton = QPushButton("Drop color")
         dropButton.clicked.connect(self.dropColor)
 
         colorButtons = QWidget()
         colorButtonsLayout = QHBoxLayout(colorButtons)
         colorButtonsLayout.addWidget(setButton)
+        colorButtonsLayout.addWidget(fillButton)
         colorButtonsLayout.addWidget(dropButton)
 
         colorPickerLayout.addWidget(self.colorPicker)
@@ -244,6 +249,14 @@ class TagDialog(QDialog):
         if button:
             rgb = [0, 0, 0]
             button.setColor(rgb)
+
+    def fillAllActiveColors(self):
+        if not hasattr(self, "buttonGroup"):
+            return
+        rgb = [self.colorPicker.rgb[0], self.colorPicker.rgb[1], self.colorPicker.rgb[2]]
+        for button in self.buttonGroup.buttons():
+            if button.isEnabled():
+                button.setColor(rgb)
 
     def changeParams(self, state):
         if state == "On":
@@ -289,7 +302,7 @@ class TagDialog(QDialog):
             self.tagCreated.emit(data)
         elif action == "Off":
             data["action"] = "Off"
-            colors = [[0, 0, 0] for _ in self.topology]
+            colors = solid_fill(len(self.topology), [0, 0, 0])
             data["colors"] = colors
             self.tagCreated.emit(data)
         self.accept()

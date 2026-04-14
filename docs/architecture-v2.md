@@ -71,3 +71,4 @@ Domain never depends on any outer layer.
 - New ranges are allocated only from currently free LEDs (non-overlapping selection).
 - Each range can define custom topology on a grid (cell-to-led ordering) for tag editing.
 - Grid may be larger than LED count, but topology editor enforces exact selected LED count per range.
+- First score-writing pattern added: solid fill (paint all active LEDs with one color in tag creation).
