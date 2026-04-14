@@ -18,7 +18,7 @@ from datetime import datetime
 
 #Диалог создания нового мастера
 class newMasterDialog(SimpleDialog):
-    masterCreated = pyqtSignal(str)
+    masterCreated = pyqtSignal(dict)
     def __init__(self, parent=None):
         super().__init__(parent)
         self.uiCreate()
@@ -27,12 +27,17 @@ class newMasterDialog(SimpleDialog):
         self.mainLayout = QVBoxLayout(self)
 
         self.masterNameBar = self.LabelAndLine("Master's name")
+        self.masterIpBar = self.LabelAndLine("Master IP")
+        self.masterIpBar.setText("192.168.0.129")
         okButton = self.OkAndCancel()
         okButton.clicked.connect(self.onOkClicked)
 
     def onOkClicked(self):
-        masterTitle = self.masterNameBar.text()
-        self.masterCreated.emit(masterTitle)
+        data = {
+            "name": self.masterNameBar.text(),
+            "ip": self.masterIpBar.text(),
+        }
+        self.masterCreated.emit(data)
         self.accept()
 
 
@@ -113,7 +118,7 @@ class ProjectWindow(QMainWindow):
         for masterID in masters:
             master = masters[masterID]
             slaves = master['slaves']
-            self.addMaster(master["name"], master["id"])
+            self.addMaster(master["name"], master["id"], master.get("ip", "192.168.0.129"))
             masterWidget = self.masters[master["id"]]
             for slaveID in slaves:
                 slave = slaves[slaveID]
@@ -174,10 +179,13 @@ class ProjectWindow(QMainWindow):
         dialog.masterCreated.connect(self.addMaster)
         dialog.exec()
 
-    def addMaster(self, masterName, boxID=None):
+    def addMaster(self, masterName, boxID=None, masterIp="192.168.0.129"):
+        if isinstance(masterName, dict):
+            masterIp = masterName.get("ip", masterIp)
+            masterName = masterName.get("name", "")
         if boxID is None:
             boxID = datetime.now().strftime("%Y%m%d%H%M%S%f")
-        master = MasterBox(title=masterName, boxID=boxID, audio=self.audio, sr=self.sr, aydioPath=self.audioPath)
+        master = MasterBox(title=masterName, boxID=boxID, audio=self.audio, sr=self.sr, aydioPath=self.audioPath, masterIp=masterIp)
         self.masters[boxID] = master
         self.layout.addWidget(master)
 

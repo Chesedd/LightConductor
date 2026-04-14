@@ -34,6 +34,7 @@ class Slave:
 class Master:
     id: str
     name: str
+    ip: str = "192.168.0.129"
     slaves: Dict[str, Slave] = field(default_factory=dict)
 
 

@@ -12,7 +12,12 @@ class LegacyMastersMapper:
         masters: Dict[str, Master] = {}
 
         for master_id, legacy_master in legacy_masters.items():
-            master = Master(id=master_id, name=legacy_master.title, slaves={})
+            master = Master(
+                id=master_id,
+                name=legacy_master.title,
+                ip=getattr(legacy_master, "masterIp", "192.168.0.129"),
+                slaves={},
+            )
 
             for slave_id, legacy_slave in legacy_master.slaves.items():
                 slave = Slave(

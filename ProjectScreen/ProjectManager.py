@@ -50,6 +50,7 @@ class ProjectManager():
         masterData = {}
         masterData['name'] = master.title
         masterData['id'] = master.boxID
+        masterData['ip'] = getattr(master, "masterIp", "192.168.0.129")
         masterData['slaves'] = slavesData
         return masterData
 

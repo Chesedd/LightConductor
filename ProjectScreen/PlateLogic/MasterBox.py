@@ -37,18 +37,19 @@ class newSlaveDialog(SimpleDialog):
         self.accept()
 
 class MasterBox(DropBox):
-    def __init__(self, title="", parent=None, boxID='', audio=None, sr=None, aydioPath=None):
+    def __init__(self, title="", parent=None, boxID='', audio=None, sr=None, aydioPath=None, masterIp="192.168.0.129"):
         super().__init__(parent)
 
         self.title = title
         self.boxID = boxID
+        self.masterIp = masterIp
         self.audio = audio
         self.sr = sr
         self.audioPath = aydioPath
 
         self.slaves = {}
 
-        self.toggleButton.setText("▼ "+title)
+        self.toggleButton.setText(f"▼ {title} (ip: {masterIp})")
         self.initSlaveButton()
 
 
