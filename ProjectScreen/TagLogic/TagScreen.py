@@ -145,14 +145,22 @@ class TagInfoScreen(QWidget):
 
         colors = tag.colors
         self.deleteAllWidgets(self.tagStateLayout)
+        topology = getattr(tag.type, "topology", [i for i in range(tag.type.row * tag.type.table)])
+        color_index_by_cell = {cell: i for i, cell in enumerate(topology)}
         for i in range(tag.type.row):
             row = QWidget()
             rowLayout = QHBoxLayout(row)
             self.tagStateLayout.addWidget(row)
             for j in range(tag.type.table):
                 button = ColorButton()
-                button.setColor(colors[i*tag.type.table + j])
-                print(colors[i*tag.type.table + j])
+                cell = i * tag.type.table + j
+                if cell in color_index_by_cell:
+                    color = colors[color_index_by_cell[cell]]
+                    button.setColor(color)
+                    button.setEnabled(True)
+                else:
+                    button.setColor([0, 0, 0])
+                    button.setEnabled(False)
                 button.setFixedSize(20, 20)
                 button.setCheckable(True)
                 self.buttons.addButton(button)
@@ -180,7 +188,10 @@ class TagInfoScreen(QWidget):
         params = {}
         params["time"] = self.tagTimeText.text()
         params["action"] = self.tagActionText.text()
-        params["colors"] = [button.rgb for button in self.buttons.buttons()]
+        topology = getattr(self.tag.type, "topology", [i for i in range(self.tag.type.row * self.tag.type.table)])
+        params["colors"] = []
+        for cell in topology:
+            params["colors"].append(self.buttons.buttons()[cell].rgb)
         self.tag.editParams(params)
 
     def deleteTag(self):

@@ -13,10 +13,11 @@ from AssistanceTools.DropBox import DropBox
 import bisect
 
 class SlaveBox(DropBox):
-    def __init__(self, title="", parent=None, boxID='', wave=None, slavePin = ''):
+    def __init__(self, title="", parent=None, boxID='', wave=None, slavePin = '', ledCount=0):
         super().__init__(parent)
 
         self.slavePin = slavePin
+        self.ledCount = ledCount
 
         self.title = title
         self.boxID = boxID
@@ -24,7 +25,7 @@ class SlaveBox(DropBox):
         self.wave = wave
         self.wave.manager.box = self
 
-        self.toggleButton.setText(f"▼ {title} (pin: {slavePin})")
+        self.toggleButton.setText(f"▼ {title} (pin: {slavePin}, leds: {ledCount})")
 
         self.initUI()
 
@@ -100,7 +101,7 @@ class SlaveBox(DropBox):
 
     def createTag(self):
         curType = self.wave.manager.curType
-        dialog = TagDialog(curType.row, curType.table, self)
+        dialog = TagDialog(curType.row, curType.table, curType.topology, self)
         dialog.tagCreated.connect(self.wave.addTag)
         dialog.exec()
 
@@ -163,10 +164,11 @@ class SlaveBox(DropBox):
 
 class TagDialog(QDialog):
     tagCreated = pyqtSignal(dict)
-    def __init__(self, rows, columns, parent=None):
+    def __init__(self, rows, columns, topology, parent=None):
         super().__init__(parent)
         self.rows = rows
         self.columns = columns
+        self.topology = topology
         self.colors = []
         self.uiCreate()
 
@@ -264,6 +266,8 @@ class TagDialog(QDialog):
                     button.setCheckable(True)
                     self.buttonGroup.addButton(button)
                     rowLayout.addWidget(button)
+                    if (i * self.columns + j) not in self.topology:
+                        button.setEnabled(False)
             self.paramsLayer.addWidget(buttons)
 
         elif state == "Off":
@@ -275,15 +279,16 @@ class TagDialog(QDialog):
         if action=='On':
             data["action"] = "On"
             colors = []
-            for layout in self.rowsLayouts:
-                for i in range(layout.count()):
-                    button = layout.itemAt(i).widget()
-                    colors.append(button.rgb)
+            for cell_index in self.topology:
+                row = cell_index // self.columns
+                col = cell_index % self.columns
+                button = self.rowsLayouts[row].itemAt(col).widget()
+                colors.append(button.rgb)
             data["colors"] = colors
             self.tagCreated.emit(data)
         elif action == "Off":
             data["action"] = "Off"
-            colors = [[0, 0, 0] for i in range(self.columns * self.rows)]
+            colors = [[0, 0, 0] for _ in self.topology]
             data["colors"] = colors
             self.tagCreated.emit(data)
         self.accept()
