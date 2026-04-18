@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Protocol, Tuple
 
-from lightconductor.application.use_cases import BuildShowPayloadUseCase
+from lightconductor.application.compiled_show import CompileShowsForMastersUseCase
 from lightconductor.infrastructure.legacy_mappers import LegacyMastersMapper
-from lightconductor.infrastructure.udp_transport import UdpShowTransport
+from lightconductor.infrastructure.master_udp_upload_transport import MasterUdpUploadTransport
 
 
 class AudioLoaderPort(Protocol):
@@ -16,17 +16,18 @@ class AudioLoaderPort(Protocol):
 @dataclass(slots=True)
 class ProjectScreenController:
     mapper: LegacyMastersMapper
-    payload_use_case: BuildShowPayloadUseCase
-    transport: UdpShowTransport
+    compile_use_case: CompileShowsForMastersUseCase
+    transport: MasterUdpUploadTransport
     audio_loader: AudioLoaderPort
 
-    def send_show_payload(self, legacy_masters: Dict[str, Any]) -> None:
+    def upload_show(self, legacy_masters: Dict[str, Any]) -> None:
         masters = self.mapper.map_masters(legacy_masters)
-        pins, payload = self.payload_use_case.execute(masters)
-        self.transport.send_payload(pins, payload)
+        compiled_by_host = self.compile_use_case.execute(masters)
+        self.transport.upload(compiled_by_host)
 
-    def send_start_signal(self) -> None:
-        self.transport.send_start()
+    def send_start_signal(self, legacy_masters: Dict[str, Any]) -> None:
+        masters = self.mapper.map_masters(legacy_masters)
+        self.transport.start_show(master.ip for master in masters.values())
 
     def load_track(self, file_path: str) -> Tuple[Any, int, str]:
         return self.audio_loader.load(file_path)

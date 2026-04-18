@@ -6,11 +6,11 @@ from ProjectScreen.PlateLogic.MasterBox import MasterBox
 from ProjectScreen.ProjectManager import ProjectManager
 from AssistanceTools.SimpleDialog import SimpleDialog
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
-from lightconductor.application.use_cases import BuildShowPayloadUseCase
-from lightconductor.infrastructure.legacy_mappers import LegacyMastersMapper
+from lightconductor.application.compiled_show import CompileShowsForMastersUseCase
 from lightconductor.infrastructure.audio_loader import LibrosaAudioLoader
-from lightconductor.infrastructure.udp_transport import UdpShowTransport, UdpTransportConfig
+from lightconductor.infrastructure.legacy_mappers import LegacyMastersMapper
 from lightconductor.infrastructure.legacy_project_storage import LegacyProjectStorage
+from lightconductor.infrastructure.master_udp_upload_transport import MasterUdpUploadTransport
 from lightconductor.presentation.project_controller import ProjectScreenController
 from lightconductor.presentation.project_session_controller import ProjectSessionController
 
@@ -56,8 +56,8 @@ class ProjectWindow(QMainWindow):
         self.sessionController = ProjectSessionController(LegacyProjectStorage(self.projectManager))
         self.showController = ProjectScreenController(
             mapper=LegacyMastersMapper(),
-            payload_use_case=BuildShowPayloadUseCase(),
-            transport=UdpShowTransport(UdpTransportConfig(host="192.168.0.129", port=12345)),
+            compile_use_case=CompileShowsForMastersUseCase(),
+            transport=MasterUdpUploadTransport(port=43690, chunk_size=768),
             audio_loader=LibrosaAudioLoader(),
         )
 
@@ -113,9 +113,9 @@ class ProjectWindow(QMainWindow):
         waveButton.clicked.connect(self.showMasterDialog)
         controlsLayout.addWidget(waveButton)
 
-        loadButton = QPushButton("Load data")
-        loadButton.clicked.connect(self.loadData)
-        controlsLayout.addWidget(loadButton)
+        uploadButton = QPushButton("Upload show")
+        uploadButton.clicked.connect(self.uploadShow)
+        controlsLayout.addWidget(uploadButton)
 
         showButton = QPushButton("Start show")
         showButton.clicked.connect(self.startShow)
@@ -216,12 +216,12 @@ class ProjectWindow(QMainWindow):
                 slave.wave.clear()
                 slave.wave.init_ui()
 
-    def loadData(self):
+    def uploadShow(self):
         try:
-            self.showController.send_show_payload(self.masters)
-            print("Show payload sent")
+            self.showController.upload_show(self.masters)
+            print("Compiled show uploaded")
         except Exception as e:
-            print(f"Error sending payload: {e}")
+            print(f"Error uploading show: {e}")
 
     def startShow(self):
         if not hasattr(self, "audioPlayer"):
@@ -230,8 +230,10 @@ class ProjectWindow(QMainWindow):
         self.audioPlayer.setPosition(0)
 
         try:
-            self.showController.send_start_signal()
+            self.showController.send_start_signal(self.masters)
             print("Start signal sent")
         except Exception as e:
-            print(f"Error sending broadcast: {e}")
+            print(f"Error sending start signal: {e}")
+            return
+
         self.audioPlayer.play()

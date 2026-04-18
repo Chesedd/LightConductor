@@ -7,7 +7,7 @@ from typing import Dict, List
 @dataclass(slots=True)
 class Tag:
     time_seconds: float
-    action: bool
+    action: bool | str
     colors: List[List[int]] = field(default_factory=list)
 
 
@@ -17,7 +17,7 @@ class TagType:
     pin: str
     rows: int
     columns: int
-    color: List[int] = field(default_factory=lambda: [255, 255, 255])
+    color: List[int] | str = field(default_factory=lambda: [255, 255, 255])
     topology: List[int] = field(default_factory=list)
     tags: List[Tag] = field(default_factory=list)
 
@@ -26,7 +26,8 @@ class TagType:
 class Slave:
     id: str
     name: str
-    pin: str
+    pin: str                 # номер slave на общей UART-шине
+    led_count: int = 0       # общее количество LED у этого slave
     tag_types: Dict[str, TagType] = field(default_factory=dict)
 
 

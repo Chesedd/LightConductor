@@ -23,7 +23,8 @@ class LegacyMastersMapper:
                 slave = Slave(
                     id=slave_id,
                     name=legacy_slave.title,
-                    pin=legacy_slave.slavePin,
+                    pin=str(legacy_slave.slavePin),
+                    led_count=int(getattr(legacy_slave, "ledCount", 0) or 0),
                     tag_types={},
                 )
 
@@ -31,9 +32,9 @@ class LegacyMastersMapper:
                 for type_name, legacy_type in legacy_types.items():
                     mapped_type = TagType(
                         name=type_name,
-                        pin=legacy_type.pin,
-                        rows=legacy_type.row,
-                        columns=legacy_type.table,
+                        pin=str(legacy_type.pin),
+                        rows=int(legacy_type.row),
+                        columns=int(legacy_type.table),
                         color=legacy_type.color,
                         topology=list(getattr(legacy_type, "topology", [])),
                         tags=[],
@@ -42,7 +43,7 @@ class LegacyMastersMapper:
                     for legacy_tag in legacy_type.tags:
                         mapped_type.tags.append(
                             Tag(
-                                time_seconds=legacy_tag.time,
+                                time_seconds=float(legacy_tag.time),
                                 action=legacy_tag.action,
                                 colors=legacy_tag.colors,
                             )
