@@ -19,7 +19,6 @@ from lightconductor.domain.models import Master as DomainMaster
 from lightconductor.infrastructure.audio_loader import LibrosaAudioLoader
 from lightconductor.infrastructure.master_udp_upload_transport import MasterUdpUploadTransport
 from lightconductor.infrastructure.project_session_storage import ProjectSessionStorage
-from lightconductor.infrastructure.ui_masters_mapper import UiMastersMapper
 from lightconductor.infrastructure.ui_session_bridge import UiSessionBridge
 from lightconductor.presentation.project_controller import ProjectScreenController
 from lightconductor.presentation.project_session_controller import ProjectSessionController
@@ -70,11 +69,9 @@ class ProjectWindow(QMainWindow):
             UiSessionBridge(
                 domain_storage=ProjectSessionStorage(),
                 project_name=self.project_data['project_name'],
-                ui_mapper=UiMastersMapper(),
             )
         )
         self.showController = ProjectScreenController(
-            mapper=UiMastersMapper(),
             compile_use_case=CompileShowsForMastersUseCase(),
             transport=MasterUdpUploadTransport(
                 port=self.settings.udp_port,
@@ -83,7 +80,6 @@ class ProjectWindow(QMainWindow):
             audio_loader=LibrosaAudioLoader(),
         )
         self.validation_service = ValidationService()
-        self._ui_mapper_for_validation = UiMastersMapper()
         self.state = ProjectState()
         self._loading = False
 
@@ -196,52 +192,51 @@ class ProjectWindow(QMainWindow):
         self._loading = True
         try:
             snapshot = self.sessionController.load_session()
-            self.audio, self.sr, self.audioPath = snapshot.audio, snapshot.sample_rate, snapshot.audio_path
-            masters = snapshot.boxes
-            for masterID in masters:
-                master = masters[masterID]
-                slaves = master['slaves']
-                self.addMaster(
-                    master["name"],
-                    master["id"],
-                    master.get("ip", self.settings.default_master_ip),
-                )
-                masterWidget = self.masters[master["id"]]
-                for slaveID in slaves:
-                    slave = slaves[slaveID]
-                    tagTypes, manager = self.initSlave(slave, masterWidget, master)
-                    wave = self.masters[master["id"]].slaves[slave["id"]].wave
-                    for tagType in tagTypes:
-                        params = tagTypes[tagType]
-                        params['name'] = tagType
-                        self.initTypeAndTags(params, manager, wave)
-            self.state.load_masters(
-                self._ui_mapper_for_validation.map_masters(self.masters)
-            )
+            self.audio = snapshot.audio
+            self.sr = snapshot.sample_rate
+            self.audioPath = snapshot.audio_path
+            self.state.load_masters(snapshot.masters)
+            for master_id, master in snapshot.masters.items():
+                self.addMaster(master.name, master_id, master.ip)
+                master_widget = self.masters[master_id]
+                for slave_id, slave in master.slaves.items():
+                    manager = self.initSlave(slave, master_widget, master_id)
+                    wave = master_widget.slaves[slave_id].wave
+                    for type_name, tag_type in slave.tag_types.items():
+                        self.initTypeAndTags(tag_type, manager, wave)
         finally:
             self._loading = False
 
 
-    def initSlave(self, slave, masterWidget, master):
-        slaveData = {}
-        slaveData["name"] = slave["name"]
-        slaveData["pin"] = slave["pin"]
-        slaveData["led_count"] = slave.get("led_count", 0)
-        masterWidget.addSlave(slaveData, slave["id"])
-        tagTypes = slave['tagTypes']
-        manager = self.masters[master["id"]].slaves[slave["id"]].wave.manager
-        return tagTypes, manager
+    def initSlave(self, slave, master_widget, master_id):
+        slaveData = {
+            "name": slave.name,
+            "pin": slave.pin,
+            "led_count": slave.led_count,
+        }
+        master_widget.addSlave(slaveData, slave.id)
+        manager = self.masters[master_id].slaves[slave.id].wave.manager
+        return manager
 
-    def initTypeAndTags(self, params, manager, wave):
-        if "topology" not in params:
-            rows = params.get("row", 1)
-            cols = params.get("table", 1)
-            params["topology"] = [i for i in range(rows * cols)]
-        type = manager.addType(params)
+    def initTypeAndTags(self, tag_type, manager, wave):
+        params = {
+            "name": tag_type.name,
+            "color": tag_type.color,
+            "pin": tag_type.pin,
+            "row": tag_type.rows,
+            "table": tag_type.columns,
+            "topology": list(tag_type.topology),
+        }
+        widget_type = manager.addType(params)
         tags = []
-        for tagID in params['tags']:
-            tags.append(wave.addExistingTag(params['tags'][tagID], type))
-        type.addExistingTags(tags)
+        for domain_tag in tag_type.tags:
+            tag_dict = {
+                "time": domain_tag.time_seconds,
+                "action": domain_tag.action,
+                "colors": domain_tag.colors,
+            }
+            tags.append(wave.addExistingTag(tag_dict, widget_type))
+        widget_type.addExistingTags(tags)
 
     def saveData(self):
         logger.info("Save requested")
@@ -249,7 +244,7 @@ class ProjectWindow(QMainWindow):
         issues = self.validation_service.validate(domain_masters)
         if not self._report_validation_errors(issues, "Save"):
             return
-        self.sessionController.save_session_domain(
+        self.sessionController.save_session(
             self.audio, self.sr, domain_masters,
         )
 
@@ -320,11 +315,7 @@ class ProjectWindow(QMainWindow):
             issues = self.validation_service.validate(domain_masters)
             if not self._report_validation_errors(issues, "Upload"):
                 return
-            # showController.upload_show still expects the widget tree
-            # (it runs its own mapper + compile + transport pipeline).
-            # Switching it to domain masters is a separate concern —
-            # left on widget tree for 2.2b.
-            self.showController.upload_show(self.masters)
+            self.showController.upload_show(domain_masters)
             logger.info("Compiled show uploaded")
         except Exception as e:
             logger.exception("Failed to upload show")
@@ -338,7 +329,7 @@ class ProjectWindow(QMainWindow):
         self.audioPlayer.setPosition(0)
 
         try:
-            self.showController.send_start_signal(self.masters)
+            self.showController.send_start_signal(self.state.masters())
             logger.info("Start signal sent")
         except Exception as e:
             logger.exception("Failed to send start signal")
