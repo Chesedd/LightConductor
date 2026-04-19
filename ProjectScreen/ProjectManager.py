@@ -1,7 +1,21 @@
 import json
+import logging
 import os
+from pathlib import Path
+
 import soundfile as sf
 import librosa
+
+from lightconductor.infrastructure.project_schema import (
+    SchemaValidationError,
+    load_and_migrate,
+    unwrap_boxes,
+    validate,
+    wrap_boxes,
+)
+
+logger = logging.getLogger(__name__)
+
 
 class ProjectManager():
     def __init__(self, projectName, audioFile="audio.wav", dataFile="data.json", parent=None):
@@ -43,8 +57,14 @@ class ProjectManager():
                     typesData[type.name] = self.packType(type, tagsData)
                 slavesData[slaveID] = self.packSlave(saveSlave, typesData)
             self.boxes[masterID] = self.packMaster(saveMaster, slavesData)
+        envelope = wrap_boxes(self.boxes)
+        try:
+            validate(envelope)
+        except SchemaValidationError:
+            logger.exception("Refusing to save invalid project data")
+            raise
         with open(f"Projects/{self.projectName}/{self.dataFile}", 'w', encoding='utf-8') as f:
-            json.dump(self.boxes, f, indent=4, ensure_ascii=False)
+            json.dump(envelope, f, indent=4, ensure_ascii=False)
 
     def packMaster(self, master, slavesData):
         masterData = {}
@@ -83,13 +103,19 @@ class ProjectManager():
         return tagData
 
     def loadData(self):
-        if os.path.exists(f"Projects/{self.projectName}/{self.dataFile}"):
-            try:
-                with open(f"Projects/{self.projectName}/{self.dataFile}", 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, KeyError):
-                return {}
-        return {}
+        path = Path(f"Projects/{self.projectName}/{self.dataFile}")
+        if not path.exists():
+            return {}
+        try:
+            envelope = load_and_migrate(path)
+            validate(envelope)
+            return unwrap_boxes(envelope)
+        except SchemaValidationError as exc:
+            logger.warning(
+                "data.json at %s failed schema validation: %s; "
+                "starting with empty project", path, exc,
+            )
+            return {}
 
     def returnAllBoxes(self):
         return self.boxes
