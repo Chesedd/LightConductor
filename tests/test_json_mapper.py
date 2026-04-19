@@ -10,8 +10,13 @@ if str(SRC) not in sys.path:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from lightconductor.domain.models import Tag
-from lightconductor.infrastructure.json_mapper import pack_tag, unpack_tag
+from lightconductor.domain.models import Tag, TagType
+from lightconductor.infrastructure.json_mapper import (
+    pack_tag,
+    pack_tag_type,
+    unpack_tag,
+    unpack_tag_type,
+)
 
 
 class PackTagTests(unittest.TestCase):
@@ -90,6 +95,231 @@ class ProjectManagerDelegationTests(unittest.TestCase):
             Tag(time_seconds=0.7, action=True, colors=[[9, 8, 7]])
         )
         self.assertEqual(pm.packTag(ui_like), expected)
+
+
+class PackTagTypeTests(unittest.TestCase):
+
+    def test_pack_tag_type_without_tags(self):
+        tt = TagType(
+            name="front", pin="3", rows=2, columns=3,
+            color=[10, 20, 30], topology=[0, 1, 2, 3, 4, 5], tags=[],
+        )
+        result = pack_tag_type(tt)
+        self.assertEqual(
+            set(result.keys()),
+            {
+                "color", "pin", "segment_start", "segment_size",
+                "row", "table", "topology", "tags",
+            },
+        )
+        self.assertEqual(result["color"], [10, 20, 30])
+        self.assertEqual(result["pin"], "3")
+        self.assertEqual(result["row"], 2)
+        self.assertEqual(result["table"], 3)
+        self.assertEqual(result["topology"], [0, 1, 2, 3, 4, 5])
+        self.assertEqual(result["tags"], {})
+
+    def test_pack_tag_type_segment_start_mirrors_pin(self):
+        tt_str = TagType(
+            name="x", pin="7", rows=1, columns=1,
+            color="r", topology=[0], tags=[],
+        )
+        self.assertEqual(pack_tag_type(tt_str)["segment_start"], "7")
+
+        tt_int = TagType(
+            name="x", pin=5, rows=1, columns=1,
+            color="r", topology=[0], tags=[],
+        )
+        packed_int = pack_tag_type(tt_int)
+        self.assertEqual(packed_int["segment_start"], 5)
+        self.assertIsInstance(packed_int["segment_start"], int)
+
+    def test_pack_tag_type_segment_size_equals_topology_length(self):
+        tt_five = TagType(
+            name="x", pin="1", rows=1, columns=1,
+            color="r", topology=[0, 1, 2, 3, 4], tags=[],
+        )
+        self.assertEqual(pack_tag_type(tt_five)["segment_size"], 5)
+
+        tt_empty = TagType(
+            name="x", pin="1", rows=1, columns=1,
+            color="r", topology=[], tags=[],
+        )
+        self.assertEqual(pack_tag_type(tt_empty)["segment_size"], 0)
+
+    def test_pack_tag_type_rows_becomes_row(self):
+        tt = TagType(
+            name="x", pin="1", rows=4, columns=1,
+            color="r", topology=[0], tags=[],
+        )
+        self.assertEqual(pack_tag_type(tt)["row"], 4)
+
+    def test_pack_tag_type_columns_becomes_table(self):
+        tt = TagType(
+            name="x", pin="1", rows=1, columns=8,
+            color="r", topology=[0], tags=[],
+        )
+        self.assertEqual(pack_tag_type(tt)["table"], 8)
+
+    def test_pack_tag_type_with_tags_uses_int_keys(self):
+        tt = TagType(
+            name="x", pin="1", rows=1, columns=1, color="r",
+            topology=[0], tags=[
+                Tag(time_seconds=0.1, action=True, colors=[[1, 0, 0]]),
+                Tag(time_seconds=0.2, action=False, colors=[[0, 1, 0]]),
+            ],
+        )
+        result = pack_tag_type(tt)
+        self.assertEqual(set(result["tags"]), {0, 1})
+        self.assertEqual(result["tags"][0], pack_tag(tt.tags[0]))
+        self.assertEqual(result["tags"][1], pack_tag(tt.tags[1]))
+
+    def test_pack_tag_type_name_not_in_dict(self):
+        tt = TagType(
+            name="exclusive_name", pin="1", rows=1, columns=1,
+            color="x", topology=[0], tags=[],
+        )
+        result = pack_tag_type(tt)
+        self.assertNotIn("name", result)
+
+
+class UnpackTagTypeTests(unittest.TestCase):
+
+    def test_unpack_tag_type_builds_domain_with_name(self):
+        data = {
+            "color": [1, 2, 3], "pin": "4", "segment_start": "4",
+            "segment_size": 3, "row": 2, "table": 2,
+            "topology": [0, 1, 2], "tags": {},
+        }
+        tt = unpack_tag_type(data, name="given_name")
+        self.assertIsInstance(tt, TagType)
+        self.assertEqual(tt.name, "given_name")
+        self.assertEqual(tt.pin, "4")
+        self.assertEqual(tt.rows, 2)
+        self.assertEqual(tt.columns, 2)
+        self.assertEqual(tt.color, [1, 2, 3])
+        self.assertEqual(tt.topology, [0, 1, 2])
+        self.assertEqual(tt.tags, [])
+
+    def test_unpack_tag_type_ignores_segment_start_and_segment_size(self):
+        data = {
+            "color": "red", "pin": "9", "segment_start": "OTHER",
+            "segment_size": 999, "row": 1, "table": 1,
+            "topology": [0], "tags": {},
+        }
+        tt = unpack_tag_type(data, name="t")
+        self.assertEqual(tt.pin, "9")
+        # segment_size==999 did not leak into any domain attribute.
+        self.assertEqual(tt.topology, [0])
+
+    def test_unpack_tag_type_sorts_tag_keys_numerically(self):
+        data = {
+            "color": "x", "pin": "1", "segment_start": "1",
+            "segment_size": 1, "row": 1, "table": 1,
+            "topology": [0],
+            "tags": {
+                "10": {"time": 1.0, "action": True, "colors": []},
+                "2": {"time": 0.2, "action": False, "colors": []},
+                "1": {"time": 0.1, "action": True, "colors": []},
+            },
+        }
+        tt = unpack_tag_type(data, name="t")
+        self.assertEqual(
+            [t.time_seconds for t in tt.tags],
+            [0.1, 0.2, 1.0],
+        )
+
+    def test_unpack_tag_type_accepts_int_keys_in_tags(self):
+        data = {
+            "color": "x", "pin": "1", "segment_start": "1",
+            "segment_size": 1, "row": 1, "table": 1,
+            "topology": [0],
+            "tags": {
+                0: {"time": 0.0, "action": True, "colors": []},
+                1: {"time": 0.1, "action": True, "colors": []},
+            },
+        }
+        tt = unpack_tag_type(data, name="t")
+        self.assertEqual(len(tt.tags), 2)
+        self.assertEqual(tt.tags[0].time_seconds, 0.0)
+        self.assertEqual(tt.tags[1].time_seconds, 0.1)
+
+    def test_unpack_tag_type_rejects_non_dict(self):
+        with self.assertRaises(ValueError) as ctx:
+            unpack_tag_type(["not", "a", "dict"], name="x")
+        message = str(ctx.exception)
+        self.assertIn("tag_type", message)
+        self.assertIn("dict", message)
+
+    def test_unpack_tag_type_rejects_missing_fields(self):
+        data = {"color": "r", "pin": "1"}
+        with self.assertRaises(ValueError) as ctx:
+            unpack_tag_type(data, name="x")
+        message = str(ctx.exception)
+        self.assertIn("row", message)
+        self.assertIn("tags", message)
+
+    def test_unpack_tag_type_rejects_non_integer_tag_keys(self):
+        data = {
+            "color": "x", "pin": "1", "segment_start": "1",
+            "segment_size": 1, "row": 1, "table": 1,
+            "topology": [0],
+            "tags": {
+                "not_an_int": {"time": 0.0, "action": True, "colors": []},
+                "0": {"time": 0.1, "action": True, "colors": []},
+            },
+        }
+        with self.assertRaises(ValueError) as ctx:
+            unpack_tag_type(data, name="x")
+        self.assertIn("non-integer key", str(ctx.exception))
+
+
+class TagTypeRoundTripTests(unittest.TestCase):
+
+    def test_roundtrip_pack_then_unpack_tag_type(self):
+        tt_in = TagType(
+            name="rt", pin="5", rows=2, columns=3,
+            color=[100, 0, 0], topology=[2, 1, 0, 3, 4, 5],
+            tags=[Tag(
+                time_seconds=0.5, action=True, colors=[[1, 2, 3]],
+            )],
+        )
+        packed = pack_tag_type(tt_in)
+        tt_out = unpack_tag_type(packed, name="rt")
+        self.assertEqual(tt_out, tt_in)
+
+
+class ProjectManagerPackTypeDelegationTests(unittest.TestCase):
+
+    def test_project_manager_pack_type_delegates_to_json_mapper(self):
+        from ProjectScreen.ProjectManager import ProjectManager
+
+        pm = ProjectManager.__new__(ProjectManager)
+        ui_like_type = SimpleNamespace(
+            name="front",
+            color=[10, 20, 30],
+            pin="3",
+            row=2,
+            table=3,
+            topology=[0, 1, 2, 3, 4, 5],
+        )
+        tags_data = {
+            0: pack_tag(Tag(time_seconds=0.1, action=True, colors=[[1, 0, 0]])),
+            1: pack_tag(Tag(time_seconds=0.2, action=False, colors=[[0, 1, 0]])),
+        }
+
+        expected = pack_tag_type(TagType(
+            name="front",
+            pin="3",
+            rows=2,
+            columns=3,
+            color=[10, 20, 30],
+            topology=[0, 1, 2, 3, 4, 5],
+            tags=[],
+        ))
+        expected["tags"] = tags_data
+
+        self.assertEqual(pm.packType(ui_like_type, tags_data), expected)
 
 
 if __name__ == "__main__":
