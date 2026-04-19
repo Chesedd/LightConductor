@@ -1,0 +1,8 @@
+# LightConductor runtime dependencies.
+# Requires Python >= 3.10 (project uses @dataclass(slots=True)).
+# Versions are lower bounds. Strict pinning is a Phase 7 (CI) task.
+PyQt6>=6.6
+pyqtgraph>=0.13
+librosa>=0.10
+numpy>=1.24
+soundfile>=0.12
