@@ -4,8 +4,12 @@ This module is the single source of truth for pack/unpack logic
 between `lightconductor.domain.models` objects and the nested dict
 structure stored in per-project data.json files.
 
-Phase 1.1 implemented Tag. Phase 1.2 added TagType. Phase 1.3 adds
-Slave. Master will be added in the next PR (1.4).
+Phase 1.1 implemented Tag. Phase 1.2 added TagType. Phase 1.3 added
+Slave. Phase 1.4 adds Master — with this, Phase 1 roadmap point 1
+(unified mapper) is complete. The unpack_* functions are fully
+defined but not yet consumed in production; the next PR of Phase 1
+(roadmap lines 49-51) will route project loading through them and
+retire the Legacy*Storage / LegacyProjectsRepository shims.
 
 Functions pack_* receive a domain object and return a plain dict.
 Functions unpack_* receive a plain dict and return a domain object.
@@ -16,7 +20,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from lightconductor.domain.models import Slave, Tag, TagType
+from lightconductor.domain.models import Master, Slave, Tag, TagType
 
 
 _TAG_REQUIRED_FIELDS = ("time", "action", "colors")
@@ -26,6 +30,8 @@ _TAG_TYPE_REQUIRED_FIELDS = (
 )
 
 _SLAVE_REQUIRED_FIELDS = ("name", "pin", "led_count", "id", "tagTypes")
+
+_MASTER_REQUIRED_FIELDS = ("name", "id", "ip", "slaves")
 
 
 def pack_tag(tag: Tag) -> Dict[str, Any]:
@@ -165,4 +171,51 @@ def unpack_slave(data: Dict[str, Any]) -> Slave:
         pin=data["pin"],
         led_count=data["led_count"],
         tag_types=tag_types,
+    )
+
+
+def pack_master(master: Master) -> Dict[str, Any]:
+    """Serialize a domain Master into the data.json dict shape.
+
+    `master.slaves` keys become `slaves` keys one-to-one; each
+    value is recursively packed via pack_slave().
+    """
+    return {
+        "name": master.name,
+        "id": master.id,
+        "ip": master.ip,
+        "slaves": {
+            slave_id: pack_slave(s)
+            for slave_id, s in master.slaves.items()
+        },
+    }
+
+
+def unpack_master(data: Dict[str, Any]) -> Master:
+    """Deserialize a data.json master dict into a domain Master.
+
+    All four fields (name, id, ip, slaves) are required. The
+    `ip="192.168.0.129"` dataclass default is intentionally not
+    applied here — that fallback lives on the UI->domain boundary in
+    `ProjectManager.packMaster`, not in the mapper.
+    """
+    if not isinstance(data, dict):
+        raise ValueError(f"master: expected dict, got {type(data).__name__}")
+    missing = [k for k in _MASTER_REQUIRED_FIELDS if k not in data]
+    if missing:
+        raise ValueError(f"master: missing required field(s): {missing}")
+    if not isinstance(data["slaves"], dict):
+        raise ValueError(
+            f"master.slaves: expected dict, got "
+            f"{type(data['slaves']).__name__}"
+        )
+    slaves = {
+        slave_id: unpack_slave(sd)
+        for slave_id, sd in data["slaves"].items()
+    }
+    return Master(
+        id=data["id"],
+        name=data["name"],
+        ip=data["ip"],
+        slaves=slaves,
     )
