@@ -9,15 +9,26 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from lightconductor.application.commands import (
+    AddMasterCommand,
+    AddSlaveCommand,
     AddTagCommand,
+    AddTagTypeCommand,
+    DeleteSlaveCommand,
     DeleteTagCommand,
+    DeleteTagTypeCommand,
     EditRangeCommand,
+    EditTagCommand,
     MoveTagCommand,
 )
 from lightconductor.application.project_state import (
+    MasterAdded,
     ProjectState,
+    SlaveAdded,
+    SlaveRemoved,
     TagAdded,
     TagRemoved,
+    TagTypeAdded,
+    TagTypeRemoved,
     TagTypeUpdated,
     TagUpdated,
 )
@@ -287,3 +298,335 @@ def test_move_tag_command_execute_emits_tag_updated_event(state):
     tag_updated = [ev for ev in events if isinstance(ev, TagUpdated)]
     assert len(tag_updated) == 1
     assert tag_updated[0].tag_index == 1
+
+
+# ---------------------------------------------------------------------------
+# AddMasterCommand
+# ---------------------------------------------------------------------------
+
+def test_add_master_execute_adds_master():
+    s = ProjectState()
+    new_master = _master("m2", name="Master 2")
+    cmd = AddMasterCommand(new_master)
+
+    cmd.execute(s)
+
+    assert s.has_master("m2")
+    assert s.master("m2") is new_master
+
+
+def test_add_master_undo_removes_master():
+    s = ProjectState()
+    cmd = AddMasterCommand(_master("m2"))
+    cmd.execute(s)
+
+    cmd.undo(s)
+
+    assert not s.has_master("m2")
+
+
+def test_add_master_execute_emits_master_added_event():
+    s = ProjectState()
+    events = _capture(s)
+    cmd = AddMasterCommand(_master("m2"))
+
+    cmd.execute(s)
+
+    master_added = [ev for ev in events if isinstance(ev, MasterAdded)]
+    assert len(master_added) == 1
+    assert master_added[0].master_id == "m2"
+
+
+# ---------------------------------------------------------------------------
+# AddSlaveCommand
+# ---------------------------------------------------------------------------
+
+def test_add_slave_execute_adds_slave(state):
+    new_slave = _slave("s2", name="Slave 2", pin="3")
+    cmd = AddSlaveCommand("m1", new_slave)
+
+    cmd.execute(state)
+
+    assert "s2" in state.master("m1").slaves
+    assert state.master("m1").slaves["s2"] is new_slave
+
+
+def test_add_slave_undo_removes_slave(state):
+    cmd = AddSlaveCommand("m1", _slave("s2", pin="3"))
+    cmd.execute(state)
+
+    cmd.undo(state)
+
+    assert "s2" not in state.master("m1").slaves
+
+
+def test_add_slave_execute_emits_slave_added_event(state):
+    events = _capture(state)
+    cmd = AddSlaveCommand("m1", _slave("s2", pin="3"))
+
+    cmd.execute(state)
+
+    slave_added = [ev for ev in events if isinstance(ev, SlaveAdded)]
+    assert len(slave_added) == 1
+    assert slave_added[0].master_id == "m1"
+    assert slave_added[0].slave_id == "s2"
+
+
+# ---------------------------------------------------------------------------
+# DeleteSlaveCommand
+# ---------------------------------------------------------------------------
+
+def test_delete_slave_execute_removes_slave(state):
+    cmd = DeleteSlaveCommand("m1", "s1")
+
+    cmd.execute(state)
+
+    assert "s1" not in state.master("m1").slaves
+    assert cmd._deleted_slave is not None
+    assert cmd._deleted_slave.id == "s1"
+
+
+def test_delete_slave_undo_restores_same_slave_identity(state):
+    original_slave = state.master("m1").slaves["s1"]
+    cmd = DeleteSlaveCommand("m1", "s1")
+    cmd.execute(state)
+
+    cmd.undo(state)
+
+    assert state.master("m1").slaves["s1"] is original_slave
+    assert cmd._deleted_slave is None
+
+
+def test_delete_slave_undo_restores_nested_tag_types_and_tags(state):
+    _seed(state, [0.0, 1.0, 2.0])
+    original_slave = state.master("m1").slaves["s1"]
+    original_tt = original_slave.tag_types["tt1"]
+    original_tags = list(original_tt.tags)
+    cmd = DeleteSlaveCommand("m1", "s1")
+    cmd.execute(state)
+
+    cmd.undo(state)
+
+    restored_slave = state.master("m1").slaves["s1"]
+    assert restored_slave is original_slave
+    assert restored_slave.tag_types["tt1"] is original_tt
+    assert list(restored_slave.tag_types["tt1"].tags) == original_tags
+
+
+def test_delete_slave_execute_emits_slave_removed_event(state):
+    events = _capture(state)
+    cmd = DeleteSlaveCommand("m1", "s1")
+
+    cmd.execute(state)
+
+    slave_removed = [ev for ev in events if isinstance(ev, SlaveRemoved)]
+    assert len(slave_removed) == 1
+    assert slave_removed[0].slave_id == "s1"
+
+
+def test_delete_slave_undo_before_execute_raises_runtime_error(state):
+    cmd = DeleteSlaveCommand("m1", "s1")
+
+    with pytest.raises(RuntimeError):
+        cmd.undo(state)
+
+
+# ---------------------------------------------------------------------------
+# AddTagTypeCommand
+# ---------------------------------------------------------------------------
+
+def test_add_tag_type_execute_adds_tag_type(state):
+    new_tt = _tag_type(name="tt2", pin="4")
+    cmd = AddTagTypeCommand("m1", "s1", new_tt)
+
+    cmd.execute(state)
+
+    assert "tt2" in state.master("m1").slaves["s1"].tag_types
+    assert state.master("m1").slaves["s1"].tag_types["tt2"] is new_tt
+
+
+def test_add_tag_type_undo_removes_tag_type(state):
+    cmd = AddTagTypeCommand("m1", "s1", _tag_type(name="tt2", pin="4"))
+    cmd.execute(state)
+
+    cmd.undo(state)
+
+    assert "tt2" not in state.master("m1").slaves["s1"].tag_types
+
+
+def test_add_tag_type_execute_emits_tag_type_added_event(state):
+    events = _capture(state)
+    cmd = AddTagTypeCommand("m1", "s1", _tag_type(name="tt2", pin="4"))
+
+    cmd.execute(state)
+
+    tt_added = [ev for ev in events if isinstance(ev, TagTypeAdded)]
+    assert len(tt_added) == 1
+    assert tt_added[0].type_name == "tt2"
+
+
+# ---------------------------------------------------------------------------
+# DeleteTagTypeCommand
+# ---------------------------------------------------------------------------
+
+def test_delete_tag_type_execute_removes_tag_type(state):
+    cmd = DeleteTagTypeCommand("m1", "s1", "tt1")
+
+    cmd.execute(state)
+
+    assert "tt1" not in state.master("m1").slaves["s1"].tag_types
+    assert cmd._deleted_tag_type is not None
+    assert cmd._deleted_tag_type.name == "tt1"
+
+
+def test_delete_tag_type_undo_restores_same_tag_type_with_tags(state):
+    _seed(state, [0.0, 1.0, 2.0])
+    original_tt = state.master("m1").slaves["s1"].tag_types["tt1"]
+    original_tags = list(original_tt.tags)
+    cmd = DeleteTagTypeCommand("m1", "s1", "tt1")
+    cmd.execute(state)
+
+    cmd.undo(state)
+
+    restored_tt = state.master("m1").slaves["s1"].tag_types["tt1"]
+    assert restored_tt is original_tt
+    assert list(restored_tt.tags) == original_tags
+    assert cmd._deleted_tag_type is None
+
+
+def test_delete_tag_type_execute_emits_tag_type_removed_event(state):
+    events = _capture(state)
+    cmd = DeleteTagTypeCommand("m1", "s1", "tt1")
+
+    cmd.execute(state)
+
+    tt_removed = [ev for ev in events if isinstance(ev, TagTypeRemoved)]
+    assert len(tt_removed) == 1
+    assert tt_removed[0].type_name == "tt1"
+
+
+def test_delete_tag_type_undo_before_execute_raises_runtime_error(state):
+    cmd = DeleteTagTypeCommand("m1", "s1", "tt1")
+
+    with pytest.raises(RuntimeError):
+        cmd.undo(state)
+
+
+# ---------------------------------------------------------------------------
+# EditTagCommand
+# ---------------------------------------------------------------------------
+
+def test_edit_tag_execute_changes_time_repositions_and_undo_restores(state):
+    _seed(state, [0.0, 1.0, 2.0])
+    tag_ref = _tags(state)[0]
+    cmd = EditTagCommand(
+        "m1", "s1", "tt1", tag_index=0, new_time_seconds=1.5,
+    )
+
+    cmd.execute(state)
+
+    tags = _tags(state)
+    assert [t.time_seconds for t in tags] == [1.0, 1.5, 2.0]
+    assert tags[1] is tag_ref
+
+    cmd.undo(state)
+
+    tags = _tags(state)
+    assert [t.time_seconds for t in tags] == [0.0, 1.0, 2.0]
+    assert tags[0] is tag_ref
+
+
+def test_edit_tag_execute_changes_only_action(state):
+    _seed(state, [0.0, 1.0])
+    tags = _tags(state)
+    tags[0].action = True
+    tags[1].action = True
+    cmd = EditTagCommand(
+        "m1", "s1", "tt1", tag_index=1,
+        new_time_seconds=None,
+        new_action=False,
+        new_colors=None,
+    )
+
+    cmd.execute(state)
+
+    tags_after = _tags(state)
+    assert [t.time_seconds for t in tags_after] == [0.0, 1.0]
+    assert tags_after[1].action is False
+    assert tags_after[0].action is True
+
+    cmd.undo(state)
+
+    tags_restored = _tags(state)
+    assert tags_restored[1].action is True
+
+
+def test_edit_tag_execute_changes_only_colors_and_old_colors_is_copy(state):
+    _seed(state, [0.0])
+    tag = _tags(state)[0]
+    original_colors = [[10, 20, 30]]
+    tag.colors = list(original_colors)
+    cmd = EditTagCommand(
+        "m1", "s1", "tt1", tag_index=0,
+        new_colors=[[99, 99, 99]],
+    )
+
+    cmd.execute(state)
+
+    # Mutate the tag's current colors after capture -- old copy must not be affected.
+    tag.colors.append([7, 7, 7])
+    # And _old_colors must be a distinct list from what we passed on the tag.
+    assert cmd._old_colors == [[10, 20, 30]]
+
+    cmd.undo(state)
+
+    restored = _tags(state)[0]
+    assert restored.colors == [[10, 20, 30]]
+
+
+def test_edit_tag_execute_changes_all_three_fields_and_undo_restores_all(state):
+    _seed(state, [0.0, 2.0])
+    tag = _tags(state)[0]
+    tag.action = True
+    tag.colors = [[1, 2, 3]]
+    cmd = EditTagCommand(
+        "m1", "s1", "tt1", tag_index=0,
+        new_time_seconds=1.5,
+        new_action=False,
+        new_colors=[[9, 9, 9]],
+    )
+
+    cmd.execute(state)
+
+    tags = _tags(state)
+    assert [t.time_seconds for t in tags] == [1.5, 2.0]
+    assert tags[0] is tag
+    assert tag.action is False
+    assert tag.colors == [[9, 9, 9]]
+
+    cmd.undo(state)
+
+    tags = _tags(state)
+    assert [t.time_seconds for t in tags] == [0.0, 2.0]
+    assert tags[0] is tag
+    assert tag.action is True
+    assert tag.colors == [[1, 2, 3]]
+
+
+def test_edit_tag_execute_out_of_range_raises_index_error(state):
+    _seed(state, [0.0])
+    cmd = EditTagCommand(
+        "m1", "s1", "tt1", tag_index=5, new_time_seconds=1.0,
+    )
+
+    with pytest.raises(IndexError):
+        cmd.execute(state)
+
+
+def test_edit_tag_undo_before_execute_raises_runtime_error(state):
+    cmd = EditTagCommand(
+        "m1", "s1", "tt1", tag_index=0, new_time_seconds=1.0,
+    )
+
+    with pytest.raises(RuntimeError):
+        cmd.undo(state)

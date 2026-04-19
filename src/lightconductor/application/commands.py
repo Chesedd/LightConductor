@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Protocol
 
 from lightconductor.application.project_state import ProjectState
-from lightconductor.domain.models import Tag, TagType
+from lightconductor.domain.models import Master, Slave, Tag, TagType
 
 
 class Command(Protocol):
@@ -172,6 +172,144 @@ class EditRangeCommand:
         self._captured = False
         self._old_pin = None
         self._old_color = None
+
+
+@dataclass(slots=True)
+class AddMasterCommand:
+    master: Master
+
+    def execute(self, state: ProjectState) -> None:
+        state.add_master(self.master)
+
+    def undo(self, state: ProjectState) -> None:
+        state.remove_master(self.master.id)
+
+
+@dataclass(slots=True)
+class AddSlaveCommand:
+    master_id: str
+    slave: Slave
+
+    def execute(self, state: ProjectState) -> None:
+        state.add_slave(self.master_id, self.slave)
+
+    def undo(self, state: ProjectState) -> None:
+        state.remove_slave(self.master_id, self.slave.id)
+
+
+@dataclass(slots=True)
+class DeleteSlaveCommand:
+    master_id: str
+    slave_id: str
+    _deleted_slave: Optional[Slave] = field(default=None, init=False)
+
+    def execute(self, state: ProjectState) -> None:
+        slave = state.master(self.master_id).slaves[self.slave_id]
+        self._deleted_slave = slave
+        state.remove_slave(self.master_id, self.slave_id)
+
+    def undo(self, state: ProjectState) -> None:
+        if self._deleted_slave is None:
+            raise RuntimeError("undo called before execute")
+        state.add_slave(self.master_id, self._deleted_slave)
+        self._deleted_slave = None
+
+
+@dataclass(slots=True)
+class AddTagTypeCommand:
+    master_id: str
+    slave_id: str
+    tag_type: TagType
+
+    def execute(self, state: ProjectState) -> None:
+        state.add_tag_type(self.master_id, self.slave_id, self.tag_type)
+
+    def undo(self, state: ProjectState) -> None:
+        state.remove_tag_type(
+            self.master_id, self.slave_id, self.tag_type.name,
+        )
+
+
+@dataclass(slots=True)
+class DeleteTagTypeCommand:
+    master_id: str
+    slave_id: str
+    type_name: str
+    _deleted_tag_type: Optional[TagType] = field(default=None, init=False)
+
+    def execute(self, state: ProjectState) -> None:
+        tt = state.master(self.master_id).slaves[self.slave_id].tag_types[self.type_name]
+        self._deleted_tag_type = tt
+        state.remove_tag_type(self.master_id, self.slave_id, self.type_name)
+
+    def undo(self, state: ProjectState) -> None:
+        if self._deleted_tag_type is None:
+            raise RuntimeError("undo called before execute")
+        state.add_tag_type(
+            self.master_id, self.slave_id, self._deleted_tag_type,
+        )
+        self._deleted_tag_type = None
+
+
+@dataclass(slots=True)
+class EditTagCommand:
+    master_id: str
+    slave_id: str
+    type_name: str
+    tag_index: int
+    new_time_seconds: Optional[float] = None
+    new_action: Optional[bool] = None
+    new_colors: Optional[List[List[int]]] = None
+    _tag_ref: Optional[Tag] = field(default=None, init=False)
+    _old_time_seconds: Optional[float] = field(default=None, init=False)
+    _old_action: Optional[bool] = field(default=None, init=False)
+    _old_colors: Optional[List[List[int]]] = field(default=None, init=False)
+    _captured: bool = field(default=False, init=False)
+
+    def execute(self, state: ProjectState) -> None:
+        tags = state.master(self.master_id).slaves[self.slave_id].tag_types[self.type_name].tags
+        if self.tag_index < 0 or self.tag_index >= len(tags):
+            raise IndexError(self.tag_index)
+        self._tag_ref = tags[self.tag_index]
+        self._old_time_seconds = self._tag_ref.time_seconds
+        self._old_action = self._tag_ref.action
+        self._old_colors = (
+            list(self._tag_ref.colors)
+            if self._tag_ref.colors is not None
+            else None
+        )
+        self._captured = True
+        state.update_tag(
+            self.master_id, self.slave_id, self.type_name,
+            self.tag_index,
+            time_seconds=self.new_time_seconds,
+            action=self.new_action,
+            colors=self.new_colors,
+        )
+
+    def undo(self, state: ProjectState) -> None:
+        if not self._captured:
+            raise RuntimeError("undo called before execute")
+        tags = state.master(self.master_id).slaves[self.slave_id].tag_types[self.type_name].tags
+        current_index = None
+        for i, t in enumerate(tags):
+            if t is self._tag_ref:
+                current_index = i
+                break
+        if current_index is None:
+            raise RuntimeError("tag not found during undo")
+        state.update_tag(
+            self.master_id, self.slave_id, self.type_name,
+            current_index,
+            time_seconds=self._old_time_seconds,
+            action=self._old_action,
+            colors=self._old_colors,
+        )
+        self._captured = False
+        self._tag_ref = None
+        self._old_time_seconds = None
+        self._old_action = None
+        self._old_colors = None
 
 
 class CommandStack:
