@@ -7,7 +7,6 @@ from importlib import import_module
 __all__ = [
     "LibrosaAudioLoader",
     "LegacyMastersMapper",
-    "LegacyProjectsRepository",
     "LegacyProjectStorage",
     "MasterUdpUploadTransport",
     "UdpShowTransport",
@@ -18,7 +17,6 @@ _NAME_TO_MODULE = {
     "LibrosaAudioLoader": "audio_loader",
     "LegacyMastersMapper": "legacy_mappers",
     "LegacyProjectStorage": "legacy_project_storage",
-    "LegacyProjectsRepository": "legacy_projects_repository",
     "MasterUdpUploadTransport": "master_udp_upload_transport",
     "UdpShowTransport": "udp_transport",
     "UdpTransportConfig": "udp_transport",
