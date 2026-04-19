@@ -9,7 +9,6 @@ __all__ = [
     "MasterUdpUploadTransport",
     "UdpShowTransport",
     "UdpTransportConfig",
-    "UiMastersMapper",
 ]
 
 _NAME_TO_MODULE = {
@@ -17,7 +16,6 @@ _NAME_TO_MODULE = {
     "MasterUdpUploadTransport": "master_udp_upload_transport",
     "UdpShowTransport": "udp_transport",
     "UdpTransportConfig": "udp_transport",
-    "UiMastersMapper": "ui_masters_mapper",
 }
 
 

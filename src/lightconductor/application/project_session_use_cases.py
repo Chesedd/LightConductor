@@ -11,20 +11,14 @@ class ProjectSessionSnapshot:
     audio: Any
     sample_rate: int | None
     audio_path: str
-    boxes: Dict[str, dict]
+    masters: Dict[str, Master]
 
 
 class ProjectSessionStoragePort(Protocol):
     def load_audio(self):
         ...
 
-    def load_boxes(self) -> Dict[str, dict]:
-        ...
-
     def save_audio(self, audio: Any, sample_rate: int | None) -> None:
-        ...
-
-    def save_boxes(self, masters: Dict[str, Any]) -> None:
         ...
 
     def load_domain_masters(self) -> Dict[str, Master]:
@@ -40,21 +34,17 @@ class LoadProjectSessionUseCase:
 
     def execute(self) -> ProjectSessionSnapshot:
         audio, sample_rate, audio_path = self.storage.load_audio()
-        boxes = self.storage.load_boxes()
-        return ProjectSessionSnapshot(audio=audio, sample_rate=sample_rate, audio_path=audio_path, boxes=boxes)
+        masters = self.storage.load_domain_masters()
+        return ProjectSessionSnapshot(
+            audio=audio,
+            sample_rate=sample_rate,
+            audio_path=audio_path,
+            masters=masters,
+        )
 
 
 @dataclass(slots=True)
 class SaveProjectSessionUseCase:
-    storage: ProjectSessionStoragePort
-
-    def execute(self, audio: Any, sample_rate: int | None, masters: Dict[str, Any]) -> None:
-        self.storage.save_audio(audio, sample_rate)
-        self.storage.save_boxes(masters)
-
-
-@dataclass(slots=True)
-class SaveProjectSessionDomainUseCase:
     storage: ProjectSessionStoragePort
 
     def execute(

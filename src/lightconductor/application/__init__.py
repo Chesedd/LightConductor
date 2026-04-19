@@ -19,7 +19,6 @@ from .project_use_cases import CreateProjectUseCase, DeleteProjectUseCase, ListP
 from .project_session_use_cases import (
     LoadProjectSessionUseCase,
     ProjectSessionSnapshot,
-    SaveProjectSessionDomainUseCase,
     SaveProjectSessionUseCase,
 )
 from .range_allocator import available_starts
@@ -34,7 +33,6 @@ __all__ = [
     "ListProjectsUseCase",
     "LoadProjectSessionUseCase",
     "ProjectSessionSnapshot",
-    "SaveProjectSessionDomainUseCase",
     "SaveProjectSessionUseCase",
     "available_starts",
     "solid_fill",
