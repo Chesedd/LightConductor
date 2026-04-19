@@ -6,8 +6,9 @@ from pathlib import Path
 import soundfile as sf
 import librosa
 
-from lightconductor.domain.models import Slave, Tag, TagType
+from lightconductor.domain.models import Master, Slave, Tag, TagType
 from lightconductor.infrastructure.json_mapper import (
+    pack_master,
     pack_slave,
     pack_tag,
     pack_tag_type,
@@ -77,12 +78,21 @@ class ProjectManager():
         write_with_rotation(data_path, content)
 
     def packMaster(self, master, slavesData):
-        masterData = {}
-        masterData['name'] = master.title
-        masterData['id'] = master.boxID
-        masterData['ip'] = getattr(master, "masterIp", "192.168.0.129")
-        masterData['slaves'] = slavesData
-        return masterData
+        # Splice pattern: build a transient domain.Master with empty
+        # slaves, run through the mapper for metadata, then splice the
+        # already-packed slavesData into ["slaves"]. slavesData has
+        # already been packed by packSlave (PR 1.3); re-packing would
+        # break the PR #5 byte contract. The "192.168.0.129" fallback
+        # stays here (UI->domain boundary), NOT in the mapper.
+        domain_master = Master(
+            id=master.boxID,
+            name=master.title,
+            ip=getattr(master, "masterIp", "192.168.0.129"),
+            slaves={},
+        )
+        packed = pack_master(domain_master)
+        packed["slaves"] = slavesData
+        return packed
 
     def packSlave(self, slave, typesData):
         # Splice pattern: build a transient domain.Slave with empty
