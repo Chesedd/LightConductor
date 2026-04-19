@@ -1,11 +1,8 @@
 """Infrastructure package for adapters."""
 
-from .audio_loader import LibrosaAudioLoader
-from .legacy_mappers import LegacyMastersMapper
-from .legacy_project_storage import LegacyProjectStorage
-from .legacy_projects_repository import LegacyProjectsRepository
-from .master_udp_upload_transport import MasterUdpUploadTransport
-from .udp_transport import UdpShowTransport, UdpTransportConfig
+from __future__ import annotations
+
+from importlib import import_module
 
 __all__ = [
     "LibrosaAudioLoader",
@@ -16,3 +13,27 @@ __all__ = [
     "UdpShowTransport",
     "UdpTransportConfig",
 ]
+
+_NAME_TO_MODULE = {
+    "LibrosaAudioLoader": "audio_loader",
+    "LegacyMastersMapper": "legacy_mappers",
+    "LegacyProjectStorage": "legacy_project_storage",
+    "LegacyProjectsRepository": "legacy_projects_repository",
+    "MasterUdpUploadTransport": "master_udp_upload_transport",
+    "UdpShowTransport": "udp_transport",
+    "UdpTransportConfig": "udp_transport",
+}
+
+
+def __getattr__(name: str):
+    module_name = _NAME_TO_MODULE.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module = import_module(f".{module_name}", __name__)
+    value = getattr(module, name)
+    globals()[name] = value
+    return value
+
+
+def __dir__():
+    return sorted(set(list(globals()) + __all__))
