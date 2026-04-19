@@ -9,9 +9,15 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from lightconductor.application.commands import (
+    AddMasterCommand,
+    AddSlaveCommand,
     AddTagCommand,
+    AddTagTypeCommand,
     CommandStack,
+    DeleteSlaveCommand,
     DeleteTagCommand,
+    DeleteTagTypeCommand,
+    EditTagCommand,
     MoveTagCommand,
 )
 from lightconductor.application.project_state import ProjectState
@@ -158,6 +164,108 @@ def test_clear_drops_both_stacks_but_keeps_state(state, stack):
 
     assert stack.can_undo() is False
     assert stack.can_redo() is False
+    assert [t.time_seconds for t in _tags(state)] == [2.5]
+
+
+# ---------------------------------------------------------------------------
+# Integration with the broader command set
+# ---------------------------------------------------------------------------
+
+def test_stack_add_master_undo_redo_cycle():
+    s = ProjectState()
+    stack = CommandStack(s)
+    new_master = _master("m2", name="Master 2")
+
+    stack.push(AddMasterCommand(new_master))
+    assert s.has_master("m2")
+    assert stack.can_undo() is True
+    assert stack.can_redo() is False
+
+    stack.undo()
+    assert not s.has_master("m2")
+    assert stack.can_undo() is False
+    assert stack.can_redo() is True
+
+    stack.redo()
+    assert s.has_master("m2")
+    assert s.master("m2") is new_master
+    assert stack.can_undo() is True
+    assert stack.can_redo() is False
+
+
+def test_stack_add_master_then_add_slave_undo_in_reverse_order():
+    s = ProjectState()
+    stack = CommandStack(s)
+    master = _master("m2", name="Master 2")
+    slave = _slave("s9", pin="3")
+
+    stack.push(AddMasterCommand(master))
+    stack.push(AddSlaveCommand("m2", slave))
+    assert "s9" in s.master("m2").slaves
+
+    stack.undo()  # undo add-slave
+    assert "s9" not in s.master("m2").slaves
+    assert s.has_master("m2")
+
+    stack.undo()  # undo add-master
+    assert not s.has_master("m2")
+
+
+def test_stack_delete_slave_undo_restores_identity(state, stack):
+    original_slave = state.master("m1").slaves["s1"]
+
+    stack.push(DeleteSlaveCommand("m1", "s1"))
+    assert "s1" not in state.master("m1").slaves
+
+    stack.undo()
+    assert state.master("m1").slaves["s1"] is original_slave
+
+
+def test_stack_add_tag_type_then_add_tag_chained_undo_redo(state, stack):
+    new_tt = _tag_type(name="tt2", pin="5")
+    stack.push(AddTagTypeCommand("m1", "s1", new_tt))
+    new_tag = _tag(time_seconds=1.0)
+    stack.push(AddTagCommand("m1", "s1", "tt2", new_tag))
+
+    assert [t.time_seconds for t in state.master("m1").slaves["s1"].tag_types["tt2"].tags] == [1.0]
+
+    stack.undo()  # undo add-tag
+    assert state.master("m1").slaves["s1"].tag_types["tt2"].tags == []
+
+    stack.undo()  # undo add-tag-type
+    assert "tt2" not in state.master("m1").slaves["s1"].tag_types
+
+    stack.redo()  # redo add-tag-type
+    assert "tt2" in state.master("m1").slaves["s1"].tag_types
+    assert state.master("m1").slaves["s1"].tag_types["tt2"] is new_tt
+
+    stack.redo()  # redo add-tag
+    tags = state.master("m1").slaves["s1"].tag_types["tt2"].tags
+    assert [t.time_seconds for t in tags] == [1.0]
+
+
+def test_stack_edit_tag_chain_with_add_full_cycle(state, stack):
+    new_tag = _tag(time_seconds=1.0)
+    stack.push(AddTagCommand("m1", "s1", "tt1", new_tag))
+    assert [t.time_seconds for t in _tags(state)] == [1.0]
+
+    stack.push(EditTagCommand(
+        "m1", "s1", "tt1", tag_index=0, new_time_seconds=2.5,
+    ))
+    assert [t.time_seconds for t in _tags(state)] == [2.5]
+
+    stack.undo()  # undo edit
+    assert [t.time_seconds for t in _tags(state)] == [1.0]
+
+    stack.redo()  # redo edit
+    assert [t.time_seconds for t in _tags(state)] == [2.5]
+
+    stack.undo()  # undo edit again
+    stack.undo()  # undo add
+    assert _tags(state) == []
+
+    stack.redo()  # redo add
+    stack.redo()  # redo edit
     assert [t.time_seconds for t in _tags(state)] == [2.5]
 
 
