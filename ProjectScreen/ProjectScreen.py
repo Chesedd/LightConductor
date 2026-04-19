@@ -228,15 +228,13 @@ class ProjectWindow(QMainWindow):
             "topology": list(tag_type.topology),
         }
         widget_type = manager.addType(params)
-        tags = []
         for domain_tag in tag_type.tags:
             tag_dict = {
                 "time": domain_tag.time_seconds,
                 "action": domain_tag.action,
                 "colors": domain_tag.colors,
             }
-            tags.append(wave.addExistingTag(tag_dict, widget_type))
-        widget_type.addExistingTags(tags)
+            wave.addExistingTag(tag_dict, widget_type)
 
     def saveData(self):
         logger.info("Save requested")

@@ -313,6 +313,84 @@ def test_update_tag_with_all_none_still_emits(state):
     assert isinstance(events[0], TagUpdated)
 
 
+def test_add_tag_bisect_inserts_by_time_seconds(state):
+    state.add_master(_master("m1"))
+    state.add_slave("m1", _slave("s1"))
+    state.add_tag_type("m1", "s1", _tag_type("tt1"))
+
+    idx_a = state.add_tag("m1", "s1", "tt1", _tag(time_seconds=2.0))
+    idx_b = state.add_tag("m1", "s1", "tt1", _tag(time_seconds=0.5))
+    idx_c = state.add_tag("m1", "s1", "tt1", _tag(time_seconds=1.5))
+    idx_d = state.add_tag("m1", "s1", "tt1", _tag(time_seconds=1.5))
+
+    # bisect_left returns the leftmost index for equal values, so the
+    # second 1.5 is inserted at index 1 (pushing the first 1.5 to
+    # index 2).
+    assert idx_a == 0
+    assert idx_b == 0
+    assert idx_c == 1
+    assert idx_d == 1
+
+    tags = state.master("m1").slaves["s1"].tag_types["tt1"].tags
+    assert [t.time_seconds for t in tags] == [0.5, 1.5, 1.5, 2.0]
+
+
+def test_update_tag_time_change_repositions(state):
+    state.add_master(_master("m1"))
+    state.add_slave("m1", _slave("s1"))
+    state.add_tag_type("m1", "s1", _tag_type("tt1"))
+    state.add_tag("m1", "s1", "tt1", _tag(time_seconds=0.0))
+    state.add_tag("m1", "s1", "tt1", _tag(time_seconds=1.0))
+    state.add_tag("m1", "s1", "tt1", _tag(time_seconds=2.0))
+    events = _capture(state)
+
+    state.update_tag("m1", "s1", "tt1", 0, time_seconds=1.5)
+
+    tags = state.master("m1").slaves["s1"].tag_types["tt1"].tags
+    assert [t.time_seconds for t in tags] == [1.0, 1.5, 2.0]
+    assert len(events) == 1
+    assert isinstance(events[0], TagUpdated)
+    assert events[0].tag_index == 1
+
+
+def test_update_tag_without_time_change_keeps_index(state):
+    state.add_master(_master("m1"))
+    state.add_slave("m1", _slave("s1"))
+    state.add_tag_type("m1", "s1", _tag_type("tt1"))
+    t0 = _tag(time_seconds=0.0, colors=[[1, 1, 1]])
+    t1 = _tag(time_seconds=1.0, colors=[[2, 2, 2]])
+    state.add_tag("m1", "s1", "tt1", t0)
+    state.add_tag("m1", "s1", "tt1", t1)
+    events = _capture(state)
+
+    state.update_tag("m1", "s1", "tt1", 0, colors=[[9, 9, 9]])
+
+    tags = state.master("m1").slaves["s1"].tag_types["tt1"].tags
+    assert tags[0] is t0
+    assert tags[0].colors == [[9, 9, 9]]
+    assert len(events) == 1
+    assert isinstance(events[0], TagUpdated)
+    assert events[0].tag_index == 0
+
+
+def test_load_masters_sorts_tags_by_time(state):
+    master = _master("m1")
+    slave = _slave("s1")
+    tag_type = _tag_type("tt1")
+    tag_type.tags = [
+        _tag(time_seconds=3.0),
+        _tag(time_seconds=1.0),
+        _tag(time_seconds=2.0),
+    ]
+    slave.tag_types[tag_type.name] = tag_type
+    master.slaves[slave.id] = slave
+
+    state.load_masters({"m1": master})
+
+    tags = state.master("m1").slaves["s1"].tag_types["tt1"].tags
+    assert [t.time_seconds for t in tags] == [1.0, 2.0, 3.0]
+
+
 # ---------------------------------------------------------------------------
 # Subscription behaviors
 # ---------------------------------------------------------------------------

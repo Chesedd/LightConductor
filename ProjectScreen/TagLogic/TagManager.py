@@ -373,8 +373,11 @@ class TagButton(QToolButton):
         self.tagType.pin = params["pin"]
         self.editButton()
         r, g, b = map(int, self.tagType.color.split(','))
-        for tag in self.tagType.tags:
-            tag.setPen(pg.mkPen(QColor(r, g, b), width=1))
+        wave = self.manager.box.wave if self.manager.box is not None else None
+        controller = getattr(wave, "_tagController", None)
+        if controller is not None:
+            for tag in controller.scene_tags_for(self.tagType.name):
+                tag.setPen(pg.mkPen(QColor(r, g, b), width=1))
 
     def editButton(self):
         self.color.setStyleSheet(
@@ -392,8 +395,10 @@ class TagButton(QToolButton):
         dialog.exec()
 
     def deleteType(self):
-        for tag in self.tagType.tags:
-            tag.scene().removeItem(tag)
+        wave = self.manager.box.wave if self.manager.box is not None else None
+        controller = getattr(wave, "_tagController", None)
+        if controller is not None:
+            controller.remove_scene_tag_type(self.tagType.name)
         if (
             getattr(self.manager, "_state", None) is not None
             and self.manager._project_window is not None

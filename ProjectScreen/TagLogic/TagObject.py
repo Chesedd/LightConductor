@@ -33,25 +33,32 @@ class Tag(InfiniteLine):
         self.action = params["action"]
         self.colors = params["colors"]
         self.setPos(self.time)
-        self.type.editTag()
 
     def deleteTag(self):
-        # Compute tag_index from widget-side TagType.tags before
-        # the widget-side removal shifts it.
-        tag_index = None
         type_ = self.type
-        if type_ is not None:
+        manager = self.manager
+        type_name = type_.name if type_ is not None else None
+        # Find scene tag index via the controller registry, which is
+        # kept in lockstep sort order with state.
+        wave = (
+            manager.box.wave
+            if manager is not None and getattr(manager, "box", None) is not None
+            else None
+        )
+        controller = getattr(wave, "_tagController", None)
+        idx = None
+        if controller is not None and type_name is not None:
             try:
-                tag_index = type_.tags.index(self)
+                idx = controller.scene_tags_for(type_name).index(self)
             except ValueError:
-                tag_index = None
-        state = getattr(self.manager, "_state", None)
-        project_window = getattr(self.manager, "_project_window", None)
+                idx = None
+        state = getattr(manager, "_state", None)
+        project_window = getattr(manager, "_project_window", None)
         if (
             state is not None
             and project_window is not None
             and not project_window.is_loading()
-            and tag_index is not None
+            and idx is not None
             and type_ is not None
             and type_.master_id is not None
             and type_.slave_id is not None
@@ -60,14 +67,18 @@ class Tag(InfiniteLine):
                 state.remove_tag(
                     type_.master_id,
                     type_.slave_id,
-                    type_.name,
-                    tag_index,
+                    type_name,
+                    idx,
                 )
             except (KeyError, IndexError):
                 import logging
                 logging.getLogger(__name__).warning(
-                    "state missing tag during delete: type=%s index=%s",
-                    type_.name, tag_index,
+                    "state missing tag during delete: type=%s idx=%s",
+                    type_name, idx,
                 )
-        self.type.deleteTag(self)
-        self.scene().removeItem(self)
+        if controller is not None and type_name is not None:
+            controller.remove_scene_tag(type_name, self)
+        else:
+            scene = self.scene()
+            if scene is not None:
+                scene.removeItem(self)
