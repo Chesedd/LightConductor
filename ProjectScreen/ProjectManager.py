@@ -6,8 +6,8 @@ from pathlib import Path
 import soundfile as sf
 import librosa
 
-from lightconductor.domain.models import Tag
-from lightconductor.infrastructure.json_mapper import pack_tag
+from lightconductor.domain.models import Tag, TagType
+from lightconductor.infrastructure.json_mapper import pack_tag, pack_tag_type
 from lightconductor.infrastructure.project_file_backup import (
     write_with_rotation,
 )
@@ -90,16 +90,23 @@ class ProjectManager():
         return slavedata
 
     def packType(self, type, tagsData):
-        typeData = {}
-        typeData["color"] = type.color
-        typeData["pin"] = type.pin
-        typeData["segment_start"] = type.pin
-        typeData["segment_size"] = len(type.topology)
-        typeData["row"] = type.row
-        typeData["table"] = type.table
-        typeData["topology"] = type.topology
-        typeData["tags"] = tagsData
-        return typeData
+        # Build a transient domain TagType (without tags) and run it
+        # through the mapper for metadata, then splice in the already-
+        # packed tagsData. This avoids a double round-trip through
+        # unpack_tag/pack_tag for the tags list, preserving exact byte
+        # equality for the PR #5 round-trip tests.
+        domain_type = TagType(
+            name=type.name,
+            pin=type.pin,
+            rows=type.row,
+            columns=type.table,
+            color=type.color,
+            topology=list(type.topology),
+            tags=[],
+        )
+        packed = pack_tag_type(domain_type)
+        packed["tags"] = tagsData
+        return packed
 
     def packTag(self, tag):
         # UI tags carry `.time`, domain Tags carry `.time_seconds`.
