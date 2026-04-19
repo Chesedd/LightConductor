@@ -4,8 +4,8 @@ This module is the single source of truth for pack/unpack logic
 between `lightconductor.domain.models` objects and the nested dict
 structure stored in per-project data.json files.
 
-Phase 1.1 implemented Tag. Phase 1.2 adds TagType. Slave and Master
-will be added in subsequent PRs (1.3 and 1.4).
+Phase 1.1 implemented Tag. Phase 1.2 added TagType. Phase 1.3 adds
+Slave. Master will be added in the next PR (1.4).
 
 Functions pack_* receive a domain object and return a plain dict.
 Functions unpack_* receive a plain dict and return a domain object.
@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from lightconductor.domain.models import Tag, TagType
+from lightconductor.domain.models import Slave, Tag, TagType
 
 
 _TAG_REQUIRED_FIELDS = ("time", "action", "colors")
@@ -24,6 +24,8 @@ _TAG_REQUIRED_FIELDS = ("time", "action", "colors")
 _TAG_TYPE_REQUIRED_FIELDS = (
     "color", "pin", "row", "table", "topology", "tags",
 )
+
+_SLAVE_REQUIRED_FIELDS = ("name", "pin", "led_count", "id", "tagTypes")
 
 
 def pack_tag(tag: Tag) -> Dict[str, Any]:
@@ -116,4 +118,51 @@ def unpack_tag_type(data: Dict[str, Any], *, name: str) -> TagType:
         color=data["color"],
         topology=data["topology"],
         tags=tags,
+    )
+
+
+def pack_slave(slave: Slave) -> Dict[str, Any]:
+    """Serialize a domain Slave into the data.json dict shape.
+
+    `slave.tag_types` keys become `tagTypes` keys one-to-one; each
+    value is recursively packed via pack_tag_type().
+    """
+    return {
+        "name": slave.name,
+        "pin": slave.pin,
+        "led_count": slave.led_count,
+        "id": slave.id,
+        "tagTypes": {
+            type_name: pack_tag_type(tt)
+            for type_name, tt in slave.tag_types.items()
+        },
+    }
+
+
+def unpack_slave(data: Dict[str, Any]) -> Slave:
+    """Deserialize a data.json slave dict into a domain Slave.
+
+    The `led_count` dataclass default (0) is only for in-code
+    construction — here the JSON field is required.
+    """
+    if not isinstance(data, dict):
+        raise ValueError(f"slave: expected dict, got {type(data).__name__}")
+    missing = [k for k in _SLAVE_REQUIRED_FIELDS if k not in data]
+    if missing:
+        raise ValueError(f"slave: missing required field(s): {missing}")
+    if not isinstance(data["tagTypes"], dict):
+        raise ValueError(
+            f"slave.tagTypes: expected dict, got "
+            f"{type(data['tagTypes']).__name__}"
+        )
+    tag_types = {
+        type_name: unpack_tag_type(td, name=type_name)
+        for type_name, td in data["tagTypes"].items()
+    }
+    return Slave(
+        id=data["id"],
+        name=data["name"],
+        pin=data["pin"],
+        led_count=data["led_count"],
+        tag_types=tag_types,
     )
