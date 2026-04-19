@@ -1,4 +1,9 @@
 import bisect
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 class TagType():
     def __init__(self, color, name, pin, row, table, topology=None):
         self.setColor(color)
@@ -46,4 +51,4 @@ class TagType():
 
     def deleteTag(self, tag):
         self.tags.remove(tag)
-        print(self.tags)
+        logger.debug("Tags after deletion: %s", self.tags)

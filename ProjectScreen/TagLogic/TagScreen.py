@@ -1,5 +1,9 @@
+import logging
+
 from  PyQt6.QtWidgets import QWidget, QLabel, QLineEdit, QVBoxLayout, QHBoxLayout, QPushButton, QButtonGroup
 from AssistanceTools.ColorPicker import ColorPicker
+
+logger = logging.getLogger(__name__)
 
 class ColorButton(QPushButton):
     def __init__(self, text="", parent=None):
@@ -132,7 +136,7 @@ class TagInfoScreen(QWidget):
         button = self.buttons.checkedButton()
         if button:
             rgb = [self.colorPicker.rgb[0], self.colorPicker.rgb[1], self.colorPicker.rgb[2]]
-            print(rgb)
+            logger.debug("Color picked: %s", rgb)
             button.setColor(rgb)
 
     def dropColor(self):

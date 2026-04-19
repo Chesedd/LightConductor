@@ -1,3 +1,4 @@
+import logging
 import sys
 from pathlib import Path
 from PyQt6.QtWidgets import QApplication
@@ -7,6 +8,7 @@ SRC_PATH = Path(__file__).resolve().parent / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
+from lightconductor.infrastructure.logging_setup import configure_logging
 from MainScreen.MainScreen import MainWindow
 
 APP_STYLESHEET = """
@@ -68,6 +70,9 @@ QMenu::item:selected {
 
 
 def main():
+    configure_logging()
+    logger = logging.getLogger(__name__)
+    logger.info("LightConductor starting")
     app = QApplication(sys.argv)
     app.setStyleSheet(APP_STYLESHEET)
     w = MainWindow()
