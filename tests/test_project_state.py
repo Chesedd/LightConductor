@@ -20,6 +20,7 @@ from lightconductor.application.project_state import (
     TagRemoved,
     TagTypeAdded,
     TagTypeRemoved,
+    TagTypeUpdated,
     TagUpdated,
 )
 
@@ -222,6 +223,34 @@ def test_remove_tag_type_missing_raises_key_error(state):
         state.remove_tag_type("m1", "s1", "nope")
 
     assert events == []
+
+
+def test_update_tag_type_mutates_and_emits_tag_type_updated(state):
+    state.add_master(_master("m1"))
+    state.add_slave("m1", _slave("s1"))
+    state.add_tag_type("m1", "s1", _tag_type("tt1", pin="1"))
+    events = _capture(state)
+
+    state.update_tag_type("m1", "s1", "tt1", pin="42", color=[1, 2, 3])
+
+    tag_type = state.master("m1").slaves["s1"].tag_types["tt1"]
+    assert tag_type.pin == "42"
+    assert tag_type.color == [1, 2, 3]
+    assert len(events) == 1
+    ev = events[0]
+    assert isinstance(ev, TagTypeUpdated)
+    assert (ev.master_id, ev.slave_id, ev.type_name) == ("m1", "s1", "tt1")
+
+    # Second call with no-op args still emits and leaves fields unchanged.
+    state.update_tag_type("m1", "s1", "tt1", pin=None, color=None)
+
+    assert tag_type.pin == "42"
+    assert tag_type.color == [1, 2, 3]
+    assert len(events) == 2
+    assert isinstance(events[1], TagTypeUpdated)
+    assert (events[1].master_id, events[1].slave_id, events[1].type_name) == (
+        "m1", "s1", "tt1",
+    )
 
 
 # ---------------------------------------------------------------------------

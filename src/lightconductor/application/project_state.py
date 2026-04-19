@@ -14,7 +14,7 @@ from __future__ import annotations
 import bisect
 import logging
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Union
+from typing import Callable, Dict, List, Optional, Union
 
 from lightconductor.domain.models import Master, Slave, Tag, TagType
 
@@ -87,6 +87,13 @@ class TagUpdated:
     tag_index: int
 
 
+@dataclass(frozen=True, slots=True)
+class TagTypeUpdated:
+    master_id: str
+    slave_id: str
+    type_name: str
+
+
 ProjectStateEvent = Union[
     StateReplaced,
     MasterAdded,
@@ -98,6 +105,7 @@ ProjectStateEvent = Union[
     TagAdded,
     TagRemoved,
     TagUpdated,
+    TagTypeUpdated,
 ]
 
 
@@ -205,6 +213,31 @@ class ProjectState:
         del slave.tag_types[type_name]
         self._emit(
             TagTypeRemoved(
+                master_id=master_id,
+                slave_id=slave_id,
+                type_name=type_name,
+            )
+        )
+
+    def update_tag_type(
+        self,
+        master_id: str,
+        slave_id: str,
+        type_name: str,
+        *,
+        pin: Optional[str] = None,
+        color: object = None,
+    ) -> None:
+        """Update display metadata on a TagType. Fields left as
+        None are unchanged. Always emits TagTypeUpdated, even if
+        no field changed. Raises KeyError on missing levels."""
+        tag_type = self._masters[master_id].slaves[slave_id].tag_types[type_name]
+        if pin is not None:
+            tag_type.pin = pin
+        if color is not None:
+            tag_type.color = color
+        self._emit(
+            TagTypeUpdated(
                 master_id=master_id,
                 slave_id=slave_id,
                 type_name=type_name,
