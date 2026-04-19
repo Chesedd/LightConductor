@@ -1,14 +1,10 @@
 import pyqtgraph as pg
 
-from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtGui import QColor
-from PyQt6.QtCore import QPointF, QUrl, Qt, QTimer
-import numpy as np
-
-import librosa
+from PyQt6.QtCore import QPointF, Qt, pyqtSignal
 
 from ProjectScreen.TagLogic.TagObject import Tag
-from PyQt6.QtCore import pyqtSignal
+from ProjectScreen.TagLogic.WaveRenderer import WaveRenderer
 
 
 class WaveWidget(pg.PlotWidget):
@@ -19,131 +15,32 @@ class WaveWidget(pg.PlotWidget):
         self.chooseBox = chooseBox
         self.chooseBox.stateChanged.connect(self.editTagTypeOnWave)
         self.vb = self.getViewBox()
-        self.setAudioData(audioData, sr, audioPath)
-
-        self.init_ui()
-        self.setupMouse()
+        self._renderer = WaveRenderer(
+            plot_widget=self,
+            audioData=audioData,
+            sr=sr,
+            audioPath=audioPath,
+        )
+        self._renderer.init_ui()
+        self._renderer.setupMouse()
 
     def setAudioData(self, audioData, sr, audioPath):
-        self.audioPath = audioPath
-        if audioData is None or sr in (None, 0):
-            self.audioData = np.array([0.0], dtype=float)
-            self.sr = 1
-            self.duration = 1.0
-            self.durationMs = 0.0
-            self.hasAudio = False
-            return
-
-        self.audioData = audioData
-        self.sr = sr
-        self.duration = len(self.audioData) / self.sr
-        self.durationMs = librosa.get_duration(y=self.audioData, sr=self.sr)
-        self.hasAudio = True
+        self._renderer.setAudioData(audioData, sr, audioPath)
 
     def init_ui(self):
-        self.initAudioPlayer()
-
-        self.setFixedHeight(200)
-        self.clear()
-
-        self.setStyleSheet("QGraphicsView { border: 2px solid black; }")
-        self.hideAxis("left")
-        self.setLabel('bottom', 'Time', units='s')
-        self.setBackground('w')
-        self.drawWave()
-
-        self.vb.setLimits(
-            xMin=0,
-            xMax=self.duration,
-            yMin=-1,
-            yMax=1,
-            minXRange=0.001,
-            maxXRange=self.duration
-        )
-
-        self.setMenuEnabled(False)
-        self.vb.disableAutoRange()
-
-
-    def drawWave(self):
-        timeAxis = np.linspace(0, self.duration, len(self.audioData))
-
-        if len(self.audioData) > 100000:
-            downsampleFactor = len(self.audioData) // 100000
-
-            x_down = timeAxis[::downsampleFactor]
-            y_down = self.audioData[::downsampleFactor]
-
-            self.plot(x_down, y_down, pen=pg.mkPen('b', width=1))
-        else:
-            self.plot(timeAxis, self.audioData, pen=pg.mkPen('b', width=1))
-
-        #центральная линия
-        self.zeroLine = pg.InfiniteLine(pos = 0, angle=0, pen=pg.mkPen('r', width=1))
-        self.addItem(self.zeroLine)
-
-        #курсор
-        self.vLine = pg.InfiniteLine(pos=0, angle=90, pen='y')
-        self.addItem(self.vLine)
-
-        #метка
-        self.selectedLine = pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen('r', width=1))
-        self.addItem(self.selectedLine)
-
-        #движение мышью
-        self.proxy = pg.SignalProxy(
-            self.scene().sigMouseMoved,
-            rateLimit=60,
-            slot=self.mouseMoved
-        )
-
-    def mouseMoved(self, evt):
-        pos = evt[0]
-
-        if self.sceneBoundingRect().contains(pos):
-            mousePosition = self.vb.mapSceneToView(pos)
-            self.vLine.setPos(mousePosition.x())
-
-    def setupMouse(self):
-
-        self.vb.wheelEvent = self.wheelEventFixedCenter
-        self.scene().sigMouseClicked.connect(self.onClick)
-
-    def wheelEventFixedCenter(self, ev, axis=None):
-        vr = self.vb.viewRect()
-        scenePos = ev.scenePos()
-        cursorPos = self.vb.mapSceneToView(scenePos)
-
-        center = QPointF(cursorPos.x(), vr.center().y())
-
-        s = 1.02 ** (ev.delta() * self.vb.state['wheelScaleFactor'])
-
-        self.vb.scaleBy([s, 1], center)
-
-        ev.accept()
-
-
-    def updateVisibleFragment(self):
-        currentRange = self.vb.viewRange()[0]
-        vissibleDuration = currentRange[1] - currentRange[0]
-
-
-    def onClick(self, ev):
-        pos = ev.scenePos()
-
-        if self.sceneBoundingRect().contains(pos):
-            mousePosition = self.vb.mapSceneToView(pos)
-            self.audioPlayer.setPosition(round(round(mousePosition.x(), 1) * 1000))
+        self._renderer.init_ui()
 
     def keyPressEvent(self, ev):
         step = 0.1
         if ev.key() == Qt.Key.Key_Right:
-            self.audioPlayer.setPosition(round((self.selectedLine.value() + step) * 1000))
+            self._renderer.audioPlayer.setPosition(
+                round((self._renderer.selectedLine.value() + step) * 1000))
         elif ev.key() == Qt.Key.Key_Left:
-            self.audioPlayer.setPosition(round((self.selectedLine.value() - step) * 1000))
+            self._renderer.audioPlayer.setPosition(
+                round((self._renderer.selectedLine.value() - step) * 1000))
 
     def addTag(self, data):
-        self.addTagAtTime(data, self.selectedLine.pos().x())
+        self.addTagAtTime(data, self._renderer.selectedLine.pos().x())
 
     def addTagAtTime(self, data, time):
         color = self.manager.curType.color
@@ -176,30 +73,8 @@ class WaveWidget(pg.PlotWidget):
             else:
                 tag.hide()
 
-
-    def initAudioPlayer(self):
-        self.audioPlayer = QMediaPlayer()
-        if self.audioPath:
-            self.audioPlayer.setSource(QUrl.fromLocalFile(self.audioPath))
-        self.audioOutput = QAudioOutput()
-        self.audioPlayer.setAudioOutput(self.audioOutput)
-        self.audioPlayer.positionChanged.connect(self.onPositionChanged)
-
-    def onPositionChanged(self, positionMs):
-        positioRatio = positionMs / 1000
-        self.selectedLine.setValue(positioRatio)
-
-        minutes = positionMs // 60000
-        seconds = (positionMs % 60000) // 1000
-        ms = (positionMs % 60000) % 1000
-        timeStr = f"{minutes}:{seconds}:{ms}"
-        self.positionUpdate.emit(positioRatio, timeStr)
-
     def playOrPause(self, action):
-        if action == "Play":
-            self.audioPlayer.play()
-        else:
-            self.audioPlayer.pause()
+        self._renderer.playOrPause(action)
+
     def playAndPause(self):
-        self.audioPlayer.play()
-        QTimer.singleShot(100, self.audioPlayer.pause)
+        self._renderer.playAndPause()
