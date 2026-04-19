@@ -71,6 +71,17 @@ class PatternsTests(unittest.TestCase):
         self.assertEqual([[1, 1, 1]], tags[0]["colors"])
         self.assertEqual([[2, 2, 2]], tags[1]["colors"])
 
+    def test_build_timed_pattern_tags_action_is_bool_true(self):
+        tags = build_timed_pattern_tags(
+            frames=[[[1, 1, 1]]],
+            start_time=0.0,
+            end_time=0.25,
+            step=0.25,
+        )
+        self.assertTrue(tags)
+        for tag in tags:
+            self.assertIs(tag["action"], True)
+
 
 if __name__ == "__main__":
     unittest.main()

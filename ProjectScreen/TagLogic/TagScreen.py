@@ -150,7 +150,7 @@ class TagInfoScreen(QWidget):
         self.tagTypeText.setText(tag.type.name)
         self.tagTimeText.setText(str(tag.time))
         self.tagTimeText.setEnabled(True)
-        self.tagActionText.setText(str(tag.action))
+        self.tagActionText.setText("On" if tag.action else "Off")
         self.tagActionText.setEnabled(True)
         self.saveButton.setEnabled(True)
         self.deleteButton.setEnabled(True)
@@ -201,7 +201,8 @@ class TagInfoScreen(QWidget):
     def editTag(self):
         params = {}
         params["time"] = self.tagTimeText.text()
-        params["action"] = self.tagActionText.text()
+        action_text = self.tagActionText.text().strip().lower()
+        params["action"] = action_text in ("on", "true", "1")
         topology = getattr(self.tag.type, "topology", [i for i in range(self.tag.type.row * self.tag.type.table)])
         params["colors"] = []
         for cell in topology:

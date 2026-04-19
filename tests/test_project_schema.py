@@ -79,6 +79,21 @@ class MigrationTests(unittest.TestCase):
         with self.assertRaises(SchemaValidationError):
             migrate_to_current([])
 
+    def test_migrate_coerces_legacy_string_tag_actions(self):
+        legacy_on = {"time": 1.0, "action": "On", "colors": []}
+        legacy_off = {"time": 2.0, "action": "Off", "colors": []}
+        tag_type = _minimal_tag_type(tags={"0": legacy_on, "1": legacy_off})
+        slave = _minimal_slave(tag_types={"front": tag_type})
+        master = _minimal_master(slaves={"s1": slave})
+        legacy = {"m1": master}
+
+        result = migrate_to_current(legacy)
+
+        coerced_tags = result["masters"]["m1"]["slaves"]["s1"]["tagTypes"]["front"]["tags"]
+        self.assertIs(coerced_tags["0"]["action"], True)
+        self.assertIs(coerced_tags["1"]["action"], False)
+        validate(result)
+
 
 class WrapUnwrapTests(unittest.TestCase):
     def test_wrap_unwrap_roundtrip(self):

@@ -182,7 +182,7 @@ class TagDialog(QDialog):
         action = self.stateBar.currentText()
         data = {}
         if action=='On':
-            data["action"] = "On"
+            data["action"] = True
             colors = []
             for cell_index in self.topology:
                 row = cell_index // self.columns
@@ -192,7 +192,7 @@ class TagDialog(QDialog):
             data["colors"] = colors
             self.tagCreated.emit(data)
         elif action == "Off":
-            data["action"] = "Off"
+            data["action"] = False
             colors = _pattern_service.solid_fill(len(self.topology), [0, 0, 0])
             data["colors"] = colors
             self.tagCreated.emit(data)

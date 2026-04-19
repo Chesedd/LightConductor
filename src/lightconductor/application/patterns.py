@@ -83,7 +83,7 @@ def build_timed_pattern_tags(
     while t <= end_time + 1e-9:
         tags.append({
             "time": round(t, 3),
-            "action": "On",
+            "action": True,
             "colors": frames[frame_index % len(frames)],
         })
         frame_index += 1

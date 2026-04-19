@@ -72,7 +72,9 @@ def migrate_to_current(data: Any) -> Dict[str, Any]:
             f"top-level: expected dict, got {type(data).__name__}"
         )
     if "schema_version" not in data:
-        return wrap_boxes(data)
+        envelope = wrap_boxes(data)
+        _coerce_legacy_tag_actions(envelope)
+        return envelope
     version = data["schema_version"]
     if not isinstance(version, int) or isinstance(version, bool):
         raise SchemaValidationError(
@@ -84,9 +86,47 @@ def migrate_to_current(data: Any) -> Dict[str, Any]:
             f"{CURRENT_SCHEMA_VERSION}; refusing to downgrade"
         )
     if version == CURRENT_SCHEMA_VERSION:
+        _coerce_legacy_tag_actions(data)
         return data
     # No intermediate versions exist yet; future migrations will chain here.
     raise SchemaValidationError(f"unknown schema_version {version}")
+
+
+def _coerce_legacy_tag_actions(envelope: Dict[str, Any]) -> None:
+    """Normalize legacy string tag.action values to bool in-place.
+
+    Pre-bool schemas wrote "On"/"Off" strings. Walks the envelope
+    and rewrites any str tag action to its boolean equivalent:
+    "On" → True, anything else (incl. "Off") → False. Non-string
+    actions (already bool or malformed non-str/non-bool) are left
+    untouched; schema validate() will catch the latter.
+    """
+    masters = envelope.get("masters")
+    if not isinstance(masters, dict):
+        return
+    for master in masters.values():
+        if not isinstance(master, dict):
+            continue
+        slaves = master.get("slaves")
+        if not isinstance(slaves, dict):
+            continue
+        for slave in slaves.values():
+            if not isinstance(slave, dict):
+                continue
+            tag_types = slave.get("tagTypes")
+            if not isinstance(tag_types, dict):
+                continue
+            for tag_type in tag_types.values():
+                if not isinstance(tag_type, dict):
+                    continue
+                tags = tag_type.get("tags")
+                if not isinstance(tags, dict):
+                    continue
+                for tag in tags.values():
+                    if isinstance(tag, dict):
+                        action = tag.get("action")
+                        if isinstance(action, str):
+                            tag["action"] = (action == "On")
 
 
 def _format_types(types: Iterable[type]) -> str:
