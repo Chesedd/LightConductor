@@ -6,6 +6,9 @@ from pathlib import Path
 import soundfile as sf
 import librosa
 
+from lightconductor.infrastructure.project_file_backup import (
+    write_with_rotation,
+)
 from lightconductor.infrastructure.project_schema import (
     SchemaValidationError,
     load_and_migrate,
@@ -63,8 +66,9 @@ class ProjectManager():
         except SchemaValidationError:
             logger.exception("Refusing to save invalid project data")
             raise
-        with open(f"Projects/{self.projectName}/{self.dataFile}", 'w', encoding='utf-8') as f:
-            json.dump(envelope, f, indent=4, ensure_ascii=False)
+        data_path = Path(f"Projects/{self.projectName}/{self.dataFile}")
+        content = json.dumps(envelope, indent=4, ensure_ascii=False).encode("utf-8")
+        write_with_rotation(data_path, content)
 
     def packMaster(self, master, slavesData):
         masterData = {}
