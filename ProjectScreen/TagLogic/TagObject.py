@@ -36,5 +36,38 @@ class Tag(InfiniteLine):
         self.type.editTag()
 
     def deleteTag(self):
+        # Compute tag_index from widget-side TagType.tags before
+        # the widget-side removal shifts it.
+        tag_index = None
+        type_ = self.type
+        if type_ is not None:
+            try:
+                tag_index = type_.tags.index(self)
+            except ValueError:
+                tag_index = None
+        state = getattr(self.manager, "_state", None)
+        project_window = getattr(self.manager, "_project_window", None)
+        if (
+            state is not None
+            and project_window is not None
+            and not project_window.is_loading()
+            and tag_index is not None
+            and type_ is not None
+            and type_.master_id is not None
+            and type_.slave_id is not None
+        ):
+            try:
+                state.remove_tag(
+                    type_.master_id,
+                    type_.slave_id,
+                    type_.name,
+                    tag_index,
+                )
+            except (KeyError, IndexError):
+                import logging
+                logging.getLogger(__name__).warning(
+                    "state missing tag during delete: type=%s index=%s",
+                    type_.name, tag_index,
+                )
         self.type.deleteTag(self)
         self.scene().removeItem(self)

@@ -10,10 +10,18 @@ from ProjectScreen.PlateLogic.DeleteDialog import DeleteDialog
 from AssistanceTools.FlowLayout import FlowLayout
 from AssistanceTools.SimpleDialog import SimpleDialog
 from lightconductor.application.range_allocator import available_starts
+from lightconductor.domain.models import TagType as DomainTagType
 
 class TagManager(QWidget):
     newTypeCreate = pyqtSignal(TagType)
-    def __init__(self, checkBox):
+    def __init__(
+        self,
+        checkBox,
+        state=None,
+        project_window=None,
+        master_id=None,
+        slave_id=None,
+    ):
         super().__init__()
         self.checkBox = checkBox
         self.buttons = QButtonGroup()
@@ -22,6 +30,10 @@ class TagManager(QWidget):
         self.types = {}
         self.box = None
         self.tagScreen = None
+        self._state = state
+        self._project_window = project_window
+        self._master_id = master_id
+        self._slave_id = slave_id
 
         self.initPanel()
 
@@ -78,6 +90,28 @@ class TagManager(QWidget):
 
         self.checkBox.addType(params["name"])
         self.newTypeCreate.emit(newType)
+        # Attach IDs on the widget TagType so TagObject.deleteTag can
+        # locate the tag in state without walking the ProjectWindow.
+        newType.master_id = self._master_id
+        newType.slave_id = self._slave_id
+        if (
+            self._state is not None
+            and self._project_window is not None
+            and not self._project_window.is_loading()
+        ):
+            self._state.add_tag_type(
+                self._master_id,
+                self._slave_id,
+                DomainTagType(
+                    name=params["name"],
+                    pin=str(params["pin"]),
+                    rows=int(params["row"]),
+                    columns=int(params["table"]),
+                    color=params["color"],
+                    topology=list(params.get("topology") or []),
+                    tags=[],
+                ),
+            )
         return newType
 
     def setNewType(self):
@@ -360,6 +394,23 @@ class TagButton(QToolButton):
     def deleteType(self):
         for tag in self.tagType.tags:
             tag.scene().removeItem(tag)
+        if (
+            getattr(self.manager, "_state", None) is not None
+            and self.manager._project_window is not None
+            and not self.manager._project_window.is_loading()
+        ):
+            try:
+                self.manager._state.remove_tag_type(
+                    self.manager._master_id,
+                    self.manager._slave_id,
+                    self.tagType.name,
+                )
+            except KeyError:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "state missing tag_type %s during delete",
+                    self.tagType.name,
+                )
         del self.manager.types[self.tagType.name]
         states = self.manager.box.tagsLayout
         for i in range(states.count()):

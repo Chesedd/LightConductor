@@ -183,6 +183,46 @@ class UiSessionBridgeTests(unittest.TestCase):
             audio_path = Path(td) / "p5" / "audio.wav"
             self.assertFalse(audio_path.exists())
 
+    def test_load_domain_masters_returns_domain_instances(self):
+        from unittest.mock import MagicMock
+
+        from lightconductor.domain.models import Master, Slave
+
+        storage = MagicMock()
+        domain_dict = {
+            "m1": Master(
+                id="m1", name="M", ip="1.2.3.4",
+                slaves={"s1": Slave(id="s1", name="S", pin="0")},
+            ),
+        }
+        storage.load_masters.return_value = domain_dict
+
+        bridge = UiSessionBridge(
+            domain_storage=storage,
+            project_name="proj",
+            ui_mapper=UiMastersMapper(),
+        )
+        result = bridge.load_domain_masters()
+
+        self.assertIs(result, domain_dict)
+        storage.load_masters.assert_called_once_with("proj")
+
+    def test_save_domain_masters_delegates_to_storage(self):
+        from unittest.mock import MagicMock
+
+        from lightconductor.domain.models import Master
+
+        storage = MagicMock()
+        bridge = UiSessionBridge(
+            domain_storage=storage,
+            project_name="proj",
+            ui_mapper=UiMastersMapper(),
+        )
+        masters = {"m1": Master(id="m1", name="M", ip="1.2.3.4")}
+        bridge.save_domain_masters(masters)
+
+        storage.save_masters.assert_called_once_with("proj", masters)
+
     def test_bridge_separate_project_names_are_isolated(self):
         with tempfile.TemporaryDirectory() as td:
             storage = ProjectSessionStorage(projects_root=Path(td))

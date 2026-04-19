@@ -8,7 +8,18 @@ from ProjectScreen.TagLogic.TagTimelineController import TagTimelineController
 
 class WaveWidget(pg.PlotWidget):
     positionUpdate = pyqtSignal(float, str)
-    def __init__(self, audioData, sr, manager, chooseBox, audioPath):
+    def __init__(
+        self,
+        audioData,
+        sr,
+        manager,
+        chooseBox,
+        audioPath,
+        state=None,
+        project_window=None,
+        master_id=None,
+        slave_id=None,
+    ):
         super().__init__()
         self.manager = manager
         self.chooseBox = chooseBox
@@ -23,6 +34,10 @@ class WaveWidget(pg.PlotWidget):
             plot_widget=self,
             manager=manager,
             renderer=self._renderer,
+            state=state,
+            project_window=project_window,
+            master_id=master_id,
+            slave_id=slave_id,
         )
         self.chooseBox.stateChanged.connect(self.editTagTypeOnWave)
         self._renderer.init_ui()

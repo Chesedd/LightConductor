@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Tuple
 
+from lightconductor.domain.models import Master
 from lightconductor.infrastructure.json_mapper import pack_master
 from lightconductor.infrastructure.project_session_storage import (
     ProjectSessionStorage,
@@ -52,3 +53,13 @@ class UiSessionBridge:
         self._storage.save_masters(
             self._project_name, domain_masters,
         )
+
+    def load_domain_masters(self) -> Dict[str, Master]:
+        """Return domain masters directly without the pack roundtrip.
+        Consumed by ProjectWindow to populate ProjectState."""
+        return self._storage.load_masters(self._project_name)
+
+    def save_domain_masters(self, masters: Dict[str, Master]) -> None:
+        """Persist domain masters without re-walking a widget tree.
+        Consumed by ProjectWindow after 2.2b flip."""
+        self._storage.save_masters(self._project_name, masters)

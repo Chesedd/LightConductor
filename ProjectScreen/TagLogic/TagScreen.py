@@ -208,6 +208,41 @@ class TagInfoScreen(QWidget):
         for cell in topology:
             params["colors"].append(self.buttons.buttons()[cell].rgb)
         self.tag.editParams(params)
+        type_ = self.tag.type
+        manager = getattr(self.tag, "manager", None)
+        state = getattr(manager, "_state", None) if manager else None
+        project_window = (
+            getattr(manager, "_project_window", None) if manager else None
+        )
+        if (
+            state is not None
+            and project_window is not None
+            and not project_window.is_loading()
+            and type_ is not None
+            and type_.master_id is not None
+            and type_.slave_id is not None
+        ):
+            try:
+                idx = type_.tags.index(self.tag)
+            except ValueError:
+                idx = None
+            if idx is not None:
+                try:
+                    state.update_tag(
+                        type_.master_id,
+                        type_.slave_id,
+                        type_.name,
+                        idx,
+                        time_seconds=float(params["time"]),
+                        action=bool(params["action"]),
+                        colors=list(params["colors"]),
+                    )
+                except (KeyError, IndexError):
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        "state update_tag failed: type=%s idx=%s",
+                        type_.name, idx,
+                    )
 
     def deleteTag(self):
         self.tag.deleteTag()

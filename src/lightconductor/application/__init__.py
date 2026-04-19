@@ -16,7 +16,12 @@ from .patterns import (
     solid_fill,
 )
 from .project_use_cases import CreateProjectUseCase, DeleteProjectUseCase, ListProjectsUseCase
-from .project_session_use_cases import LoadProjectSessionUseCase, ProjectSessionSnapshot, SaveProjectSessionUseCase
+from .project_session_use_cases import (
+    LoadProjectSessionUseCase,
+    ProjectSessionSnapshot,
+    SaveProjectSessionDomainUseCase,
+    SaveProjectSessionUseCase,
+)
 from .range_allocator import available_starts
 from .use_cases import BuildShowPayloadUseCase
 
@@ -29,6 +34,7 @@ __all__ = [
     "ListProjectsUseCase",
     "LoadProjectSessionUseCase",
     "ProjectSessionSnapshot",
+    "SaveProjectSessionDomainUseCase",
     "SaveProjectSessionUseCase",
     "available_starts",
     "solid_fill",
