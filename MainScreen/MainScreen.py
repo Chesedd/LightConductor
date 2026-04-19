@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import pyqtSignal
 from ProjectScreen.ProjectScreen import ProjectWindow
 from AssistanceTools.SimpleDialog import SimpleDialog
-from lightconductor.infrastructure.legacy_projects_repository import LegacyProjectsRepository
+from lightconductor.infrastructure.project_repository import ProjectRepository
 from lightconductor.presentation.main_controller import MainScreenController
 
 class NewProjectScreen(SimpleDialog):
@@ -45,7 +45,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
 
-        self.controller = MainScreenController(LegacyProjectsRepository())
+        self.controller = MainScreenController(ProjectRepository())
         self.projectWidgets = {} # айди проекта -> бокс с кнопками
 
         self.initUI()
