@@ -11,13 +11,9 @@ from AssistanceTools.FlowLayout import FlowLayout
 from AssistanceTools.ColorPicker import ColorPicker
 from AssistanceTools.DropBox import DropBox
 import bisect
-from lightconductor.application.patterns import apply_fill_range, solid_fill
-from lightconductor.application.patterns import (
-    build_timed_pattern_tags,
-    floating_gradient_frames,
-    moving_window_frames,
-    sequential_fill_frames,
-)
+from lightconductor.application.pattern_service import PatternService
+
+_pattern_service = PatternService()
 
 class SlaveBox(DropBox):
     def __init__(self, title="", parent=None, boxID='', wave=None, slavePin = '', ledCount=0):
@@ -320,7 +316,9 @@ class TagDialog(QDialog):
             ordered_buttons.append(self.rowsLayouts[row].itemAt(col).widget())
 
         current_colors = [button.rgb for button in ordered_buttons]
-        updated_colors = apply_fill_range(current_colors, start, end, rgb)
+        updated_colors = _pattern_service.apply_fill_range(
+            current_colors, start, end, rgb,
+        )
         for button, color in zip(ordered_buttons, updated_colors):
             button.setColor(color)
 
@@ -371,7 +369,7 @@ class TagDialog(QDialog):
             self.tagCreated.emit(data)
         elif action == "Off":
             data["action"] = "Off"
-            colors = solid_fill(len(self.topology), [0, 0, 0])
+            colors = _pattern_service.solid_fill(len(self.topology), [0, 0, 0])
             data["colors"] = colors
             self.tagCreated.emit(data)
         self.accept()
@@ -479,15 +477,19 @@ class TagGroupPatternDialog(QDialog):
         pattern_name = self.patternBar.currentText()
 
         if pattern_name == "Sequential fill":
-            frames = sequential_fill_frames(self.led_count, rgb)
+            frames = _pattern_service.sequential_fill(self.led_count, rgb)
         elif pattern_name == "Floating gradient":
             width = self._parse_int(self.gradientWidthBar, 4)
-            frames = floating_gradient_frames(self.led_count, rgb, width)
+            frames = _pattern_service.floating_gradient(
+                self.led_count, rgb, width,
+            )
         else:
             window = self._parse_int(self.windowSizeBar, 3)
-            frames = moving_window_frames(self.led_count, window, rgb)
+            frames = _pattern_service.moving_window(
+                self.led_count, window, rgb,
+            )
 
-        return build_timed_pattern_tags(
+        return _pattern_service.build_tags(
             frames=frames,
             start_time=start_time,
             end_time=end_time,
