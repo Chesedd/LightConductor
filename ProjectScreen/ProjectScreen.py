@@ -8,6 +8,11 @@ from ProjectScreen.PlateLogic.MasterBox import MasterBox
 from AssistanceTools.SimpleDialog import SimpleDialog
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from lightconductor.application.compiled_show import CompileShowsForMastersUseCase
+from lightconductor.application.validation_service import (
+    SEVERITY_ERROR,
+    ValidationIssue,
+    ValidationService,
+)
 from lightconductor.config import AppSettings, load_settings
 from lightconductor.infrastructure.audio_loader import LibrosaAudioLoader
 from lightconductor.infrastructure.master_udp_upload_transport import MasterUdpUploadTransport
@@ -75,6 +80,8 @@ class ProjectWindow(QMainWindow):
             ),
             audio_loader=LibrosaAudioLoader(),
         )
+        self.validation_service = ValidationService()
+        self._ui_mapper_for_validation = UiMastersMapper()
 
         self.initActions()
         self.init_ui()
@@ -87,6 +94,41 @@ class ProjectWindow(QMainWindow):
         saveAction.setShortcut(QKeySequence("Ctrl+S"))
         saveAction.triggered.connect(self.saveData)
         self.addAction(saveAction)
+
+    def _report_validation_errors(
+        self,
+        issues: list[ValidationIssue],
+        operation_name: str,
+    ) -> bool:
+        """Show a QMessageBox listing validation errors.
+        Returns True if operation should proceed, False if blocked.
+
+        Warnings are NOT shown in a blocking dialog — they are
+        logged only. Errors block and are displayed.
+        """
+        errors = [i for i in issues if i.severity == SEVERITY_ERROR]
+        warnings_ = [i for i in issues if i.severity != SEVERITY_ERROR]
+
+        for warning in warnings_:
+            logger.warning(
+                "Validation warning during %s: [%s] %s — %s",
+                operation_name, warning.category, warning.path,
+                warning.message,
+            )
+
+        if not errors:
+            return True
+
+        lines = [
+            f"• [{issue.category}] {issue.path}\n  {issue.message}"
+            for issue in errors
+        ]
+        QMessageBox.warning(
+            self,
+            f"{operation_name} blocked",
+            "Project has validation errors:\n\n" + "\n\n".join(lines),
+        )
+        return False
 
     # создание аудио плеера
     def initAudioPlayer(self):
@@ -188,8 +230,16 @@ class ProjectWindow(QMainWindow):
         type.addExistingTags(tags)
 
     def saveData(self):
-        logger.info("Saving project session")
-        self.sessionController.save_session(self.audio, self.sr, self.masters)
+        logger.info("Save requested")
+        domain_masters = self._ui_mapper_for_validation.map_masters(
+            self.masters,
+        )
+        issues = self.validation_service.validate(domain_masters)
+        if not self._report_validation_errors(issues, "Save"):
+            return
+        self.sessionController.save_session(
+            self.audio, self.sr, self.masters,
+        )
 
     def addTrack(self):
         filePath, _ = QFileDialog.getOpenFileName(
@@ -241,6 +291,12 @@ class ProjectWindow(QMainWindow):
 
     def uploadShow(self):
         try:
+            domain_masters = self._ui_mapper_for_validation.map_masters(
+                self.masters,
+            )
+            issues = self.validation_service.validate(domain_masters)
+            if not self._report_validation_errors(issues, "Upload"):
+                return
             self.showController.upload_show(self.masters)
             logger.info("Compiled show uploaded")
         except Exception as e:
