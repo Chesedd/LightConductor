@@ -15,6 +15,8 @@ class FakeStorage:
         self.saved_audio = None
         self.saved_sr = None
         self.saved_masters = None
+        self.saved_domain_masters = None
+        self.calls = []
 
     def load_audio(self):
         return [0.1], 48000, "track.wav"
@@ -25,9 +27,18 @@ class FakeStorage:
     def save_audio(self, audio, sample_rate):
         self.saved_audio = audio
         self.saved_sr = sample_rate
+        self.calls.append("save_audio")
 
     def save_boxes(self, masters):
         self.saved_masters = masters
+        self.calls.append("save_boxes")
+
+    def load_domain_masters(self):
+        return {}
+
+    def save_domain_masters(self, masters):
+        self.saved_domain_masters = masters
+        self.calls.append("save_domain_masters")
 
 
 class ProjectSessionControllerTests(unittest.TestCase):
@@ -46,6 +57,21 @@ class ProjectSessionControllerTests(unittest.TestCase):
         self.assertEqual([1, 2], storage.saved_audio)
         self.assertEqual(44100, storage.saved_sr)
         self.assertEqual({"m": {"id": 1}}, storage.saved_masters)
+
+    def test_save_session_domain_invokes_save_audio_then_save_domain_masters(self):
+        from lightconductor.domain.models import Master
+
+        storage = FakeStorage()
+        controller = ProjectSessionController(storage)
+        masters = {"m1": Master(id="m1", name="M", ip="1.2.3.4")}
+        controller.save_session_domain([3, 4], 22050, masters)
+
+        self.assertEqual([3, 4], storage.saved_audio)
+        self.assertEqual(22050, storage.saved_sr)
+        self.assertIs(masters, storage.saved_domain_masters)
+        self.assertEqual(
+            ["save_audio", "save_domain_masters"], storage.calls,
+        )
 
 
 if __name__ == "__main__":

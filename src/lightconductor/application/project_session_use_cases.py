@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Protocol
 
+from lightconductor.domain.models import Master
+
 
 @dataclass(slots=True)
 class ProjectSessionSnapshot:
@@ -25,6 +27,12 @@ class ProjectSessionStoragePort(Protocol):
     def save_boxes(self, masters: Dict[str, Any]) -> None:
         ...
 
+    def load_domain_masters(self) -> Dict[str, Master]:
+        ...
+
+    def save_domain_masters(self, masters: Dict[str, Master]) -> None:
+        ...
+
 
 @dataclass(slots=True)
 class LoadProjectSessionUseCase:
@@ -43,3 +51,17 @@ class SaveProjectSessionUseCase:
     def execute(self, audio: Any, sample_rate: int | None, masters: Dict[str, Any]) -> None:
         self.storage.save_audio(audio, sample_rate)
         self.storage.save_boxes(masters)
+
+
+@dataclass(slots=True)
+class SaveProjectSessionDomainUseCase:
+    storage: ProjectSessionStoragePort
+
+    def execute(
+        self,
+        audio: Any,
+        sample_rate: int | None,
+        masters: Dict[str, Master],
+    ) -> None:
+        self.storage.save_audio(audio, sample_rate)
+        self.storage.save_domain_masters(masters)

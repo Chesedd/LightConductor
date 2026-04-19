@@ -8,12 +8,14 @@ from ProjectScreen.PlateLogic.MasterBox import MasterBox
 from AssistanceTools.SimpleDialog import SimpleDialog
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from lightconductor.application.compiled_show import CompileShowsForMastersUseCase
+from lightconductor.application.project_state import ProjectState
 from lightconductor.application.validation_service import (
     SEVERITY_ERROR,
     ValidationIssue,
     ValidationService,
 )
 from lightconductor.config import AppSettings, load_settings
+from lightconductor.domain.models import Master as DomainMaster
 from lightconductor.infrastructure.audio_loader import LibrosaAudioLoader
 from lightconductor.infrastructure.master_udp_upload_transport import MasterUdpUploadTransport
 from lightconductor.infrastructure.project_session_storage import ProjectSessionStorage
@@ -82,11 +84,16 @@ class ProjectWindow(QMainWindow):
         )
         self.validation_service = ValidationService()
         self._ui_mapper_for_validation = UiMastersMapper()
+        self.state = ProjectState()
+        self._loading = False
 
         self.initActions()
         self.init_ui()
         self.initExistingData()
         self.initAudioPlayer()
+
+    def is_loading(self) -> bool:
+        return self._loading
 
     #создание действий под горячие клавиши
     def initActions(self):
@@ -186,26 +193,33 @@ class ProjectWindow(QMainWindow):
         self.layout.addWidget(controls)
 
     def initExistingData(self):
-        snapshot = self.sessionController.load_session()
-        self.audio, self.sr, self.audioPath = snapshot.audio, snapshot.sample_rate, snapshot.audio_path
-        masters = snapshot.boxes
-        for masterID in masters:
-            master = masters[masterID]
-            slaves = master['slaves']
-            self.addMaster(
-                master["name"],
-                master["id"],
-                master.get("ip", self.settings.default_master_ip),
+        self._loading = True
+        try:
+            snapshot = self.sessionController.load_session()
+            self.audio, self.sr, self.audioPath = snapshot.audio, snapshot.sample_rate, snapshot.audio_path
+            masters = snapshot.boxes
+            for masterID in masters:
+                master = masters[masterID]
+                slaves = master['slaves']
+                self.addMaster(
+                    master["name"],
+                    master["id"],
+                    master.get("ip", self.settings.default_master_ip),
+                )
+                masterWidget = self.masters[master["id"]]
+                for slaveID in slaves:
+                    slave = slaves[slaveID]
+                    tagTypes, manager = self.initSlave(slave, masterWidget, master)
+                    wave = self.masters[master["id"]].slaves[slave["id"]].wave
+                    for tagType in tagTypes:
+                        params = tagTypes[tagType]
+                        params['name'] = tagType
+                        self.initTypeAndTags(params, manager, wave)
+            self.state.load_masters(
+                self._ui_mapper_for_validation.map_masters(self.masters)
             )
-            masterWidget = self.masters[master["id"]]
-            for slaveID in slaves:
-                slave = slaves[slaveID]
-                tagTypes, manager = self.initSlave(slave, masterWidget, master)
-                wave = self.masters[master["id"]].slaves[slave["id"]].wave
-                for tagType in tagTypes:
-                    params = tagTypes[tagType]
-                    params['name'] = tagType
-                    self.initTypeAndTags(params, manager, wave)
+        finally:
+            self._loading = False
 
 
     def initSlave(self, slave, masterWidget, master):
@@ -231,14 +245,12 @@ class ProjectWindow(QMainWindow):
 
     def saveData(self):
         logger.info("Save requested")
-        domain_masters = self._ui_mapper_for_validation.map_masters(
-            self.masters,
-        )
+        domain_masters = self.state.masters()
         issues = self.validation_service.validate(domain_masters)
         if not self._report_validation_errors(issues, "Save"):
             return
-        self.sessionController.save_session(
-            self.audio, self.sr, self.masters,
+        self.sessionController.save_session_domain(
+            self.audio, self.sr, domain_masters,
         )
 
     def addTrack(self):
@@ -275,9 +287,22 @@ class ProjectWindow(QMainWindow):
             masterIp = self.settings.default_master_ip
         if boxID is None:
             boxID = datetime.now().strftime("%Y%m%d%H%M%S%f")
-        master = MasterBox(title=masterName, boxID=boxID, audio=self.audio, sr=self.sr, aydioPath=self.audioPath, masterIp=masterIp)
+        master = MasterBox(
+            title=masterName,
+            boxID=boxID,
+            audio=self.audio,
+            sr=self.sr,
+            aydioPath=self.audioPath,
+            masterIp=masterIp,
+            state=self.state,
+            project_window=self,
+        )
         self.masters[boxID] = master
         self.layout.addWidget(master)
+        if not self._loading:
+            self.state.add_master(
+                DomainMaster(id=boxID, name=masterName, ip=masterIp)
+            )
 
     def updateSlavesAudio(self):
         for master in self.masters.values():
@@ -291,12 +316,14 @@ class ProjectWindow(QMainWindow):
 
     def uploadShow(self):
         try:
-            domain_masters = self._ui_mapper_for_validation.map_masters(
-                self.masters,
-            )
+            domain_masters = self.state.masters()
             issues = self.validation_service.validate(domain_masters)
             if not self._report_validation_errors(issues, "Upload"):
                 return
+            # showController.upload_show still expects the widget tree
+            # (it runs its own mapper + compile + transport pipeline).
+            # Switching it to domain masters is a separate concern —
+            # left on widget tree for 2.2b.
             self.showController.upload_show(self.masters)
             logger.info("Compiled show uploaded")
         except Exception as e:

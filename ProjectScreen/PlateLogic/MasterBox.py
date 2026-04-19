@@ -9,6 +9,7 @@ from AssistanceTools.ChooseBox import  TagTypeChooseBox
 from AssistanceTools.SimpleDialog import SimpleDialog
 from ProjectScreen.TagLogic.WaveWidget import WaveWidget
 from AssistanceTools.DropBox import DropBox
+from lightconductor.domain.models import Slave as DomainSlave
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,18 @@ class newSlaveDialog(SimpleDialog):
         self.accept()
 
 class MasterBox(DropBox):
-    def __init__(self, title="", parent=None, boxID='', audio=None, sr=None, aydioPath=None, masterIp="192.168.0.129"):
+    def __init__(
+        self,
+        title="",
+        parent=None,
+        boxID='',
+        audio=None,
+        sr=None,
+        aydioPath=None,
+        masterIp="192.168.0.129",
+        state=None,
+        project_window=None,
+    ):
         super().__init__(parent)
 
         self.title = title
@@ -50,6 +62,8 @@ class MasterBox(DropBox):
         self.audio = audio
         self.sr = sr
         self.audioPath = aydioPath
+        self._state = state
+        self._project_window = project_window
 
         self.slaves = {}
 
@@ -69,10 +83,26 @@ class MasterBox(DropBox):
 
     def addSlave(self, slaveData, boxID=None):
         chooseBox = TagTypeChooseBox("Visible tags")
-        manager = TagManager(chooseBox)
-        wave = WaveWidget(self.audio, self.sr, manager, chooseBox, self.audioPath)
         if boxID is None:
             boxID = datetime.now().strftime("%Y%m%d%H%M%S%f")
+        manager = TagManager(
+            chooseBox,
+            state=self._state,
+            project_window=self._project_window,
+            master_id=self.boxID,
+            slave_id=boxID,
+        )
+        wave = WaveWidget(
+            self.audio,
+            self.sr,
+            manager,
+            chooseBox,
+            self.audioPath,
+            state=self._state,
+            project_window=self._project_window,
+            master_id=self.boxID,
+            slave_id=boxID,
+        )
         slave = SlaveBox(
             title=slaveData["name"],
             boxID=boxID,
@@ -84,10 +114,36 @@ class MasterBox(DropBox):
 
         self.slaves[boxID] = slave
         self.contentLayout.addWidget(slave)
+        if (
+            self._state is not None
+            and self._project_window is not None
+            and not self._project_window.is_loading()
+        ):
+            self._state.add_slave(
+                self.boxID,
+                DomainSlave(
+                    id=boxID,
+                    name=slaveData["name"],
+                    pin=str(slaveData["pin"]),
+                    led_count=int(slaveData.get("led_count", 0) or 0),
+                ),
+            )
 
     def deleteSlavesData(self, boxID):
         logger.debug("Deleting slave boxID=%s, current slaves=%s", boxID, list(self.slaves.keys()))
         if boxID in self.slaves:
             del self.slaves[boxID]
+            if (
+                self._state is not None
+                and self._project_window is not None
+                and not self._project_window.is_loading()
+            ):
+                try:
+                    self._state.remove_slave(self.boxID, boxID)
+                except KeyError:
+                    logger.warning(
+                        "state missing slave %s on master %s during delete",
+                        boxID, self.boxID,
+                    )
             return True
         return False

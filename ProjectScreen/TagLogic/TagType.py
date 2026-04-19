@@ -13,6 +13,11 @@ class TagType():
         self.setTable(table)
         self.setTopology(topology)
         self.tags = []
+        # master_id / slave_id are set by TagManager.addType AFTER
+        # construction. They are lookup keys for ProjectState only;
+        # do NOT use them in widget logic.
+        self.master_id: str | None = None
+        self.slave_id: str | None = None
 
     def setRow(self, row):
         self.row = row
