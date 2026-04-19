@@ -38,44 +38,48 @@ class Tag(InfiniteLine):
         type_ = self.type
         manager = self.manager
         type_name = type_.name if type_ is not None else None
-        # Find scene tag index via the controller registry, which is
-        # kept in lockstep sort order with state.
         wave = (
             manager.box.wave
             if manager is not None and getattr(manager, "box", None) is not None
             else None
         )
         controller = getattr(wave, "_tagController", None)
-        idx = None
-        if controller is not None and type_name is not None:
-            try:
-                idx = controller.scene_tags_for(type_name).index(self)
-            except ValueError:
-                idx = None
         state = getattr(manager, "_state", None)
         project_window = getattr(manager, "_project_window", None)
+        # State-first delete: resolve the tag's index via the scene
+        # registry (kept in lockstep with state) and ask state to
+        # remove. The TagRemoved listener on the controller then
+        # detaches the scene item. If no state is wired (headless /
+        # legacy instantiation), fall back to direct scene removal.
         if (
             state is not None
             and project_window is not None
             and not project_window.is_loading()
-            and idx is not None
+            and controller is not None
             and type_ is not None
+            and type_name is not None
             and type_.master_id is not None
             and type_.slave_id is not None
         ):
             try:
-                state.remove_tag(
-                    type_.master_id,
-                    type_.slave_id,
-                    type_name,
-                    idx,
-                )
-            except (KeyError, IndexError):
-                import logging
-                logging.getLogger(__name__).warning(
-                    "state missing tag during delete: type=%s idx=%s",
-                    type_name, idx,
-                )
+                idx = controller.scene_tags_for(type_name).index(self)
+            except ValueError:
+                idx = None
+            if idx is not None:
+                try:
+                    state.remove_tag(
+                        type_.master_id,
+                        type_.slave_id,
+                        type_name,
+                        idx,
+                    )
+                    return
+                except (KeyError, IndexError):
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        "state missing tag during delete: type=%s idx=%s",
+                        type_name, idx,
+                    )
         if controller is not None and type_name is not None:
             controller.remove_scene_tag(type_name, self)
         else:

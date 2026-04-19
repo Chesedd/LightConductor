@@ -213,38 +213,42 @@ class TagInfoScreen(QWidget):
         type_ = self.tag.type
         type_name = type_.name if type_ is not None else None
         controller = getattr(self._wave, "_tagController", None)
-        idx = None
-        if controller is not None and type_name is not None:
+        # State-first edit: mutate state, then the TagUpdated listener
+        # on the controller updates the scene tag's fields and resorts
+        # the scene registry. If no state is wired, fall back to
+        # mutating the scene tag directly to preserve the legacy path.
+        if (
+            self._state is not None
+            and controller is not None
+            and type_ is not None
+            and type_name is not None
+            and type_.master_id is not None
+            and type_.slave_id is not None
+        ):
             try:
                 idx = controller.scene_tags_for(type_name).index(self.tag)
             except ValueError:
                 idx = None
+            if idx is not None:
+                try:
+                    self._state.update_tag(
+                        type_.master_id,
+                        type_.slave_id,
+                        type_name,
+                        idx,
+                        time_seconds=float(params["time"]),
+                        action=bool(params["action"]),
+                        colors=list(params["colors"]),
+                    )
+                    return
+                except (KeyError, IndexError):
+                    logger.warning(
+                        "state update_tag failed: type=%s idx=%s",
+                        type_name, idx,
+                    )
         self.tag.editParams(params)
         if controller is not None and type_name is not None:
             controller.resort_scene_tags(type_name)
-        if (
-            self._state is not None
-            and type_ is not None
-            and type_.master_id is not None
-            and type_.slave_id is not None
-            and idx is not None
-        ):
-            try:
-                self._state.update_tag(
-                    type_.master_id,
-                    type_.slave_id,
-                    type_name,
-                    idx,
-                    time_seconds=float(params["time"]),
-                    action=bool(params["action"]),
-                    colors=list(params["colors"]),
-                )
-            except (KeyError, IndexError):
-                import logging
-                logging.getLogger(__name__).warning(
-                    "state update_tag failed: type=%s idx=%s",
-                    type_name, idx,
-                )
 
     def deleteTag(self):
         self.tag.deleteTag()
