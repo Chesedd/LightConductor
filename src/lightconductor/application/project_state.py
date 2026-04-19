@@ -11,6 +11,7 @@ adapters live at the widget layer.
 
 from __future__ import annotations
 
+import bisect
 import logging
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Union
@@ -121,8 +122,14 @@ class ProjectState:
         return _unsubscribe
 
     def load_masters(self, masters: Dict[str, Master]) -> None:
-        """Replace the entire master map. Emits StateReplaced exactly once."""
+        """Replace the entire master map. Emits StateReplaced exactly once.
+        Each tag_type.tags list is sorted by time_seconds to maintain the
+        class invariant that tags are always time-ordered."""
         self._masters = dict(masters)
+        for master in self._masters.values():
+            for slave in master.slaves.values():
+                for tag_type in slave.tag_types.values():
+                    tag_type.tags.sort(key=lambda t: t.time_seconds)
         self._emit(StateReplaced())
 
     def masters(self) -> Dict[str, Master]:
@@ -211,10 +218,14 @@ class ProjectState:
         type_name: str,
         tag: Tag,
     ) -> int:
-        """Append tag; return its new index. KeyError on missing levels."""
+        """Insert tag at bisect position by time_seconds; returns the
+        insertion index. KeyError on missing levels."""
         tag_type = self._masters[master_id].slaves[slave_id].tag_types[type_name]
-        tag_type.tags.append(tag)
-        new_index = len(tag_type.tags) - 1
+        tags = tag_type.tags
+        new_index = bisect.bisect_left(
+            [t.time_seconds for t in tags], tag.time_seconds,
+        )
+        tags.insert(new_index, tag)
         self._emit(
             TagAdded(
                 master_id=master_id,
@@ -258,24 +269,37 @@ class ProjectState:
         action: bool | None = None,
         colors: List[List[int]] | None = None,
     ) -> None:
-        """Update provided fields in place. None means leave unchanged.
-        Always emits TagUpdated, even if no field changed."""
+        """Update provided fields. If time_seconds changes, the tag is
+        repositioned to keep tag_type.tags sorted by time. Always emits
+        TagUpdated; emitted tag_index reflects the post-update position."""
         tag_type = self._masters[master_id].slaves[slave_id].tag_types[type_name]
         if tag_index < 0 or tag_index >= len(tag_type.tags):
             raise IndexError(tag_index)
         tag = tag_type.tags[tag_index]
+        reposition = (
+            time_seconds is not None
+            and time_seconds != tag.time_seconds
+        )
         if time_seconds is not None:
             tag.time_seconds = time_seconds
         if action is not None:
             tag.action = action
         if colors is not None:
             tag.colors = colors
+        if reposition:
+            del tag_type.tags[tag_index]
+            new_index = bisect.bisect_left(
+                [t.time_seconds for t in tag_type.tags], tag.time_seconds,
+            )
+            tag_type.tags.insert(new_index, tag)
+        else:
+            new_index = tag_index
         self._emit(
             TagUpdated(
                 master_id=master_id,
                 slave_id=slave_id,
                 type_name=type_name,
-                tag_index=tag_index,
+                tag_index=new_index,
             )
         )
 

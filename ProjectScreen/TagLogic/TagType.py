@@ -1,9 +1,3 @@
-import bisect
-import logging
-
-logger = logging.getLogger(__name__)
-
-
 class TagType():
     def __init__(self, color, name, pin, row, table, topology=None):
         self.setColor(color)
@@ -12,7 +6,6 @@ class TagType():
         self.setRow(row)
         self.setTable(table)
         self.setTopology(topology)
-        self.tags = []
         # master_id / slave_id are set by TagManager.addType AFTER
         # construction. They are lookup keys for ProjectState only;
         # do NOT use them in widget logic.
@@ -43,17 +36,3 @@ class TagType():
     @property
     def segment_start(self):
         return self.pin
-
-    def addTag(self, tag):
-        index = bisect.bisect_left([t.time for t in self.tags], tag.time)
-        self.tags.insert(index, tag)
-
-    def editTag(self):
-        self.tags.sort(key=lambda tag: tag.time)
-
-    def addExistingTags(self, tags):
-        self.tags = tags
-
-    def deleteTag(self, tag):
-        self.tags.remove(tag)
-        logger.debug("Tags after deletion: %s", self.tags)

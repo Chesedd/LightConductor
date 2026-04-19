@@ -43,10 +43,13 @@ class ColorButton(QPushButton):
                             """)
 
 class TagInfoScreen(QWidget):
-    def __init__(self, tagTypes):
+    def __init__(self, state, master_id, slave_id, wave):
         super().__init__()
+        self._state = state
+        self._master_id = master_id
+        self._slave_id = slave_id
+        self._wave = wave
         self.tag = None
-        self.tagTypes = tagTypes
         self.buttons = QButtonGroup()
         self.initUI()
 
@@ -207,42 +210,41 @@ class TagInfoScreen(QWidget):
         params["colors"] = []
         for cell in topology:
             params["colors"].append(self.buttons.buttons()[cell].rgb)
-        self.tag.editParams(params)
         type_ = self.tag.type
-        manager = getattr(self.tag, "manager", None)
-        state = getattr(manager, "_state", None) if manager else None
-        project_window = (
-            getattr(manager, "_project_window", None) if manager else None
-        )
+        type_name = type_.name if type_ is not None else None
+        controller = getattr(self._wave, "_tagController", None)
+        idx = None
+        if controller is not None and type_name is not None:
+            try:
+                idx = controller.scene_tags_for(type_name).index(self.tag)
+            except ValueError:
+                idx = None
+        self.tag.editParams(params)
+        if controller is not None and type_name is not None:
+            controller.resort_scene_tags(type_name)
         if (
-            state is not None
-            and project_window is not None
-            and not project_window.is_loading()
+            self._state is not None
             and type_ is not None
             and type_.master_id is not None
             and type_.slave_id is not None
+            and idx is not None
         ):
             try:
-                idx = type_.tags.index(self.tag)
-            except ValueError:
-                idx = None
-            if idx is not None:
-                try:
-                    state.update_tag(
-                        type_.master_id,
-                        type_.slave_id,
-                        type_.name,
-                        idx,
-                        time_seconds=float(params["time"]),
-                        action=bool(params["action"]),
-                        colors=list(params["colors"]),
-                    )
-                except (KeyError, IndexError):
-                    import logging
-                    logging.getLogger(__name__).warning(
-                        "state update_tag failed: type=%s idx=%s",
-                        type_.name, idx,
-                    )
+                self._state.update_tag(
+                    type_.master_id,
+                    type_.slave_id,
+                    type_name,
+                    idx,
+                    time_seconds=float(params["time"]),
+                    action=bool(params["action"]),
+                    colors=list(params["colors"]),
+                )
+            except (KeyError, IndexError):
+                import logging
+                logging.getLogger(__name__).warning(
+                    "state update_tag failed: type=%s idx=%s",
+                    type_name, idx,
+                )
 
     def deleteTag(self):
         self.tag.deleteTag()

@@ -109,6 +109,8 @@ class MasterBox(DropBox):
             wave=wave,
             slavePin=slaveData["pin"],
             ledCount=slaveData.get("led_count", 0),
+            state=self._state,
+            master_id=self.boxID,
         )
         slave.boxDeleted.connect(self.deleteSlavesData)
 

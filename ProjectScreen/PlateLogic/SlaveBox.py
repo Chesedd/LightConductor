@@ -16,7 +16,17 @@ from ProjectScreen.PlateLogic.DeleteDialog import DeleteDialog
 
 
 class SlaveBox(DropBox):
-    def __init__(self, title="", parent=None, boxID='', wave=None, slavePin = '', ledCount=0):
+    def __init__(
+        self,
+        title="",
+        parent=None,
+        boxID='',
+        wave=None,
+        slavePin='',
+        ledCount=0,
+        state=None,
+        master_id=None,
+    ):
         super().__init__(parent)
 
         self.slavePin = slavePin
@@ -27,6 +37,9 @@ class SlaveBox(DropBox):
 
         self.wave = wave
         self.wave.manager.box = self
+
+        self._state = state
+        self._master_id = master_id
 
         self.toggleButton.setText(f"▼ {title} (pin: {slavePin}, leds: {ledCount})")
 
@@ -55,7 +68,12 @@ class SlaveBox(DropBox):
         centralWidget.layout.addWidget(waveSpace)
         centralWidget.layout.addWidget(tagsWidget)
 
-        self.tagInfo = TagInfoScreen(tagTypes=self.wave.manager.types)
+        self.tagInfo = TagInfoScreen(
+            state=self._state,
+            master_id=self._master_id,
+            slave_id=self.boxID,
+            wave=self.wave,
+        )
         self.wave.manager.tagScreen = self.tagInfo
 
         self.mainWidget = QWidget()
@@ -132,11 +150,22 @@ class SlaveBox(DropBox):
     def onPositionUpdate(self, time, timeStr):
         for i in range(self.tagsLayout.count()):
             widget = self.tagsLayout.itemAt(i).widget()
-            tags = widget.tagType.tags
-            times = [tag.time for tag in tags]
+            type_name = widget.tagType.name
+            domain_tags = []
+            if self._state is not None and self._master_id is not None:
+                try:
+                    domain_tags = (
+                        self._state.master(self._master_id)
+                        .slaves[self.boxID]
+                        .tag_types[type_name]
+                        .tags
+                    )
+                except KeyError:
+                    domain_tags = []
+            times = [t.time_seconds for t in domain_tags]
             pos = bisect.bisect_right(times, time) - 1
             if pos >= 0:
-                tag = tags[pos]
+                tag = domain_tags[pos]
                 widget.changeState(tag.action)
             else:
                 widget.changeState(False)
