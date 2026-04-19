@@ -1,22 +1,25 @@
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from lightconductor.application.compiled_show import CompiledSlaveShow
 from lightconductor.presentation import ProjectScreenController
 
 
 class FakeMapper:
     def __init__(self):
         self.called_with = None
+        self.map_masters_return_value = {"m1": SimpleNamespace(ip="10.0.0.1")}
 
     def map_masters(self, masters):
         self.called_with = masters
-        return {"mapped": True}
+        return self.map_masters_return_value
 
 
 class FakeUseCase:
@@ -25,19 +28,28 @@ class FakeUseCase:
 
     def execute(self, masters):
         self.called_with = masters
-        return {"7": {"3": 4}}, {"7": {100: {"3": {"action": True, "colors": [[255, 0, 0]]}}}}
+        return {
+            "10.0.0.1": [
+                CompiledSlaveShow(
+                    master_ip="10.0.0.1",
+                    slave_id=1,
+                    total_led_count=0,
+                    blob=b"",
+                )
+            ]
+        }
 
 
 class FakeTransport:
     def __init__(self):
-        self.sent_payload = None
-        self.start_sent = False
+        self.uploaded_payload = None
+        self.started_hosts = None
 
-    def send_payload(self, pins, payload):
-        self.sent_payload = (pins, payload)
+    def upload(self, compiled_by_host):
+        self.uploaded_payload = compiled_by_host
 
-    def send_start(self):
-        self.start_sent = True
+    def start_show(self, hosts):
+        self.started_hosts = list(hosts)
 
 
 class FakeAudioLoader:
@@ -50,23 +62,28 @@ class FakeAudioLoader:
 
 
 class ProjectScreenControllerTests(unittest.TestCase):
-    def test_send_show_payload_uses_mapper_use_case_and_transport(self):
+    def test_upload_show_passes_data_through_pipeline(self):
         mapper = FakeMapper()
         use_case = FakeUseCase()
         transport = FakeTransport()
         controller = ProjectScreenController(mapper, use_case, transport, FakeAudioLoader())
 
         legacy_masters = {"master-1": object()}
-        controller.send_show_payload(legacy_masters)
+        controller.upload_show(legacy_masters)
 
         self.assertIs(legacy_masters, mapper.called_with)
-        self.assertEqual({"mapped": True}, use_case.called_with)
-        self.assertIsNotNone(transport.sent_payload)
+        self.assertIs(mapper.map_masters_return_value, use_case.called_with)
+        self.assertIsNotNone(transport.uploaded_payload)
+        self.assertIn("10.0.0.1", transport.uploaded_payload)
 
     def test_send_start_signal(self):
-        controller = ProjectScreenController(FakeMapper(), FakeUseCase(), FakeTransport(), FakeAudioLoader())
-        controller.send_start_signal()
-        self.assertTrue(controller.transport.start_sent)
+        mapper = FakeMapper()
+        transport = FakeTransport()
+        controller = ProjectScreenController(mapper, FakeUseCase(), transport, FakeAudioLoader())
+
+        controller.send_start_signal({"master-1": object()})
+
+        self.assertEqual(["10.0.0.1"], transport.started_hosts)
 
     def test_load_track(self):
         audio_loader = FakeAudioLoader()
