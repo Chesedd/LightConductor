@@ -6,7 +6,7 @@ from ProjectScreen.TagLogic.TagType import TagType
 from AssistanceTools.ColorPicker import ColorPicker
 import pyqtgraph as pg
 from PyQt6.QtGui import QColor
-from ProjectScreen.PlateLogic.SlaveBox import DeleteDialog
+from ProjectScreen.PlateLogic.DeleteDialog import DeleteDialog
 from AssistanceTools.FlowLayout import FlowLayout
 from AssistanceTools.SimpleDialog import SimpleDialog
 from lightconductor.application.range_allocator import available_starts
