@@ -5,15 +5,15 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPu
 from PyQt6.QtCore import pyqtSignal, Qt, QUrl
 from PyQt6.QtGui import QAction, QKeySequence
 from ProjectScreen.PlateLogic.MasterBox import MasterBox
-from ProjectScreen.ProjectManager import ProjectManager
 from AssistanceTools.SimpleDialog import SimpleDialog
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from lightconductor.application.compiled_show import CompileShowsForMastersUseCase
 from lightconductor.config import AppSettings, load_settings
 from lightconductor.infrastructure.audio_loader import LibrosaAudioLoader
-from lightconductor.infrastructure.legacy_mappers import LegacyMastersMapper
-from lightconductor.infrastructure.legacy_project_storage import LegacyProjectStorage
 from lightconductor.infrastructure.master_udp_upload_transport import MasterUdpUploadTransport
+from lightconductor.infrastructure.project_session_storage import ProjectSessionStorage
+from lightconductor.infrastructure.ui_masters_mapper import UiMastersMapper
+from lightconductor.infrastructure.ui_session_bridge import UiSessionBridge
 from lightconductor.presentation.project_controller import ProjectScreenController
 from lightconductor.presentation.project_session_controller import ProjectSessionController
 
@@ -57,12 +57,17 @@ class ProjectWindow(QMainWindow):
         self.audio = None
         self.sr = None
         self.boxCounter = 0
-        self.projectManager = ProjectManager(self.project_data['project_name'])
         self.boxes = {}
         self.audioPath = None
-        self.sessionController = ProjectSessionController(LegacyProjectStorage(self.projectManager))
+        self.sessionController = ProjectSessionController(
+            UiSessionBridge(
+                domain_storage=ProjectSessionStorage(),
+                project_name=self.project_data['project_name'],
+                ui_mapper=UiMastersMapper(),
+            )
+        )
         self.showController = ProjectScreenController(
-            mapper=LegacyMastersMapper(),
+            mapper=UiMastersMapper(),
             compile_use_case=CompileShowsForMastersUseCase(),
             transport=MasterUdpUploadTransport(
                 port=self.settings.udp_port,

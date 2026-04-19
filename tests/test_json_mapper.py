@@ -1,7 +1,6 @@
 import sys
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -84,21 +83,6 @@ class RoundTripTests(unittest.TestCase):
         tag_in = Tag(time_seconds=0.25, action=False, colors=[[10, 20, 30]])
         tag_out = unpack_tag(pack_tag(tag_in))
         self.assertEqual(tag_out, tag_in)
-
-
-class ProjectManagerDelegationTests(unittest.TestCase):
-
-    def test_project_manager_pack_tag_delegates_to_json_mapper(self):
-        # Bypass __init__ (which touches the filesystem for audio + data.json).
-        from ProjectScreen.ProjectManager import ProjectManager
-
-        pm = ProjectManager.__new__(ProjectManager)
-        ui_like = SimpleNamespace(time=0.7, action=True, colors=[[9, 8, 7]])
-
-        expected = pack_tag(
-            Tag(time_seconds=0.7, action=True, colors=[[9, 8, 7]])
-        )
-        self.assertEqual(pm.packTag(ui_like), expected)
 
 
 class PackTagTypeTests(unittest.TestCase):
@@ -293,39 +277,6 @@ class TagTypeRoundTripTests(unittest.TestCase):
         self.assertEqual(tt_out, tt_in)
 
 
-class ProjectManagerPackTypeDelegationTests(unittest.TestCase):
-
-    def test_project_manager_pack_type_delegates_to_json_mapper(self):
-        from ProjectScreen.ProjectManager import ProjectManager
-
-        pm = ProjectManager.__new__(ProjectManager)
-        ui_like_type = SimpleNamespace(
-            name="front",
-            color=[10, 20, 30],
-            pin="3",
-            row=2,
-            table=3,
-            topology=[0, 1, 2, 3, 4, 5],
-        )
-        tags_data = {
-            0: pack_tag(Tag(time_seconds=0.1, action=True, colors=[[1, 0, 0]])),
-            1: pack_tag(Tag(time_seconds=0.2, action=False, colors=[[0, 1, 0]])),
-        }
-
-        expected = pack_tag_type(TagType(
-            name="front",
-            pin="3",
-            rows=2,
-            columns=3,
-            color=[10, 20, 30],
-            topology=[0, 1, 2, 3, 4, 5],
-            tags=[],
-        ))
-        expected["tags"] = tags_data
-
-        self.assertEqual(pm.packType(ui_like_type, tags_data), expected)
-
-
 class PackSlaveTests(unittest.TestCase):
 
     def test_pack_slave_minimal_without_tag_types(self):
@@ -491,38 +442,6 @@ class SlaveRoundTripTests(unittest.TestCase):
         self.assertEqual(s_out, s_in)
 
 
-class ProjectManagerPackSlaveDelegationTests(unittest.TestCase):
-
-    def test_project_manager_pack_slave_delegates_to_json_mapper(self):
-        from ProjectScreen.ProjectManager import ProjectManager
-
-        pm = ProjectManager.__new__(ProjectManager)
-        ui_like_slave = SimpleNamespace(
-            title="Front",
-            boxID="s1",
-            slavePin="7",
-            ledCount=60,
-        )
-        # typesData is the already-packed output of packType (PR 1.2).
-        types_data = {
-            "front": pack_tag_type(TagType(
-                name="front", pin="1", rows=1, columns=1,
-                color="r", topology=[0], tags=[],
-            )),
-        }
-
-        expected = pack_slave(Slave(
-            id="s1",
-            name="Front",
-            pin="7",
-            led_count=60,
-            tag_types={},
-        ))
-        expected["tagTypes"] = types_data
-
-        self.assertEqual(pm.packSlave(ui_like_slave, types_data), expected)
-
-
 class PackMasterTests(unittest.TestCase):
 
     def test_pack_master_minimal_without_slaves(self):
@@ -651,52 +570,6 @@ class MasterRoundTripTests(unittest.TestCase):
         )
         m_out = unpack_master(pack_master(m_in))
         self.assertEqual(m_out, m_in)
-
-
-class ProjectManagerPackMasterDelegationTests(unittest.TestCase):
-
-    def test_project_manager_pack_master_delegates_to_json_mapper(self):
-        from ProjectScreen.ProjectManager import ProjectManager
-
-        pm = ProjectManager.__new__(ProjectManager)
-        ui_like_master = SimpleNamespace(
-            title="Room A",
-            boxID="m1",
-            masterIp="10.0.0.5",
-        )
-        # slavesData is the already-packed output of packSlave (PR 1.3).
-        slaves_data = {
-            "s1": pack_slave(Slave(
-                id="s1", name="Front", pin="7", led_count=60,
-                tag_types={},
-            )),
-        }
-
-        expected = pack_master(Master(
-            id="m1", name="Room A", ip="10.0.0.5", slaves={},
-        ))
-        expected["slaves"] = slaves_data
-
-        self.assertEqual(
-            pm.packMaster(ui_like_master, slaves_data), expected,
-        )
-
-    def test_project_manager_pack_master_uses_fallback_when_masterIp_missing(self):
-        from ProjectScreen.ProjectManager import ProjectManager
-
-        pm = ProjectManager.__new__(ProjectManager)
-
-        class _BareMaster:
-            pass
-
-        ui_like_master = _BareMaster()
-        ui_like_master.title = "Room X"
-        ui_like_master.boxID = "m-x"
-        # Intentionally no masterIp attribute on the instance.
-        self.assertFalse(hasattr(ui_like_master, "masterIp"))
-
-        result = pm.packMaster(ui_like_master, {})
-        self.assertEqual(result["ip"], "192.168.0.129")
 
 
 if __name__ == "__main__":

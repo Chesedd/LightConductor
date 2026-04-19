@@ -5,8 +5,12 @@ from typing import Any, Dict
 from lightconductor.domain.models import Master, Slave, Tag, TagType
 
 
-class LegacyMastersMapper:
-    """Convert current UI/widget structures to domain models."""
+class UiMastersMapper:
+    """Convert current UI/widget structures to domain models.
+
+    UI→domain mapper (not legacy). Produces `Dict[str, Master]` from
+    duck-typed UI objects exposed by `MasterBox`/`SlaveBox` and friends.
+    """
 
     def map_masters(self, legacy_masters: Dict[str, Any]) -> Dict[str, Master]:
         masters: Dict[str, Master] = {}

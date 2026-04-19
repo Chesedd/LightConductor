@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Protocol, Tuple
 
 from lightconductor.application.compiled_show import CompileShowsForMastersUseCase
-from lightconductor.infrastructure.legacy_mappers import LegacyMastersMapper
+from lightconductor.infrastructure.ui_masters_mapper import UiMastersMapper
 from lightconductor.infrastructure.master_udp_upload_transport import MasterUdpUploadTransport
 
 
@@ -15,7 +15,7 @@ class AudioLoaderPort(Protocol):
 
 @dataclass(slots=True)
 class ProjectScreenController:
-    mapper: LegacyMastersMapper
+    mapper: UiMastersMapper
     compile_use_case: CompileShowsForMastersUseCase
     transport: MasterUdpUploadTransport
     audio_loader: AudioLoaderPort
