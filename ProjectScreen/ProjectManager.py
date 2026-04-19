@@ -6,8 +6,12 @@ from pathlib import Path
 import soundfile as sf
 import librosa
 
-from lightconductor.domain.models import Tag, TagType
-from lightconductor.infrastructure.json_mapper import pack_tag, pack_tag_type
+from lightconductor.domain.models import Slave, Tag, TagType
+from lightconductor.infrastructure.json_mapper import (
+    pack_slave,
+    pack_tag,
+    pack_tag_type,
+)
 from lightconductor.infrastructure.project_file_backup import (
     write_with_rotation,
 )
@@ -81,13 +85,21 @@ class ProjectManager():
         return masterData
 
     def packSlave(self, slave, typesData):
-        slavedata = {}
-        slavedata['name'] = slave.title
-        slavedata['pin'] = slave.slavePin
-        slavedata['led_count'] = slave.ledCount
-        slavedata['id'] = slave.boxID
-        slavedata['tagTypes'] = typesData
-        return slavedata
+        # Splice pattern: build a transient domain.Slave with empty
+        # tag_types, run through the mapper for metadata, then splice
+        # the already-packed typesData into ["tagTypes"]. typesData has
+        # already been packed by packType (PR 1.2); re-packing it would
+        # break the PR #5 byte contract.
+        domain_slave = Slave(
+            id=slave.boxID,
+            name=slave.title,
+            pin=slave.slavePin,
+            led_count=slave.ledCount,
+            tag_types={},
+        )
+        packed = pack_slave(domain_slave)
+        packed["tagTypes"] = typesData
+        return packed
 
     def packType(self, type, tagsData):
         # Build a transient domain TagType (without tags) and run it

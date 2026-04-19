@@ -10,10 +10,12 @@ if str(SRC) not in sys.path:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from lightconductor.domain.models import Tag, TagType
+from lightconductor.domain.models import Slave, Tag, TagType
 from lightconductor.infrastructure.json_mapper import (
+    pack_slave,
     pack_tag,
     pack_tag_type,
+    unpack_slave,
     unpack_tag,
     unpack_tag_type,
 )
@@ -320,6 +322,203 @@ class ProjectManagerPackTypeDelegationTests(unittest.TestCase):
         expected["tags"] = tags_data
 
         self.assertEqual(pm.packType(ui_like_type, tags_data), expected)
+
+
+class PackSlaveTests(unittest.TestCase):
+
+    def test_pack_slave_minimal_without_tag_types(self):
+        s = Slave(id="s1", name="Front", pin="7", led_count=60, tag_types={})
+        self.assertEqual(
+            pack_slave(s),
+            {
+                "name": "Front", "pin": "7", "led_count": 60,
+                "id": "s1", "tagTypes": {},
+            },
+        )
+
+    def test_pack_slave_key_order_matches_spec(self):
+        result = pack_slave(
+            Slave(id="x", name="x", pin="0", led_count=0, tag_types={})
+        )
+        self.assertEqual(
+            list(result.keys()),
+            ["name", "pin", "led_count", "id", "tagTypes"],
+        )
+
+    def test_pack_slave_tag_types_becomes_tagTypes(self):
+        # Q1: snake_case field on the domain object maps to a
+        # camelCase key in the JSON dict.
+        s = Slave(
+            id="x", name="x", pin="0", led_count=0,
+            tag_types={
+                "front": TagType(
+                    name="front", pin="1", rows=1, columns=1,
+                    color="r", topology=[0], tags=[],
+                ),
+            },
+        )
+        result = pack_slave(s)
+        self.assertIn("tagTypes", result)
+        self.assertNotIn("tag_types", result)
+        self.assertIn("front", result["tagTypes"])
+
+    def test_pack_slave_passthrough_pin_int(self):
+        # Even though Slave.pin is annotated as str, the dataclass
+        # accepts int without coercion. The mapper must write the int
+        # through unchanged.
+        s = Slave.__new__(Slave)
+        s.id = "x"
+        s.name = "x"
+        s.pin = 7
+        s.led_count = 0
+        s.tag_types = {}
+        result = pack_slave(s)
+        self.assertEqual(result["pin"], 7)
+        self.assertIsInstance(result["pin"], int)
+
+    def test_pack_slave_passthrough_pin_str(self):
+        s = Slave(id="x", name="x", pin="7", led_count=0, tag_types={})
+        result = pack_slave(s)
+        self.assertEqual(result["pin"], "7")
+        self.assertIsInstance(result["pin"], str)
+
+    def test_pack_slave_delegates_to_pack_tag_type(self):
+        tt = TagType(
+            name="front", pin="1", rows=2, columns=2,
+            color=[10, 20, 30], topology=[0, 1, 2, 3],
+            tags=[Tag(time_seconds=0.1, action=True, colors=[[1, 2, 3]])],
+        )
+        s = Slave(
+            id="x", name="x", pin="0", led_count=0,
+            tag_types={"front": tt},
+        )
+        result = pack_slave(s)
+        self.assertEqual(result["tagTypes"]["front"], pack_tag_type(tt))
+
+
+class UnpackSlaveTests(unittest.TestCase):
+
+    def test_unpack_slave_builds_domain_object(self):
+        data = {
+            "name": "Front", "pin": "7", "led_count": 60,
+            "id": "s1", "tagTypes": {},
+        }
+        s = unpack_slave(data)
+        self.assertIsInstance(s, Slave)
+        self.assertEqual(s.id, "s1")
+        self.assertEqual(s.name, "Front")
+        self.assertEqual(s.pin, "7")
+        self.assertEqual(s.led_count, 60)
+        self.assertEqual(s.tag_types, {})
+
+    def test_unpack_slave_recurses_into_tag_types(self):
+        data = {
+            "name": "x", "pin": "0", "led_count": 0, "id": "x",
+            "tagTypes": {
+                "front": {
+                    "color": "red", "pin": "3",
+                    "segment_start": "3", "segment_size": 1,
+                    "row": 1, "table": 1, "topology": [0], "tags": {},
+                },
+            },
+        }
+        s = unpack_slave(data)
+        self.assertIn("front", s.tag_types)
+        self.assertIsInstance(s.tag_types["front"], TagType)
+        # Name comes from the enclosing dict key, not from any
+        # field inside `data["tagTypes"]["front"]`.
+        self.assertEqual(s.tag_types["front"].name, "front")
+
+    def test_unpack_slave_rejects_non_dict(self):
+        with self.assertRaises(ValueError) as ctx:
+            unpack_slave("not a dict")
+        message = str(ctx.exception)
+        self.assertIn("slave", message)
+        self.assertIn("dict", message)
+
+    def test_unpack_slave_rejects_missing_fields(self):
+        data = {"name": "x"}
+        with self.assertRaises(ValueError) as ctx:
+            unpack_slave(data)
+        message = str(ctx.exception)
+        self.assertIn("pin", message)
+        self.assertIn("led_count", message)
+        self.assertIn("id", message)
+        self.assertIn("tagTypes", message)
+
+    def test_unpack_slave_rejects_non_dict_tagTypes(self):
+        data = {
+            "name": "x", "pin": "0", "led_count": 0, "id": "x",
+            "tagTypes": ["not", "dict"],
+        }
+        with self.assertRaises(ValueError) as ctx:
+            unpack_slave(data)
+        self.assertIn("slave.tagTypes", str(ctx.exception))
+
+    def test_unpack_slave_does_not_use_led_count_default(self):
+        # led_count has default=0 on the dataclass, but in JSON the
+        # field is mandatory: missing led_count must raise, not
+        # silently default to 0.
+        data = {"name": "x", "pin": "0", "id": "x", "tagTypes": {}}
+        with self.assertRaises(ValueError) as ctx:
+            unpack_slave(data)
+        self.assertIn("led_count", str(ctx.exception))
+
+
+class SlaveRoundTripTests(unittest.TestCase):
+
+    def test_roundtrip_pack_then_unpack_slave(self):
+        s_in = Slave(
+            id="s1", name="Front Bar", pin="7", led_count=120,
+            tag_types={
+                "a": TagType(
+                    name="a", pin="1", rows=1, columns=2,
+                    color=[255, 0, 0], topology=[0, 1],
+                    tags=[Tag(
+                        time_seconds=0.5, action=True,
+                        colors=[[1, 1, 1]],
+                    )],
+                ),
+                "b": TagType(
+                    name="b", pin="3", rows=2, columns=2,
+                    color="blue", topology=[0, 1, 2, 3], tags=[],
+                ),
+            },
+        )
+        s_out = unpack_slave(pack_slave(s_in))
+        self.assertEqual(s_out, s_in)
+
+
+class ProjectManagerPackSlaveDelegationTests(unittest.TestCase):
+
+    def test_project_manager_pack_slave_delegates_to_json_mapper(self):
+        from ProjectScreen.ProjectManager import ProjectManager
+
+        pm = ProjectManager.__new__(ProjectManager)
+        ui_like_slave = SimpleNamespace(
+            title="Front",
+            boxID="s1",
+            slavePin="7",
+            ledCount=60,
+        )
+        # typesData is the already-packed output of packType (PR 1.2).
+        types_data = {
+            "front": pack_tag_type(TagType(
+                name="front", pin="1", rows=1, columns=1,
+                color="r", topology=[0], tags=[],
+            )),
+        }
+
+        expected = pack_slave(Slave(
+            id="s1",
+            name="Front",
+            pin="7",
+            led_count=60,
+            tag_types={},
+        ))
+        expected["tagTypes"] = types_data
+
+        self.assertEqual(pm.packSlave(ui_like_slave, types_data), expected)
 
 
 if __name__ == "__main__":
