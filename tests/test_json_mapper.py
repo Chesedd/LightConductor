@@ -10,11 +10,13 @@ if str(SRC) not in sys.path:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from lightconductor.domain.models import Slave, Tag, TagType
+from lightconductor.domain.models import Master, Slave, Tag, TagType
 from lightconductor.infrastructure.json_mapper import (
+    pack_master,
     pack_slave,
     pack_tag,
     pack_tag_type,
+    unpack_master,
     unpack_slave,
     unpack_tag,
     unpack_tag_type,
@@ -519,6 +521,182 @@ class ProjectManagerPackSlaveDelegationTests(unittest.TestCase):
         expected["tagTypes"] = types_data
 
         self.assertEqual(pm.packSlave(ui_like_slave, types_data), expected)
+
+
+class PackMasterTests(unittest.TestCase):
+
+    def test_pack_master_minimal_without_slaves(self):
+        m = Master(id="m1", name="Room A", ip="10.0.0.5", slaves={})
+        self.assertEqual(
+            pack_master(m),
+            {
+                "name": "Room A", "id": "m1", "ip": "10.0.0.5",
+                "slaves": {},
+            },
+        )
+
+    def test_pack_master_key_order_matches_spec(self):
+        result = pack_master(Master(id="x", name="x", ip="x", slaves={}))
+        self.assertEqual(
+            list(result.keys()),
+            ["name", "id", "ip", "slaves"],
+        )
+
+    def test_pack_master_ip_passthrough(self):
+        # Any string is accepted in .ip; the mapper does not normalize
+        # or validate the format.
+        m = Master(id="x", name="x", ip="not.an.ip", slaves={})
+        self.assertEqual(pack_master(m)["ip"], "not.an.ip")
+
+    def test_pack_master_delegates_to_pack_slave(self):
+        s = Slave(
+            id="s1", name="Front", pin="7", led_count=60, tag_types={},
+        )
+        m = Master(
+            id="m1", name="Room", ip="10.0.0.5", slaves={"s1": s},
+        )
+        result = pack_master(m)
+        self.assertEqual(result["slaves"]["s1"], pack_slave(s))
+
+    def test_pack_master_preserves_domain_default_ip(self):
+        # Domain.Master default ip = "192.168.0.129". pack writes as-is.
+        m = Master(id="x", name="x", slaves={})  # ip defaults
+        self.assertEqual(pack_master(m)["ip"], "192.168.0.129")
+
+
+class UnpackMasterTests(unittest.TestCase):
+
+    def test_unpack_master_builds_domain_object(self):
+        data = {
+            "name": "Room A", "id": "m1", "ip": "10.0.0.5",
+            "slaves": {},
+        }
+        m = unpack_master(data)
+        self.assertIsInstance(m, Master)
+        self.assertEqual(m.id, "m1")
+        self.assertEqual(m.name, "Room A")
+        self.assertEqual(m.ip, "10.0.0.5")
+        self.assertEqual(m.slaves, {})
+
+    def test_unpack_master_recurses_into_slaves(self):
+        data = {
+            "name": "x", "id": "x", "ip": "0.0.0.0",
+            "slaves": {
+                "s1": {
+                    "name": "Front", "pin": "7", "led_count": 60,
+                    "id": "s1", "tagTypes": {},
+                },
+            },
+        }
+        m = unpack_master(data)
+        self.assertIn("s1", m.slaves)
+        self.assertIsInstance(m.slaves["s1"], Slave)
+        self.assertEqual(m.slaves["s1"].name, "Front")
+
+    def test_unpack_master_rejects_non_dict(self):
+        with self.assertRaises(ValueError) as ctx:
+            unpack_master("nope")
+        message = str(ctx.exception)
+        self.assertIn("master", message)
+        self.assertIn("dict", message)
+
+    def test_unpack_master_rejects_missing_fields(self):
+        data = {"name": "x"}
+        with self.assertRaises(ValueError) as ctx:
+            unpack_master(data)
+        message = str(ctx.exception)
+        self.assertIn("id", message)
+        self.assertIn("ip", message)
+        self.assertIn("slaves", message)
+
+    def test_unpack_master_rejects_non_dict_slaves(self):
+        data = {"name": "x", "id": "x", "ip": "x", "slaves": []}
+        with self.assertRaises(ValueError) as ctx:
+            unpack_master(data)
+        self.assertIn("master.slaves", str(ctx.exception))
+
+    def test_unpack_master_does_not_use_ip_default(self):
+        # Domain default ip must not apply on the unpack side.
+        data = {"name": "x", "id": "x", "slaves": {}}
+        with self.assertRaises(ValueError) as ctx:
+            unpack_master(data)
+        self.assertIn("ip", str(ctx.exception))
+
+
+class MasterRoundTripTests(unittest.TestCase):
+
+    def test_roundtrip_pack_then_unpack_master(self):
+        m_in = Master(
+            id="room-a", name="Room A", ip="192.168.1.200",
+            slaves={
+                "s1": Slave(
+                    id="s1", name="Front", pin="7", led_count=120,
+                    tag_types={
+                        "front": TagType(
+                            name="front", pin="3", rows=1, columns=4,
+                            color=[255, 0, 0],
+                            topology=[0, 1, 2, 3],
+                            tags=[Tag(
+                                time_seconds=0.5, action=True,
+                                colors=[[1, 2, 3]],
+                            )],
+                        ),
+                    },
+                ),
+                "s2": Slave(
+                    id="s2", name="Back", pin="8", led_count=60,
+                    tag_types={},
+                ),
+            },
+        )
+        m_out = unpack_master(pack_master(m_in))
+        self.assertEqual(m_out, m_in)
+
+
+class ProjectManagerPackMasterDelegationTests(unittest.TestCase):
+
+    def test_project_manager_pack_master_delegates_to_json_mapper(self):
+        from ProjectScreen.ProjectManager import ProjectManager
+
+        pm = ProjectManager.__new__(ProjectManager)
+        ui_like_master = SimpleNamespace(
+            title="Room A",
+            boxID="m1",
+            masterIp="10.0.0.5",
+        )
+        # slavesData is the already-packed output of packSlave (PR 1.3).
+        slaves_data = {
+            "s1": pack_slave(Slave(
+                id="s1", name="Front", pin="7", led_count=60,
+                tag_types={},
+            )),
+        }
+
+        expected = pack_master(Master(
+            id="m1", name="Room A", ip="10.0.0.5", slaves={},
+        ))
+        expected["slaves"] = slaves_data
+
+        self.assertEqual(
+            pm.packMaster(ui_like_master, slaves_data), expected,
+        )
+
+    def test_project_manager_pack_master_uses_fallback_when_masterIp_missing(self):
+        from ProjectScreen.ProjectManager import ProjectManager
+
+        pm = ProjectManager.__new__(ProjectManager)
+
+        class _BareMaster:
+            pass
+
+        ui_like_master = _BareMaster()
+        ui_like_master.title = "Room X"
+        ui_like_master.boxID = "m-x"
+        # Intentionally no masterIp attribute on the instance.
+        self.assertFalse(hasattr(ui_like_master, "masterIp"))
+
+        result = pm.packMaster(ui_like_master, {})
+        self.assertEqual(result["ip"], "192.168.0.129")
 
 
 if __name__ == "__main__":
