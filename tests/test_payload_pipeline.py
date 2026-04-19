@@ -8,7 +8,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from lightconductor.application import BuildShowPayloadUseCase
-from lightconductor.infrastructure import LegacyMastersMapper
+from lightconductor.infrastructure import UiMastersMapper
 
 
 class FakeTag:
@@ -52,7 +52,7 @@ class FakeMaster:
 
 class PayloadPipelineTests(unittest.TestCase):
     def test_map_and_build_payload(self):
-        mapper = LegacyMastersMapper()
+        mapper = UiMastersMapper()
         use_case = BuildShowPayloadUseCase()
 
         tags = [
