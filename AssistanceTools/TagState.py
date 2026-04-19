@@ -22,7 +22,8 @@ class TagState(QWidget):
         self.mainLayout.addWidget(name)
 
     def changeState(self, state):
-        if state == "On":
+        # state: bool — True → show tag-type color; False → black.
+        if state:
             self.circleState.setStyleSheet(
                 f"background-color: rgb({self.tagType.color});"
                 "border-radius: 10px;"
