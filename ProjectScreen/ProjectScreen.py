@@ -9,6 +9,7 @@ from ProjectScreen.ProjectManager import ProjectManager
 from AssistanceTools.SimpleDialog import SimpleDialog
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from lightconductor.application.compiled_show import CompileShowsForMastersUseCase
+from lightconductor.config import AppSettings, load_settings
 from lightconductor.infrastructure.audio_loader import LibrosaAudioLoader
 from lightconductor.infrastructure.legacy_mappers import LegacyMastersMapper
 from lightconductor.infrastructure.legacy_project_storage import LegacyProjectStorage
@@ -23,8 +24,9 @@ logger = logging.getLogger(__name__)
 #Диалог создания нового мастера
 class newMasterDialog(SimpleDialog):
     masterCreated = pyqtSignal(dict)
-    def __init__(self, parent=None):
+    def __init__(self, default_ip: str, parent=None):
         super().__init__(parent)
+        self._default_ip = default_ip
         self.uiCreate()
 
     def uiCreate(self):
@@ -32,7 +34,7 @@ class newMasterDialog(SimpleDialog):
 
         self.masterNameBar = self.LabelAndLine("Master's name")
         self.masterIpBar = self.LabelAndLine("Master IP")
-        self.masterIpBar.setText("192.168.0.129")
+        self.masterIpBar.setText(self._default_ip)
         okButton = self.OkAndCancel()
         okButton.clicked.connect(self.onOkClicked)
 
@@ -49,6 +51,7 @@ class newMasterDialog(SimpleDialog):
 class ProjectWindow(QMainWindow):
     def __init__(self, project_data):
         super().__init__()
+        self.settings = load_settings()
         self.masters = {}
         self.project_data = project_data
         self.audio = None
@@ -61,7 +64,10 @@ class ProjectWindow(QMainWindow):
         self.showController = ProjectScreenController(
             mapper=LegacyMastersMapper(),
             compile_use_case=CompileShowsForMastersUseCase(),
-            transport=MasterUdpUploadTransport(port=43690, chunk_size=768),
+            transport=MasterUdpUploadTransport(
+                port=self.settings.udp_port,
+                chunk_size=self.settings.udp_chunk_size,
+            ),
             audio_loader=LibrosaAudioLoader(),
         )
 
@@ -139,7 +145,11 @@ class ProjectWindow(QMainWindow):
         for masterID in masters:
             master = masters[masterID]
             slaves = master['slaves']
-            self.addMaster(master["name"], master["id"], master.get("ip", "192.168.0.129"))
+            self.addMaster(
+                master["name"],
+                master["id"],
+                master.get("ip", self.settings.default_master_ip),
+            )
             masterWidget = self.masters[master["id"]]
             for slaveID in slaves:
                 slave = slaves[slaveID]
@@ -198,14 +208,16 @@ class ProjectWindow(QMainWindow):
             return
 
     def showMasterDialog(self):
-        dialog = newMasterDialog(self)
+        dialog = newMasterDialog(self.settings.default_master_ip, self)
         dialog.masterCreated.connect(self.addMaster)
         dialog.exec()
 
-    def addMaster(self, masterName, boxID=None, masterIp="192.168.0.129"):
+    def addMaster(self, masterName, boxID=None, masterIp=None):
         if isinstance(masterName, dict):
             masterIp = masterName.get("ip", masterIp)
             masterName = masterName.get("name", "")
+        if masterIp is None:
+            masterIp = self.settings.default_master_ip
         if boxID is None:
             boxID = datetime.now().strftime("%Y%m%d%H%M%S%f")
         master = MasterBox(title=masterName, boxID=boxID, audio=self.audio, sr=self.sr, aydioPath=self.audioPath, masterIp=masterIp)
