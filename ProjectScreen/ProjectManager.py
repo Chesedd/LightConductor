@@ -6,6 +6,8 @@ from pathlib import Path
 import soundfile as sf
 import librosa
 
+from lightconductor.domain.models import Tag
+from lightconductor.infrastructure.json_mapper import pack_tag
 from lightconductor.infrastructure.project_file_backup import (
     write_with_rotation,
 )
@@ -100,11 +102,14 @@ class ProjectManager():
         return typeData
 
     def packTag(self, tag):
-        tagData = {}
-        tagData['time'] = tag.time
-        tagData['action'] = tag.action
-        tagData['colors'] = tag.colors
-        return tagData
+        # UI tags carry `.time`, domain Tags carry `.time_seconds`.
+        # Adapt on the boundary; full UI->domain mapping is Phase 1.4.
+        domain_tag = Tag(
+            time_seconds=tag.time,
+            action=tag.action,
+            colors=tag.colors,
+        )
+        return pack_tag(domain_tag)
 
     def loadData(self):
         path = Path(f"Projects/{self.projectName}/{self.dataFile}")
