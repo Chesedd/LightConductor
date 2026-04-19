@@ -1,5 +1,7 @@
+import logging
+
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
-                            QFileDialog)
+                            QFileDialog, QMessageBox)
 from PyQt6.QtCore import pyqtSignal, Qt, QUrl
 from PyQt6.QtGui import QAction, QKeySequence
 from ProjectScreen.PlateLogic.MasterBox import MasterBox
@@ -15,6 +17,8 @@ from lightconductor.presentation.project_controller import ProjectScreenControll
 from lightconductor.presentation.project_session_controller import ProjectSessionController
 
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 #Диалог создания нового мастера
 class newMasterDialog(SimpleDialog):
@@ -169,7 +173,7 @@ class ProjectWindow(QMainWindow):
         type.addExistingTags(tags)
 
     def saveData(self):
-        print("Save")
+        logger.info("Saving project session")
         self.sessionController.save_session(self.audio, self.sr, self.masters)
 
     def addTrack(self):
@@ -186,9 +190,11 @@ class ProjectWindow(QMainWindow):
             self.initAudioPlayer()
             self.updateSlavesAudio()
         except FileNotFoundError:
-            print("File not exist")
+            logger.warning("Audio file not found: %s", filePath)
+            QMessageBox.warning(self, "Файл не найден", f"Файл не существует:\n{filePath}")
         except Exception as e:
-            print(e)
+            logger.exception("Failed to load audio track: %s", filePath)
+            QMessageBox.critical(self, "Ошибка загрузки трека", str(e))
             return
 
     def showMasterDialog(self):
@@ -219,21 +225,24 @@ class ProjectWindow(QMainWindow):
     def uploadShow(self):
         try:
             self.showController.upload_show(self.masters)
-            print("Compiled show uploaded")
+            logger.info("Compiled show uploaded")
         except Exception as e:
-            print(f"Error uploading show: {e}")
+            logger.exception("Failed to upload show")
+            QMessageBox.critical(self, "Ошибка загрузки шоу", str(e))
 
     def startShow(self):
         if not hasattr(self, "audioPlayer"):
-            print("Audio player is not initialized. Add a track first.")
+            logger.warning("Audio player not initialized, track required")
+            QMessageBox.warning(self, "Нет трека", "Сначала добавьте аудио-трек.")
             return
         self.audioPlayer.setPosition(0)
 
         try:
             self.showController.send_start_signal(self.masters)
-            print("Start signal sent")
+            logger.info("Start signal sent")
         except Exception as e:
-            print(f"Error sending start signal: {e}")
+            logger.exception("Failed to send start signal")
+            QMessageBox.critical(self, "Ошибка старта шоу", str(e))
             return
 
         self.audioPlayer.play()

@@ -1,3 +1,5 @@
+import logging
+
 from PyQt6.QtWidgets import QVBoxLayout, QPushButton
 from PyQt6.QtCore import pyqtSignal
 from ProjectScreen.PlateLogic.SlaveBox import SlaveBox
@@ -7,6 +9,8 @@ from AssistanceTools.ChooseBox import  TagTypeChooseBox
 from AssistanceTools.SimpleDialog import SimpleDialog
 from ProjectScreen.TagLogic.WaveWidget import WaveWidget
 from AssistanceTools.DropBox import DropBox
+
+logger = logging.getLogger(__name__)
 
 class newSlaveDialog(SimpleDialog):
     slaveCreated = pyqtSignal(dict)
@@ -82,7 +86,7 @@ class MasterBox(DropBox):
         self.contentLayout.addWidget(slave)
 
     def deleteSlavesData(self, boxID):
-        print(self.slaves, boxID)
+        logger.debug("Deleting slave boxID=%s, current slaves=%s", boxID, list(self.slaves.keys()))
         if boxID in self.slaves:
             del self.slaves[boxID]
             return True
