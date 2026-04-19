@@ -1,10 +1,9 @@
 import pyqtgraph as pg
 
-from PyQt6.QtGui import QColor
-from PyQt6.QtCore import QPointF, Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 
-from ProjectScreen.TagLogic.TagObject import Tag
 from ProjectScreen.TagLogic.WaveRenderer import WaveRenderer
+from ProjectScreen.TagLogic.TagTimelineController import TagTimelineController
 
 
 class WaveWidget(pg.PlotWidget):
@@ -13,7 +12,6 @@ class WaveWidget(pg.PlotWidget):
         super().__init__()
         self.manager = manager
         self.chooseBox = chooseBox
-        self.chooseBox.stateChanged.connect(self.editTagTypeOnWave)
         self.vb = self.getViewBox()
         self._renderer = WaveRenderer(
             plot_widget=self,
@@ -21,6 +19,12 @@ class WaveWidget(pg.PlotWidget):
             sr=sr,
             audioPath=audioPath,
         )
+        self._tagController = TagTimelineController(
+            plot_widget=self,
+            manager=manager,
+            renderer=self._renderer,
+        )
+        self.chooseBox.stateChanged.connect(self.editTagTypeOnWave)
         self._renderer.init_ui()
         self._renderer.setupMouse()
 
@@ -40,38 +44,16 @@ class WaveWidget(pg.PlotWidget):
                 round((self._renderer.selectedLine.value() - step) * 1000))
 
     def addTag(self, data):
-        self.addTagAtTime(data, self._renderer.selectedLine.pos().x())
+        self._tagController.addTag(data)
 
     def addTagAtTime(self, data, time):
-        color = self.manager.curType.color
-        r, g, b = map(int, color.split(','))
-        tag = Tag(
-            pos=QPointF(time, 0.0),
-            angle=90,
-            pen=pg.mkPen(QColor(r, g, b), width=3),
-            action=data["action"],
-            colors=data["colors"],
-            type=self.manager.curType,
-            manager=self.manager,
-        )
-        self.addItem(tag)
-        self.manager.curType.addTag(tag)
+        self._tagController.addTagAtTime(data, time)
 
     def addExistingTag(self, data, type):
-        color = type.color
-        r, g, b = map(int, color.split(','))
-        tag = Tag(pos=QPointF(data["time"], 0.0), angle=90, pen=pg.mkPen(QColor(r, g, b), width=3), action=data["action"], colors=data["colors"], type = type, manager = self.manager)
-        self.addItem(tag)
-        type.addTag(tag)
-        return tag
+        return self._tagController.addExistingTag(data, type)
 
     def editTagTypeOnWave(self, data):
-        tags = self.manager.types[data["tagType"]].tags
-        for tag in tags:
-            if data["state"]:
-                tag.show()
-            else:
-                tag.hide()
+        self._tagController.editTagTypeOnWave(data)
 
     def playOrPause(self, action):
         self._renderer.playOrPause(action)
