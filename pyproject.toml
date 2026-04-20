@@ -98,3 +98,22 @@ module = [
     "PyQt6.*",
 ]
 ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["src/lightconductor"]
+branch = true
+omit = [
+    "src/lightconductor/*/__init__.py",
+]
+
+[tool.coverage.report]
+show_missing = false
+skip_empty = true
+precision = 2
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "\\.\\.\\.",
+]

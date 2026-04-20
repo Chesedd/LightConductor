@@ -66,5 +66,18 @@ jobs:
       - name: Run mypy
         run: mypy src/lightconductor/
 
-      - name: Run pytest
-        run: pytest tests/ -q
+      - name: Run pytest with coverage
+        run: |
+          pytest tests/ -q \
+            --cov=src/lightconductor \
+            --cov-report=term \
+            --cov-report=html:htmlcov \
+            --cov-report=xml:coverage.xml
+
+      - name: Upload coverage HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: htmlcov/
+          retention-days: 14
