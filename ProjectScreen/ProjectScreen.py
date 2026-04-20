@@ -8,6 +8,7 @@ from PyQt6.QtGui import QAction, QKeySequence
 from ProjectScreen.PlateLogic.MasterBox import MasterBox
 from AssistanceTools.SimpleDialog import SimpleDialog
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
+from lightconductor.application.beat_detection import snap_to_nearest_beat
 from lightconductor.application.commands import (
     AddMasterCommand,
     CommandStack,
@@ -138,6 +139,11 @@ class ProjectWindow(QMainWindow):
         addTagAction.triggered.connect(self._on_add_tag_at_cursor)
         self.addAction(addTagAction)
 
+        addTagBeatAction = QAction("Add tag at cursor (beat snap)", self)
+        addTagBeatAction.setShortcut(QKeySequence("Ctrl+Shift+T"))
+        addTagBeatAction.triggered.connect(self._on_add_tag_at_cursor_beat)
+        self.addAction(addTagBeatAction)
+
         deleteTagAction = QAction("Delete selected tag", self)
         deleteTagAction.setShortcut(QKeySequence(Qt.Key.Key_Delete))
         deleteTagAction.triggered.connect(self._on_delete_selected_tag)
@@ -176,6 +182,12 @@ class ProjectWindow(QMainWindow):
         slave.playButton.click()
 
     def _on_add_tag_at_cursor(self):
+        self._add_tag_at_cursor_impl(beat_snap=False)
+
+    def _on_add_tag_at_cursor_beat(self):
+        self._add_tag_at_cursor_impl(beat_snap=True)
+
+    def _add_tag_at_cursor_impl(self, beat_snap: bool):
         if self._focus_in_text_input():
             return
         slave = self._active_slave
@@ -185,7 +197,15 @@ class ProjectWindow(QMainWindow):
         cur_type = wave.manager.curType
         if cur_type is None:
             return
-        time_val = float(wave._renderer.selectedLine.value())
+        raw_time = max(0.0, float(wave._renderer.selectedLine.value()))
+        beats = (
+            getattr(wave._renderer, "beat_times", None)
+            if beat_snap else None
+        )
+        time_val = snap_to_nearest_beat(raw_time, beats, 0.1)
+        dur = float(getattr(wave._renderer, "duration", 0.0) or 0.0)
+        if dur > 0.0 and time_val > dur:
+            time_val = dur
         topology = list(getattr(
             cur_type,
             "topology",
