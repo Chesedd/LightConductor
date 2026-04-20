@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 import struct
 import zlib
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from lightconductor.domain.models import Master, Slave, Tag
+
+logger = logging.getLogger(__name__)
 
 MAGIC = b"LCS1"
 VERSION = 1
@@ -62,7 +65,8 @@ class CompileShowsForMastersUseCase:
 
     def _compile_slave_show(self, master_ip: str, slave: Slave) -> CompiledSlaveShow:
         slave_id = self._parse_slave_id(slave.pin)
-        segment_defs = self._segment_defs(slave)
+        led_cells_list = [int(c) for c in (getattr(slave, "led_cells", []) or [])]
+        segment_defs = self._segment_defs(slave, led_cells_list)
 
         if len(segment_defs) > 255:
             raise ValueError(
@@ -86,10 +90,14 @@ class CompileShowsForMastersUseCase:
             slave.tag_types.items(), key=lambda item: self._safe_int(item[1].pin)
         )
         for segment_id, (_, tag_type) in enumerate(tag_type_items):
-            segment_size = self._segment_size(tag_type)
+            kept_indices = self._kept_topology_indices(
+                tag_type, led_cells_list, slave_name=slave.name
+            )
+            segment_size = self._effective_segment_size(tag_type, kept_indices)
             for tag in tag_type.tags:
                 timestamp_ms = max(0, round(float(tag.time_seconds) * 1000.0))
-                normalized_colors = self._normalize_colors(tag.colors, segment_size)
+                picked_colors = self._pick_colors(tag.colors, kept_indices, tag_type)
+                normalized_colors = self._normalize_colors(picked_colors, segment_size)
                 opcode, payload = self._classify_event(
                     tag, normalized_colors, palette, palette_map
                 )
@@ -139,26 +147,103 @@ class CompileShowsForMastersUseCase:
             blob=blob,
         )
 
-    def _segment_defs(self, slave: Slave) -> List[SegmentDef]:
+    def _segment_defs(
+        self,
+        slave: Slave,
+        led_cells_list: List[int],
+    ) -> List[SegmentDef]:
         defs: List[SegmentDef] = []
         for tag_type in sorted(
             slave.tag_types.values(), key=lambda item: self._safe_int(item.pin)
         ):
+            kept_indices = self._kept_topology_indices(
+                tag_type, led_cells_list, slave_name=slave.name
+            )
             defs.append(
                 SegmentDef(
                     start=self._safe_int(tag_type.pin),
-                    size=self._segment_size(tag_type),
+                    size=self._effective_segment_size(tag_type, kept_indices),
                     name=tag_type.name,
                 )
             )
         return defs
 
     @staticmethod
-    def _segment_size(tag_type: Any) -> int:
+    def _cell_to_wire(led_cells_list: List[int], cell: int) -> Optional[int]:
+        """Return the wire position of `cell` in `led_cells_list`,
+        or None if the cell is not present. Pure; duplicated with
+        `led_preview.cell_to_wire_index` to avoid a cross-module
+        import."""
+        try:
+            return led_cells_list.index(int(cell))
+        except (TypeError, ValueError):
+            return None
+
+    @classmethod
+    def _kept_topology_indices(
+        cls,
+        tag_type: Any,
+        led_cells_list: List[int],
+        *,
+        slave_name: str = "",
+    ) -> List[int]:
+        """Return the positions `j` in `tag_type.topology` whose
+        canvas cell has a physical LED (i.e. cell is in
+        `led_cells_list`). For migrated projects where
+        `led_cells = [0..led_count-1]`, every topology cell is
+        kept and the returned list equals `range(len(topology))`.
+
+        If `led_cells_list` is empty (pre-v3 data reached us
+        without migration), the filter is skipped and all indices
+        are returned — this preserves compatibility."""
+        topology = list(getattr(tag_type, "topology", []) or [])
+        if not led_cells_list:
+            return list(range(len(topology)))
+        kept: List[int] = []
+        for j, cell in enumerate(topology):
+            if cls._cell_to_wire(led_cells_list, int(cell)) is None:
+                logger.debug(
+                    "compile: skipping non-LED cell %d in tag_type %r of slave %r",
+                    int(cell),
+                    getattr(tag_type, "name", ""),
+                    slave_name,
+                )
+                continue
+            kept.append(j)
+        return kept
+
+    @staticmethod
+    def _effective_segment_size(
+        tag_type: Any,
+        kept_indices: List[int],
+    ) -> int:
+        """Segment size = number of topology cells with LEDs. For
+        empty topology, fall back to rows*columns (>= 1)."""
         topology = list(getattr(tag_type, "topology", []) or [])
         if topology:
-            return len(topology)
+            return len(kept_indices)
         return max(1, int(tag_type.rows) * int(tag_type.columns))
+
+    @staticmethod
+    def _pick_colors(
+        tag_colors: List[Any],
+        kept_indices: List[int],
+        tag_type: Any,
+    ) -> List[Any]:
+        """Select raw color entries at `kept_indices` from
+        `tag_colors`. For empty topology (fallback segment), pass
+        the colors through unchanged so downstream normalization
+        pads/truncates as before."""
+        topology = list(getattr(tag_type, "topology", []) or [])
+        if not topology:
+            return list(tag_colors)
+        picked: List[Any] = []
+        for j in kept_indices:
+            if j < len(tag_colors):
+                picked.append(tag_colors[j])
+            else:
+                picked.append([0, 0, 0])
+        return picked
 
     @staticmethod
     def _parse_slave_id(pin_value: str) -> int:

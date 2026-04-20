@@ -11,7 +11,7 @@ from __future__ import annotations
 import csv
 import io
 import json
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from lightconductor.domain.models import Master
 
@@ -26,6 +26,7 @@ FIELD_ORDER: Tuple[str, ...] = (
     "type_name",
     "type_pin",
     "led_physical_index",
+    "wire_index",
     "action",
     "r",
     "g",
@@ -69,6 +70,13 @@ def _normalize_color(color_like: Any) -> Tuple[int, int, int]:
     return (0, 0, 0)
 
 
+def _cell_to_wire(led_cells: List[int], cell: int) -> Optional[int]:
+    try:
+        return led_cells.index(int(cell))
+    except (TypeError, ValueError):
+        return None
+
+
 def build_score_records(
     masters: Dict[str, Master],
 ) -> List[Dict[str, Any]]:
@@ -77,10 +85,16 @@ def build_score_records(
     Returned records are dicts keyed by FIELD_ORDER. Sort is:
     time_seconds ASC, master_id ASC, slave_id ASC, type_pin ASC
     (int), led_physical_index ASC.
+
+    `led_physical_index` preserves its pre-8.7 semantics (canvas
+    cell index). `wire_index` is the position of that cell on
+    the physical wire per `slave.led_cells`, or None when the
+    cell has no physical LED.
     """
     records: List[Dict[str, Any]] = []
     for master_id, master in (masters or {}).items():
         for slave_id, slave in (master.slaves or {}).items():
+            led_cells = [int(c) for c in (getattr(slave, "led_cells", []) or [])]
             for type_name, tag_type in (slave.tag_types or {}).items():
                 type_pin_int = _safe_int(
                     getattr(tag_type, "pin", 0),
@@ -92,6 +106,7 @@ def build_score_records(
                     for i, phys_idx in enumerate(topology):
                         color_like = colors[i] if i < len(colors) else (0, 0, 0)
                         r, g, b = _normalize_color(color_like)
+                        wire_idx = _cell_to_wire(led_cells, int(phys_idx))
                         records.append(
                             {
                                 "time_seconds": float(tag.time_seconds),
@@ -104,6 +119,7 @@ def build_score_records(
                                 "type_name": str(type_name),
                                 "type_pin": type_pin_int,
                                 "led_physical_index": int(phys_idx),
+                                "wire_index": wire_idx,
                                 "action": action_bool,
                                 "r": int(r),
                                 "g": int(g),
@@ -125,7 +141,8 @@ def build_score_records(
 def render_csv(records: List[Dict[str, Any]]) -> str:
     """Render records as CSV text. Header row always present.
 
-    action rendered as "On"/"Off".
+    action rendered as "On"/"Off". `wire_index` of None is
+    rendered as empty string for CSV-friendly parsing.
     """
     buf = io.StringIO(newline="")
     writer = csv.DictWriter(
@@ -138,6 +155,8 @@ def render_csv(records: List[Dict[str, Any]]) -> str:
     for rec in records:
         row = dict(rec)
         row["action"] = "On" if rec["action"] else "Off"
+        if row.get("wire_index") is None:
+            row["wire_index"] = ""
         writer.writerow(row)
     return buf.getvalue()
 

@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import QWidget
 
 from lightconductor.application.led_preview import (
     _safe_int,
-    render_led_strip_at,
+    render_canvas_at,
 )
 from lightconductor.application.project_state import (
     SlaveAdded,
@@ -94,7 +94,7 @@ class LedGridView(QWidget):
         if slave is None or _safe_int(getattr(slave, "led_count", 0)) <= 0:
             self._buffer = []
         else:
-            self._buffer = render_led_strip_at(
+            self._buffer = render_canvas_at(
                 slave,
                 self._current_time,
             )
