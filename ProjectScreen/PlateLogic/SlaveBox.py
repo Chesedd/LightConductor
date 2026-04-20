@@ -15,6 +15,9 @@ from ProjectScreen.PlateLogic.RenameDialog import RenameDialog
 from ProjectScreen.PlateLogic.DeleteDialog import DeleteDialog
 from ProjectScreen.TagLogic.WaveMiniMap import WaveMiniMap
 from ProjectScreen.TagLogic.LedStripView import LedStripView
+from lightconductor.application.duplicate import (
+    build_duplicate_slave_composite,
+)
 
 
 class SlaveBox(DropBox):
@@ -243,6 +246,10 @@ class SlaveBox(DropBox):
         renameAction.triggered.connect(self.showRenameDialog)
         menu.addAction(renameAction)
 
+        duplicateAction = QAction("Duplicate slave", self)
+        duplicateAction.triggered.connect(self._on_duplicate_slave)
+        menu.addAction(duplicateAction)
+
         deleteAction = QAction("Delete", self)
         deleteAction.triggered.connect(self.showDeleteDialog)
         menu.addAction(deleteAction)
@@ -278,4 +285,30 @@ class SlaveBox(DropBox):
     def deleteBox(self):
         self.boxDeleted.emit(self.boxID)
         self.deleteLater()
+
+    def _on_duplicate_slave(self):
+        if self._state is None or self._commands is None:
+            return
+        if self._master_id is None:
+            return
+        try:
+            master = self._state.master(self._master_id)
+            source = master.slaves[self.boxID]
+        except KeyError:
+            return
+        existing_names = [
+            s.name for s in master.slaves.values()
+        ]
+        composite = build_duplicate_slave_composite(
+            source=source,
+            target_master_id=self._master_id,
+            existing_slave_names=existing_names,
+        )
+        try:
+            self._commands.push(composite)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "Duplicate slave composite push failed",
+            )
 

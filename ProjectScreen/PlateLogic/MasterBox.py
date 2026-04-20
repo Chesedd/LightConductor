@@ -1,7 +1,8 @@
 import logging
 
-from PyQt6.QtWidgets import QVBoxLayout, QPushButton
+from PyQt6.QtWidgets import QVBoxLayout, QPushButton, QMenu
 from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtGui import QAction
 from ProjectScreen.PlateLogic.SlaveBox import SlaveBox
 from ProjectScreen.TagLogic.TagManager import TagManager
 from datetime import datetime
@@ -12,6 +13,9 @@ from AssistanceTools.DropBox import DropBox
 from lightconductor.application.commands import (
     AddSlaveCommand,
     DeleteSlaveCommand,
+)
+from lightconductor.application.duplicate import (
+    build_duplicate_master_composite,
 )
 from lightconductor.domain.models import Slave as DomainSlave
 
@@ -179,3 +183,31 @@ class MasterBox(DropBox):
                         )
             return True
         return False
+
+    def contextMenuEvent(self, event):
+        menu = QMenu(self)
+        duplicateAction = QAction("Duplicate master", self)
+        duplicateAction.triggered.connect(self._on_duplicate_master)
+        menu.addAction(duplicateAction)
+        menu.exec(event.globalPos())
+
+    def _on_duplicate_master(self):
+        if self._state is None or self._commands is None:
+            return
+        try:
+            source = self._state.master(self.boxID)
+        except KeyError:
+            return
+        existing_names = [
+            m.name for m in self._state.masters().values()
+        ]
+        composite = build_duplicate_master_composite(
+            source=source,
+            existing_master_names=existing_names,
+        )
+        try:
+            self._commands.push(composite)
+        except Exception:
+            logger.exception(
+                "Duplicate master composite push failed",
+            )
