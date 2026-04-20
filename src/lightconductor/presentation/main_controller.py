@@ -119,6 +119,27 @@ class MainScreenController:
             "song_name": project.song_name,
         }
 
+    def inspect_archive_manifest(self, zip_path) -> dict:
+        """Read an archive's manifest without extracting.
+        Returns a dict with keys:
+            source_project_name, song_name,
+            source_created_at, has_audio.
+
+        Raises ArchiveError (or subtype) on invalid archives.
+        Raises OSError on file read failures.
+        """
+        from pathlib import Path
+        from lightconductor.infrastructure.project_archive import (
+            inspect_archive as _inspect,
+        )
+        inspection = _inspect(Path(zip_path))
+        return {
+            "source_project_name": inspection.source_project_name,
+            "song_name": inspection.song_name,
+            "source_created_at": inspection.source_created_at,
+            "has_audio": inspection.has_audio,
+        }
+
     def mark_project_opened(self, project_id: str) -> None:
         """Move project_id to the front of recent_project_ids,
         truncate to RECENT_LIMIT, and persist. No-op when

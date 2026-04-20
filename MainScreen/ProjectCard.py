@@ -18,6 +18,7 @@ class ProjectCard(QFrame):
     openRequested = pyqtSignal(str)
     renameRequested = pyqtSignal(str)
     deleteRequested = pyqtSignal(str)
+    exportRequested = pyqtSignal(str)
 
     def __init__(self, metadata: dict, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -62,6 +63,11 @@ class ProjectCard(QFrame):
         open_btn.clicked.connect(
             lambda: self.openRequested.emit(self.project_id()),
         )
+        export_btn = QPushButton("Export")
+        export_btn.setFixedHeight(32)
+        export_btn.clicked.connect(
+            lambda: self.exportRequested.emit(self.project_id()),
+        )
         rename_btn = QPushButton("Rename")
         rename_btn.setFixedHeight(32)
         rename_btn.clicked.connect(
@@ -73,6 +79,7 @@ class ProjectCard(QFrame):
             lambda: self.deleteRequested.emit(self.project_id()),
         )
         top_row.addWidget(open_btn)
+        top_row.addWidget(export_btn)
         top_row.addWidget(rename_btn)
         top_row.addWidget(delete_btn)
         outer.addLayout(top_row)
