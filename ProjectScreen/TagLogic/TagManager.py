@@ -91,8 +91,24 @@ class TagManager(QWidget):
 
     def showNewTypeDialog(self):
         led_count = self.box.ledCount if self.box else 0
+        grid_rows = int(getattr(self.box, "_grid_rows", 1) or 1) if self.box else 1
+        grid_columns = (
+            int(getattr(self.box, "_grid_columns", 0) or 0) if self.box else 0
+        )
+        occupied_cells: set[int] = set()
+        for tag_type in self.types.values():
+            for cell in getattr(tag_type, "topology", None) or []:
+                try:
+                    occupied_cells.add(int(cell))
+                except (TypeError, ValueError):
+                    continue
         dialog = newTypeDialog(
-            self, led_count=led_count, occupied_ranges=self.getOccupiedRanges()
+            self,
+            led_count=led_count,
+            occupied_ranges=self.getOccupiedRanges(),
+            slave_grid_rows=grid_rows,
+            slave_grid_columns=grid_columns,
+            occupied_cells=occupied_cells,
         )
         dialog.newType.connect(self.addType)
         dialog.exec()
@@ -333,11 +349,24 @@ class editDialog(SimpleDialog):
 class newTypeDialog(SimpleDialog):
     newType = pyqtSignal(dict)
 
-    def __init__(self, parent=None, led_count=0, occupied_ranges=None):
+    def __init__(
+        self,
+        parent=None,
+        led_count=0,
+        occupied_ranges=None,
+        slave_grid_rows=1,
+        slave_grid_columns=0,
+        occupied_cells=None,
+    ):
         super().__init__(parent=parent)
         self.setWindowTitle("New range")
         self.led_count = led_count
         self.occupied_ranges = occupied_ranges or []
+        self._slave_grid_rows = max(1, int(slave_grid_rows or 1))
+        self._slave_grid_columns = max(0, int(slave_grid_columns or 0))
+        self._occupied_cells = (
+            frozenset(occupied_cells) if occupied_cells else frozenset()
+        )
         self.mainLayout = QVBoxLayout(self)
         self.initParams()
 
@@ -349,10 +378,6 @@ class newTypeDialog(SimpleDialog):
 
         self.rangeLengthBar = self.LabelAndLine("Range length")
         self.rangeLengthBar.setText("1")
-        self.rowsBar = self.LabelAndLine("Grid rows")
-        self.rowsBar.setText("1")
-        self.columnsBar = self.LabelAndLine("Grid columns")
-        self.columnsBar.setText("1")
 
         self.topology = None
         topologyButton = QPushButton("Configure topology")
@@ -389,21 +414,8 @@ class newTypeDialog(SimpleDialog):
             length = int(self.rangeLengthBar.text())
         except ValueError:
             length = 1
-        try:
-            rows = int(self.rowsBar.text())
-        except ValueError:
-            rows = 1
-        try:
-            cols = int(self.columnsBar.text())
-        except ValueError:
-            cols = 1
-        if rows <= 0:
-            rows = 1
-        if cols <= 0:
-            cols = 1
-        max_leds_in_grid = rows * cols
-        if length > max_leds_in_grid:
-            length = max_leds_in_grid
+        if length <= 0:
+            length = 1
         start = self.rangeStartCombo.currentText() or "0"
         topology = self.topology
         if topology is None or len(topology) != length:
@@ -412,8 +424,8 @@ class newTypeDialog(SimpleDialog):
             "name": self.newNameBar.text(),
             "color": f"{self.colorPicker.rgb[0]}, {self.colorPicker.rgb[1]}, {self.colorPicker.rgb[2]}",  # noqa: E501
             "pin": start,
-            "row": rows,
-            "table": cols,
+            "row": 1,
+            "table": len(topology),
             "topology": topology,
         }
         self.newType.emit(params)
@@ -424,19 +436,11 @@ class newTypeDialog(SimpleDialog):
             length = int(self.rangeLengthBar.text())
         except ValueError:
             length = 1
-        try:
-            rows = int(self.rowsBar.text())
-        except ValueError:
-            rows = 1
-        try:
-            cols = int(self.columnsBar.text())
-        except ValueError:
-            cols = 1
-
         dialog = TopologyDialog(
-            rows=max(1, rows),
-            cols=max(1, cols),
-            led_count=max(1, length),
+            slave_grid_rows=self._slave_grid_rows,
+            slave_grid_columns=self._slave_grid_columns,
+            max_selection=max(1, length),
+            occupied_cells=self._occupied_cells,
             order=self.topology,
             parent=self,
         )
@@ -445,15 +449,29 @@ class newTypeDialog(SimpleDialog):
 
 
 class TopologyDialog(QDialog):
-    def __init__(self, rows, cols, led_count, order=None, parent=None):
+    def __init__(
+        self,
+        slave_grid_rows,
+        slave_grid_columns,
+        max_selection,
+        occupied_cells=None,
+        order=None,
+        parent=None,
+    ):
         super().__init__(parent)
         self.setWindowTitle("Range topology")
-        self.rows = rows
-        self.cols = cols
-        self.led_count = led_count
+        self.rows = max(1, int(slave_grid_rows or 1))
+        self.cols = max(1, int(slave_grid_columns or 1))
+        self.max_selection = max(0, int(max_selection or 0))
+        self.occupied = frozenset(occupied_cells) if occupied_cells else frozenset()
         self.order = list(order) if order else []
-        if len(self.order) > self.led_count:
-            self.order = self.order[: self.led_count]
+        self.order = [
+            c
+            for c in self.order
+            if 0 <= c < self.rows * self.cols and c not in self.occupied
+        ]
+        if len(self.order) > self.max_selection:
+            self.order = self.order[: self.max_selection]
         self.buttons = {}
 
         layout = QVBoxLayout(self)
@@ -469,7 +487,14 @@ class TopologyDialog(QDialog):
                 btn = QPushButton("")
                 btn.setCheckable(True)
                 btn.setFixedSize(36, 36)
-                btn.clicked.connect(lambda checked, i=index: self.toggleCell(i))
+                if index in self.occupied:
+                    btn.setEnabled(False)
+                    btn.setText("·")
+                    btn.setStyleSheet(
+                        "QPushButton { background-color: #4a2020; color: #888;}"
+                    )
+                else:
+                    btn.clicked.connect(lambda checked, i=index: self.toggleCell(i))
                 self.buttons[index] = btn
                 rowLayout.addWidget(btn)
             gridLayout.addWidget(rowWidget)
@@ -483,16 +508,20 @@ class TopologyDialog(QDialog):
         self.syncButtons()
 
     def toggleCell(self, index):
+        if index in self.occupied:
+            return
         if index in self.order:
             self.order.remove(index)
         else:
-            if len(self.order) >= self.led_count:
+            if len(self.order) >= self.max_selection:
                 return
             self.order.append(index)
         self.syncButtons()
 
     def syncButtons(self):
         for index, btn in self.buttons.items():
+            if index in self.occupied:
+                continue
             if index in self.order:
                 position = self.order.index(index)
                 btn.setChecked(True)
@@ -500,8 +529,10 @@ class TopologyDialog(QDialog):
             else:
                 btn.setChecked(False)
                 btn.setText("")
-        self.counterLabel.setText(f"Selected LEDs: {len(self.order)}/{self.led_count}")
-        self.okBtn.setEnabled(len(self.order) == self.led_count)
+        self.counterLabel.setText(
+            f"Selected LEDs: {len(self.order)}/{self.max_selection}"
+        )
+        self.okBtn.setEnabled(len(self.order) == self.max_selection)
 
 
 class TagButton(QToolButton):
