@@ -21,6 +21,8 @@ class TagDialog(QDialog):
         type_name=None,
         current_time=0.0,
         led_count=0,
+        settings=None,
+        on_presets_changed=None,
     ):
         super().__init__(parent)
         self.rows = rows
@@ -31,6 +33,8 @@ class TagDialog(QDialog):
         self._preview_type_name = type_name
         self._preview_time = float(current_time or 0.0)
         self._preview_led_count = int(led_count or 0)
+        self._settings = settings
+        self._on_presets_changed = on_presets_changed
         self.uiCreate()
 
     def uiCreate(self):
@@ -127,6 +131,24 @@ class TagDialog(QDialog):
         colorPickerLayout.addWidget(self.colorPicker)
         colorPickerLayout.addWidget(colorButtons)
         colorPickerLayout.addWidget(rangeFillWidget)
+
+        self.presetsBar = None
+        if self._settings is not None:
+            from AssistanceTools.ColorPresetsBar import ColorPresetsBar
+            presets = [
+                list(p) for p in (self._settings.color_presets or [])
+            ]
+            self.presetsBar = ColorPresetsBar(presets=presets)
+            self.presetsBar.presetChosen.connect(
+                self._on_preset_chosen,
+            )
+            self.presetsBar.addCurrentRequested.connect(
+                self._on_add_current_preset,
+            )
+            self.presetsBar.presetsChanged.connect(
+                self._on_presets_changed_internal,
+            )
+            colorPickerLayout.addWidget(self.presetsBar)
 
         self.colorPicker.colorChanged.connect(
             lambda _rgb: self._refresh_preview(),
@@ -262,6 +284,22 @@ class TagDialog(QDialog):
             overlay_action=action_on,
         )
         self.ledPreview.set_buffer(buffer)
+
+    def _on_preset_chosen(self, rgb):
+        self.colorPicker.setColor(list(rgb))
+
+    def _on_add_current_preset(self):
+        if self.presetsBar is None:
+            return
+        rgb = list(self.colorPicker.rgb)
+        self.presetsBar.add_preset(rgb)
+
+    def _on_presets_changed_internal(self, presets):
+        if self._on_presets_changed is None:
+            return
+        self._on_presets_changed(
+            [list(p) for p in presets],
+        )
 
     def deleteAllWidgets(self, layout):
         if layout is None:

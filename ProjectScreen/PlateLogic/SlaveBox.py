@@ -174,12 +174,23 @@ class SlaveBox(DropBox):
         except Exception:
             current_time = 0.0
         led_count = int(getattr(slave, "led_count", 0) or 0) if slave else 0
+        settings = None
+        on_presets_changed = None
+        if self._project_window is not None:
+            settings = getattr(self._project_window, "settings", None)
+            on_presets_changed = getattr(
+                self._project_window,
+                "update_color_presets",
+                None,
+            )
         dialog = TagDialog(
             curType.row, curType.table, curType.topology, self,
             slave=slave,
             type_name=curType.name,
             current_time=current_time,
             led_count=led_count,
+            settings=settings,
+            on_presets_changed=on_presets_changed,
         )
         dialog.tagCreated.connect(self.wave.addTag)
         dialog.exec()

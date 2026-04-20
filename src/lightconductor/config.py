@@ -2,7 +2,7 @@
 
 import json
 import logging
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -14,10 +14,38 @@ class AppSettings:
     udp_port: int = 43690
     udp_chunk_size: int = 768
     autosave_interval_seconds: int = 30
+    color_presets: list = field(default_factory=list)
 
 
 def settings_path() -> Path:
     return Path("settings.json").resolve()
+
+
+def _coerce_color_presets(value) -> list | None:
+    """Return a sanitized list of [r,g,b] int triplets, or None if
+    value is not a valid presets payload.
+
+    Only accepts a list whose every entry is a list/tuple of exactly
+    3 integers (not bools), each in [0, 255]. Returns a fresh list of
+    fresh [r,g,b] lists; never returns the input object by reference.
+    """
+    if not isinstance(value, list):
+        return None
+    result = []
+    for entry in value:
+        if not isinstance(entry, (list, tuple)) or len(entry) != 3:
+            return None
+        normalized = []
+        for component in entry:
+            if isinstance(component, bool):
+                return None
+            if not isinstance(component, int):
+                return None
+            if component < 0 or component > 255:
+                return None
+            normalized.append(component)
+        result.append(normalized)
+    return result
 
 
 def _from_dict(data: object) -> AppSettings:
@@ -32,6 +60,16 @@ def _from_dict(data: object) -> AppSettings:
         if name not in data:
             continue
         value = data[name]
+        if name == "color_presets":
+            coerced = _coerce_color_presets(value)
+            if coerced is None:
+                logger.warning(
+                    "settings field %r is malformed; using default",
+                    name,
+                )
+                continue
+            kwargs[name] = coerced
+            continue
         if not isinstance(value, expected_type):
             logger.warning(
                 "settings field %r has wrong type %s; using default",
