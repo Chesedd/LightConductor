@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os.path
+from typing import Any, Tuple
 
 import librosa
 
@@ -8,7 +9,7 @@ import librosa
 class LibrosaAudioLoader:
     """Audio loading adapter for project screen."""
 
-    def load(self, file_path: str):
+    def load(self, file_path: str) -> Tuple[Any, Any, str]:
         if not os.path.exists(file_path):
             raise FileNotFoundError(file_path)
         audio, sample_rate = librosa.load(file_path, sr=None, mono=True)

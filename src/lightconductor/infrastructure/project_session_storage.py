@@ -148,7 +148,7 @@ class ProjectSessionStorage:
     def load_audio(
         self,
         project_name: str,
-    ) -> Tuple[Any, int | None, str]:
+    ) -> Tuple[Any, Any, str]:
         """Load via librosa. Returns (audio, sr, path_str), or
         (None, None, path_str) if the file is missing. Path is
         returned as string (not Path) — matches legacy behaviour

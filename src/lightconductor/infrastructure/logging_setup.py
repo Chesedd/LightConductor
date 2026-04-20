@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import logging
 import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Optional
+from types import TracebackType
+from typing import Any, Callable, Optional, Type
 
 _LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 _DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -10,7 +13,7 @@ _MAX_BYTES = 5 * 1024 * 1024
 _BACKUP_COUNT = 3
 
 _configured = False
-_original_excepthook = None
+_original_excepthook: Optional[Callable[..., Any]] = None
 
 
 def _repo_root() -> Path:
@@ -52,7 +55,11 @@ def configure_logging(log_dir: Optional[Path] = None) -> Path:
 
     _original_excepthook = sys.excepthook
 
-    def _excepthook(exc_type, exc_value, exc_tb):
+    def _excepthook(
+        exc_type: Type[BaseException],
+        exc_value: BaseException,
+        exc_tb: Optional[TracebackType],
+    ) -> None:
         logging.getLogger(__name__).critical(
             "Uncaught exception",
             exc_info=(exc_type, exc_value, exc_tb),

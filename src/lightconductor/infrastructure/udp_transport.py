@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import socket
 from dataclasses import dataclass
-from typing import Dict
+from typing import Any, Dict
 
 
 @dataclass(slots=True)
@@ -19,7 +19,7 @@ class UdpShowTransport:
     def send_payload(
         self,
         pins: Dict[str, Dict[str, int]],
-        payload: Dict[str, Dict[int, Dict[str, dict]]],
+        payload: Dict[str, Dict[int, Dict[str, Any]]],
     ) -> None:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
