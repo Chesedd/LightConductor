@@ -2,32 +2,32 @@
 
 ## pytest.yml
 
-Runs `pytest tests/ -q` on ubuntu-latest with Python 3.12
-on every push and every pull request against `master`.
+Runs the full lint+type+test suite on three platforms:
 
-### Scope
+- ubuntu-latest (apt-installed system deps for Qt and
+  libsndfile)
+- windows-latest (pip wheels carry all binaries)
+- macos-latest (pip wheels carry all binaries)
 
-- pytest only. No ruff, no mypy, no coverage gate.
-- Linux only. Cross-platform matrix is roadmap Phase 7.4.
-- Informational: CI failures do not block merges. Making
-  this a required status check is a follow-up.
+Triggers: push + pull_request against master.
+Timeout: 15 minutes per platform.
 
-### System dependencies
+fail-fast is disabled so every OS runs to completion
+even when one fails. CI stays informational (no
+required status check) until roadmap 7.4c.
 
-- libsndfile1: soundfile backend for librosa.
-- libxkbcommon0, libegl1, libxcb-*: Qt/PyQt6 runtime on
-  Ubuntu.
-- libdbus-1-3, libfontconfig1, libxrender1: general X11
-  stack Qt pulls in indirectly.
+## Steps per platform
 
-Qt runs headless via QT_QPA_PLATFORM=offscreen.
-
-### Related roadmap items
-
-- 7.2: ruff format + check (follow-up PR).
-- 7.3: mypy --strict on src/lightconductor (follow-up PR).
-- 7.4: coverage gate ≥ 70%; Linux/Windows/macOS matrix
-  (follow-up PR).
+1. Checkout repo
+2. Set up Python 3.12 with pip cache
+3. (Linux only) Install Qt + libsndfile system deps
+4. Upgrade pip
+5. Install `requirements.txt` and `requirements-dev.txt`
+6. `ruff check .`
+7. `ruff format --check .`
+8. `mypy src/lightconductor/`
+9. `pytest tests/ -q --cov=src/lightconductor ...`
+10. Upload HTML coverage report (artifact per OS)
 
 ## Linting
 
@@ -72,13 +72,17 @@ No badges.
 
 `pytest tests/ -q --cov=src/lightconductor` runs as
 part of the pytest step. HTML report is uploaded as
-a GitHub Actions artifact (`coverage-html`, 14-day
-retention).
+a GitHub Actions artifact, one per platform
+(`coverage-html-ubuntu-latest`,
+`coverage-html-windows-latest`,
+`coverage-html-macos-latest`, 14-day retention).
 
 No threshold is currently enforced — this is a baseline
-measurement phase (roadmap 7.4a). A fail-under gate
+measurement phase (roadmap 7.4a). Baseline 88.51% was
+measured on Linux in 7.4a; cross-platform numbers become
+visible after 7.4b's first green runs. A fail-under gate
 (target ≥70%) lands in roadmap 7.4c after cross-platform
-stabilization (7.4b).
+stabilization.
 
 Coverage config lives in `pyproject.toml` under
 `[tool.coverage.run]` / `[tool.coverage.report]`:
