@@ -14,10 +14,33 @@ execute/undo) is a later phase.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Protocol, Union
+from typing import FrozenSet, Iterable, List, Optional, Protocol, Union
 
 from lightconductor.application.project_state import ProjectState
 from lightconductor.domain.models import Master, Slave, Tag, TagType
+
+
+class TopologyCollisionError(Exception):
+    """Raised when AddTagTypeCommand detects topology cells
+    overlapping with sibling TagTypes on the same slave. UI
+    filtering in TopologyDialog prevents this normally; this is a
+    belt-and-suspenders backstop for direct state mutations."""
+
+    def __init__(
+        self,
+        master_id: str,
+        slave_id: str,
+        type_name: str,
+        colliding_cells: Iterable[int],
+    ) -> None:
+        self.master_id = master_id
+        self.slave_id = slave_id
+        self.type_name = type_name
+        self.colliding_cells: FrozenSet[int] = frozenset(colliding_cells)
+        super().__init__(
+            f"TagType {type_name!r} topology collides with sibling types "
+            f"on slave {slave_id}: cells {sorted(self.colliding_cells)}"
+        )
 
 
 class Command(Protocol):
@@ -270,6 +293,21 @@ class AddTagTypeCommand:
     tag_type: TagType
 
     def execute(self, state: ProjectState) -> None:
+        slave = state.master(self.master_id).slaves[self.slave_id]
+        new_cells = {int(c) for c in (self.tag_type.topology or [])}
+        occupied: set[int] = set()
+        for sibling_name, sibling_tt in slave.tag_types.items():
+            if sibling_name == self.tag_type.name:
+                continue
+            occupied.update(int(c) for c in (sibling_tt.topology or []))
+        collisions = new_cells & occupied
+        if collisions:
+            raise TopologyCollisionError(
+                master_id=self.master_id,
+                slave_id=self.slave_id,
+                type_name=self.tag_type.name,
+                colliding_cells=collisions,
+            )
         state.add_tag_type(self.master_id, self.slave_id, self.tag_type)
 
     def undo(self, state: ProjectState) -> None:
