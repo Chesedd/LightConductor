@@ -3,6 +3,8 @@ import logging
 from  PyQt6.QtWidgets import QWidget, QLabel, QLineEdit, QVBoxLayout, QHBoxLayout, QPushButton, QButtonGroup
 from AssistanceTools.ColorPicker import ColorPicker
 
+from lightconductor.application.commands import EditTagCommand
+
 logger = logging.getLogger(__name__)
 
 class ColorButton(QPushButton):
@@ -43,12 +45,13 @@ class ColorButton(QPushButton):
                             """)
 
 class TagInfoScreen(QWidget):
-    def __init__(self, state, master_id, slave_id, wave):
+    def __init__(self, state, master_id, slave_id, wave, commands=None):
         super().__init__()
         self._state = state
         self._master_id = master_id
         self._slave_id = slave_id
         self._wave = wave
+        self._commands = commands
         self.tag = None
         self.buttons = QButtonGroup()
         self.initUI()
@@ -231,15 +234,28 @@ class TagInfoScreen(QWidget):
                 idx = None
             if idx is not None:
                 try:
-                    self._state.update_tag(
-                        type_.master_id,
-                        type_.slave_id,
-                        type_name,
-                        idx,
-                        time_seconds=float(params["time"]),
-                        action=bool(params["action"]),
-                        colors=list(params["colors"]),
-                    )
+                    if self._commands is not None:
+                        self._commands.push(
+                            EditTagCommand(
+                                master_id=type_.master_id,
+                                slave_id=type_.slave_id,
+                                type_name=type_name,
+                                tag_index=idx,
+                                new_time_seconds=float(params["time"]),
+                                new_action=bool(params["action"]),
+                                new_colors=list(params["colors"]),
+                            )
+                        )
+                    else:
+                        self._state.update_tag(
+                            type_.master_id,
+                            type_.slave_id,
+                            type_name,
+                            idx,
+                            time_seconds=float(params["time"]),
+                            action=bool(params["action"]),
+                            colors=list(params["colors"]),
+                        )
                     return
                 except (KeyError, IndexError):
                     logger.warning(
