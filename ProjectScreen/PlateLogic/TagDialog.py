@@ -12,12 +12,25 @@ _pattern_service = PatternService()
 
 class TagDialog(QDialog):
     tagCreated = pyqtSignal(dict)
-    def __init__(self, rows, columns, topology, parent=None):
+    def __init__(
+        self,
+        rows, columns, topology,
+        parent=None,
+        *,
+        slave=None,
+        type_name=None,
+        current_time=0.0,
+        led_count=0,
+    ):
         super().__init__(parent)
         self.rows = rows
         self.columns = columns
         self.topology = topology
         self.colors = []
+        self._preview_slave = slave
+        self._preview_type_name = type_name
+        self._preview_time = float(current_time or 0.0)
+        self._preview_led_count = int(led_count or 0)
         self.uiCreate()
 
     def uiCreate(self):
@@ -35,8 +48,25 @@ class TagDialog(QDialog):
         self.mainLayout.addWidget(stateWidget)
         self.mainLayout.addWidget(self.initColorPickerWidget())
 
-        self.setLayout(self.mainLayout)
+        self.ledPreview = None
+        if (
+            self._preview_slave is not None
+            and self._preview_type_name is not None
+            and self._preview_led_count > 0
+        ):
+            from ProjectScreen.TagLogic.LedStripView import LedStripView
+            self.ledPreview = LedStripView(
+                state=None, master_id=None, slave_id=None,
+                parent=self,
+            )
+
+        top = QVBoxLayout(self)
+        if self.ledPreview is not None:
+            top.addWidget(self.ledPreview)
+        top.addWidget(self.mainScreen)
+
         self.changeParams("On")
+        self._refresh_preview()
 
     def initStateDropBox(self):
         stateText = QLabel("Состояние")
@@ -98,6 +128,10 @@ class TagDialog(QDialog):
         colorPickerLayout.addWidget(colorButtons)
         colorPickerLayout.addWidget(rangeFillWidget)
 
+        self.colorPicker.colorChanged.connect(
+            lambda _rgb: self._refresh_preview(),
+        )
+
         return colorPickerWidget
 
     def setColor(self):
@@ -105,12 +139,14 @@ class TagDialog(QDialog):
         if button:
             rgb = [self.colorPicker.rgb[0], self.colorPicker.rgb[1], self.colorPicker.rgb[2]]
             button.setColor(rgb)
+        self._refresh_preview()
 
     def dropColor(self):
         button = self.buttonGroup.checkedButton()
         if button:
             rgb = [0, 0, 0]
             button.setColor(rgb)
+        self._refresh_preview()
 
     def fillAllActiveColors(self):
         if not hasattr(self, "buttonGroup"):
@@ -119,6 +155,7 @@ class TagDialog(QDialog):
         for button in self.buttonGroup.buttons():
             if button.isEnabled():
                 button.setColor(rgb)
+        self._refresh_preview()
 
     def fillRangeColors(self):
         if not hasattr(self, "rowsLayouts"):
@@ -145,6 +182,7 @@ class TagDialog(QDialog):
         )
         for button, color in zip(ordered_buttons, updated_colors):
             button.setColor(color)
+        self._refresh_preview()
 
     def changeParams(self, state):
         if state == "On":
@@ -178,6 +216,8 @@ class TagDialog(QDialog):
         elif state == "Off":
             self.deleteAllWidgets(self.paramsLayer)
 
+        self._refresh_preview()
+
     def onOkClicked(self):
         action = self.stateBar.currentText()
         data = {}
@@ -197,6 +237,31 @@ class TagDialog(QDialog):
             data["colors"] = colors
             self.tagCreated.emit(data)
         self.accept()
+
+    def _refresh_preview(self):
+        if getattr(self, "ledPreview", None) is None:
+            return
+        from lightconductor.application.led_preview import (
+            render_led_strip_with_overlay,
+        )
+        action_on = self.stateBar.currentText() == "On"
+        if action_on and hasattr(self, "rowsLayouts"):
+            colors = []
+            for cell_index in self.topology:
+                row = cell_index // self.columns
+                col = cell_index % self.columns
+                btn = self.rowsLayouts[row].itemAt(col).widget()
+                colors.append(list(btn.rgb))
+        else:
+            colors = [[0, 0, 0] for _ in self.topology]
+        buffer = render_led_strip_with_overlay(
+            slave=self._preview_slave,
+            time_seconds=self._preview_time,
+            overlay_type_name=self._preview_type_name,
+            overlay_colors=colors,
+            overlay_action=action_on,
+        )
+        self.ledPreview.set_buffer(buffer)
 
     def deleteAllWidgets(self, layout):
         if layout is None:

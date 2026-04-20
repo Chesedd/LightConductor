@@ -2,9 +2,11 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QSlider, QHBoxLayout,
     QLineEdit
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 
 class ColorPicker(QWidget):
+    colorChanged = pyqtSignal(list)
+
     def __init__(self):
         super().__init__()
         self.slidersLabels = []
@@ -80,3 +82,5 @@ class ColorPicker(QWidget):
         for slider, labelWidget in self.slidersLabels:
             valueEdit = labelWidget.layout().itemAt(1).widget()
             valueEdit.setText(str(slider.value()))
+
+        self.colorChanged.emit(list(self.rgb))

@@ -50,14 +50,11 @@ def _normalize_color(color_like) -> Tuple[int, int, int]:
     return (0, 0, 0)
 
 
-def render_led_strip_at(
-    slave: Slave, time_seconds: float,
+def _render_buffer(
+    slave: Slave,
+    time_seconds: float,
+    skip_type_name: str | None = None,
 ) -> List[Tuple[int, int, int]]:
-    """Compute RGB buffer of length slave.led_count at the given time.
-    Returns an empty list when led_count <= 0. Tag types are processed
-    in ascending int(pin) order; overlapping topologies resolve
-    last-wins. Out-of-range topology indices are silently skipped."""
-
     led_count = _safe_int(getattr(slave, "led_count", 0) or 0)
     if led_count <= 0:
         return []
@@ -68,6 +65,8 @@ def render_led_strip_at(
         key=lambda tt: _safe_int(getattr(tt, "pin", 0)),
     )
     for tag_type in tag_types:
+        if skip_type_name is not None and getattr(tag_type, "name", None) == skip_type_name:
+            continue
         tags = getattr(tag_type, "tags", None) or []
         if not tags:
             continue
@@ -85,4 +84,60 @@ def render_led_strip_at(
             color = _normalize_color(color_like)
             if 0 <= phys_idx < led_count:
                 buffer[phys_idx] = color
+    return buffer
+
+
+def render_led_strip_at(
+    slave: Slave, time_seconds: float,
+) -> List[Tuple[int, int, int]]:
+    """Compute RGB buffer of length slave.led_count at the given time.
+    Returns an empty list when led_count <= 0. Tag types are processed
+    in ascending int(pin) order; overlapping topologies resolve
+    last-wins. Out-of-range topology indices are silently skipped."""
+
+    return _render_buffer(slave, time_seconds)
+
+
+def render_led_strip_with_overlay(
+    slave,
+    time_seconds: float,
+    overlay_type_name: str,
+    overlay_colors,
+    overlay_action,
+) -> List[Tuple[int, int, int]]:
+    """Render slave state at time_seconds, then overlay a hypothetical
+    tag of type `overlay_type_name` whose (colors, action) the caller
+    is currently editing (e.g. in TagDialog). Matches the semantics the
+    user would see after committing the tag and leaving the cursor at T.
+
+    If led_count <= 0, returns []. If the slave does not contain a tag
+    type named overlay_type_name, returns the base buffer from
+    render_led_strip_at (no overlay applied). Otherwise, the baseline
+    is computed skipping overlay_type_name, and then the overlay is
+    applied honoring overlay_action."""
+
+    led_count = _safe_int(getattr(slave, "led_count", 0) or 0)
+    if led_count <= 0:
+        return []
+
+    tag_types = getattr(slave, "tag_types", {}) or {}
+    overlay_type = tag_types.get(overlay_type_name)
+    if overlay_type is None:
+        return _render_buffer(slave, time_seconds)
+
+    buffer = _render_buffer(slave, time_seconds, skip_type_name=overlay_type_name)
+    topology = list(getattr(overlay_type, "topology", []) or [])
+
+    if not _action_is_on(overlay_action):
+        for phys_idx in topology:
+            if 0 <= phys_idx < led_count:
+                buffer[phys_idx] = (0, 0, 0)
+        return buffer
+
+    colors = list(overlay_colors or [])
+    for i, phys_idx in enumerate(topology):
+        color_like = colors[i] if i < len(colors) else (0, 0, 0)
+        color = _normalize_color(color_like)
+        if 0 <= phys_idx < led_count:
+            buffer[phys_idx] = color
     return buffer
