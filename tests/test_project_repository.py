@@ -4,6 +4,7 @@ import sys
 import tempfile
 import time
 import unittest
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,6 +14,8 @@ if str(SRC) not in sys.path:
 
 from lightconductor.domain.models import Project
 from lightconductor.infrastructure.project_repository import (
+    ProjectNameCollision,
+    ProjectNotFound,
     ProjectRepository,
 )
 
@@ -342,6 +345,185 @@ class RenameProjectTests(_RepoTestBase):
         self.assertEqual(self.registry_path.read_bytes(), before_bytes)
         self.assertTrue((self.projects_root / "Alpha").exists())
         self.assertTrue((self.projects_root / "Gamma").exists())
+
+
+class ExportImportTests(_RepoTestBase):
+    VALID_ENVELOPE = {"schema_version": 1, "masters": {}}
+
+    def _seed_project(
+        self,
+        project_id,
+        project_name,
+        song_name="song",
+        created_at="2024-01-01T00:00:00",
+        with_audio=True,
+    ):
+        self._ensure_project_dir(project_name)
+        data_path = (
+            self.projects_root / project_name / "data.json"
+        )
+        data_path.write_text(
+            json.dumps(self.VALID_ENVELOPE),
+            encoding="utf-8",
+        )
+        if with_audio:
+            (self.projects_root / project_name / "audio.wav").write_bytes(
+                b"\x00\x01"
+            )
+        registry = self.repo._read_registry()
+        registry[project_id] = {
+            "id": project_id,
+            "project_name": project_name,
+            "song_name": song_name,
+            "created_at": created_at,
+        }
+        self.repo._write_registry(registry)
+
+    def _build_archive_for(self, project_name, output_zip):
+        registry = self.repo._read_registry()
+        project_id = next(
+            pid
+            for pid, payload in registry.items()
+            if isinstance(payload, dict)
+            and payload.get("project_name") == project_name
+        )
+        self.repo.export_project_to_archive(project_id, output_zip)
+        return output_zip
+
+    def test_export_writes_zip_for_existing_project(self):
+        self._seed_project("p1", "Demo")
+        out = self.root / "out.zip"
+        self.repo.export_project_to_archive("p1", out)
+        self.assertTrue(out.exists())
+        with zipfile.ZipFile(out, "r") as zf:
+            names = set(zf.namelist())
+        self.assertIn("manifest.json", names)
+        self.assertIn("data.json", names)
+        self.assertIn("audio.wav", names)
+
+    def test_export_unknown_id_raises_ProjectNotFound(self):
+        out = self.root / "out.zip"
+        with self.assertRaises(ProjectNotFound):
+            self.repo.export_project_to_archive("nope", out)
+
+    def test_export_missing_project_directory_raises_FileNotFoundError(self):
+        self._write_registry_json({
+            "g1": {
+                "id": "g1",
+                "project_name": "Ghost",
+                "song_name": "",
+                "created_at": "2024-01-01T00:00:00",
+            },
+        })
+        out = self.root / "out.zip"
+        with self.assertRaises(FileNotFoundError):
+            self.repo.export_project_to_archive("g1", out)
+
+    def test_import_creates_project_directory_and_registry_entry(self):
+        self._seed_project(
+            "p1", "Demo", song_name="MySong",
+            created_at="2024-06-01T12:00:00",
+        )
+        out = self.root / "demo.zip"
+        self._build_archive_for("Demo", out)
+
+        project = self.repo.import_project_from_archive(
+            out, "NewProject",
+        )
+        self.assertEqual(project.name, "NewProject")
+        self.assertNotEqual(project.id, "p1")
+
+        new_dir = self.projects_root / "NewProject"
+        self.assertTrue(new_dir.exists())
+        self.assertTrue((new_dir / "data.json").exists())
+
+        registry = json.loads(
+            self.registry_path.read_text(encoding="utf-8")
+        )
+        self.assertIn(project.id, registry)
+        entry = registry[project.id]
+        self.assertEqual(entry["project_name"], "NewProject")
+        self.assertEqual(entry["song_name"], "MySong")
+        self.assertEqual(
+            entry["created_at"], "2024-06-01T12:00:00",
+        )
+
+    def test_import_without_audio_does_not_create_audio_wav(self):
+        self._seed_project("p1", "NoAudio", with_audio=False)
+        out = self.root / "noaudio.zip"
+        self._build_archive_for("NoAudio", out)
+
+        project = self.repo.import_project_from_archive(
+            out, "Imported",
+        )
+        new_dir = self.projects_root / "Imported"
+        self.assertTrue((new_dir / "data.json").exists())
+        self.assertFalse((new_dir / "audio.wav").exists())
+        self.assertEqual(project.name, "Imported")
+
+    def test_import_collision_raises_ProjectNameCollision(self):
+        self._seed_project("p1", "Existing")
+        out = self.root / "existing.zip"
+        self._build_archive_for("Existing", out)
+
+        before_registry = self.registry_path.read_bytes()
+        with self.assertRaises(ProjectNameCollision):
+            self.repo.import_project_from_archive(out, "Existing")
+
+        self.assertEqual(
+            self.registry_path.read_bytes(), before_registry,
+        )
+
+    def test_import_empty_target_name_raises_ValueError(self):
+        out = self.root / "anything.zip"
+        out.write_bytes(b"\x00")
+        before_dirs = set(
+            p.name
+            for p in self.projects_root.iterdir()
+        ) if self.projects_root.exists() else set()
+        with self.assertRaises(ValueError):
+            self.repo.import_project_from_archive(out, "   ")
+        after_dirs = set(
+            p.name
+            for p in self.projects_root.iterdir()
+        ) if self.projects_root.exists() else set()
+        self.assertEqual(before_dirs, after_dirs)
+        self.assertFalse(self.registry_path.exists())
+
+    def test_import_cleans_up_target_dir_on_registry_write_failure(self):
+        self._seed_project("p1", "Source")
+        out = self.root / "source.zip"
+        self._build_archive_for("Source", out)
+
+        original_write = self.repo._write_registry
+        call_count = {"n": 0}
+
+        def failing_write(data):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                # First call is from inside import_project_from_archive
+                # (the registry update following extraction).
+                raise OSError("simulated registry write failure")
+            return original_write(data)
+
+        self.repo._write_registry = failing_write
+        try:
+            with self.assertRaises(OSError):
+                self.repo.import_project_from_archive(out, "Cleanup")
+        finally:
+            self.repo._write_registry = original_write
+
+        self.assertFalse(
+            (self.projects_root / "Cleanup").exists(),
+        )
+
+    def test_import_with_path_separator_raises_ValueError(self):
+        out = self.root / "anything.zip"
+        out.write_bytes(b"\x00")
+        with self.assertRaises(ValueError):
+            self.repo.import_project_from_archive(out, "a/b")
+        with self.assertRaises(ValueError):
+            self.repo.import_project_from_archive(out, "a\\b")
 
 
 if __name__ == "__main__":

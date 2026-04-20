@@ -58,6 +58,29 @@ class FakeRepo:
             p.name for p in self.projects.values()
         }
 
+    def export_project_to_archive(
+        self, project_id, output_zip_path,
+    ):
+        self.last_export = (project_id, str(output_zip_path))
+
+    def import_project_from_archive(
+        self, zip_path, target_project_name,
+    ):
+        from lightconductor.domain.models import Project
+        p = Project(
+            id="imported-id",
+            name=target_project_name,
+            song_name="imported-song",
+        )
+        self.projects[p.id] = p
+        self.registry[p.id] = {
+            "id": p.id,
+            "project_name": p.name,
+            "song_name": p.song_name,
+            "created_at": "2025-01-01T00:00:00",
+        }
+        return p
+
 
 class MainScreenControllerTests(unittest.TestCase):
     def test_create_list_delete_project(self):
@@ -74,6 +97,27 @@ class MainScreenControllerTests(unittest.TestCase):
         deleted = controller.delete_project(created["id"])
         self.assertTrue(deleted)
         self.assertEqual([], controller.list_projects())
+
+
+class ExportImportControllerTests(unittest.TestCase):
+    def test_controller_export_project_delegates_to_repo(self):
+        repo = FakeRepo()
+        controller = MainScreenController(repo)
+        controller.export_project("p1", "/tmp/x.zip")
+        self.assertEqual(repo.last_export, ("p1", "/tmp/x.zip"))
+
+    def test_controller_import_project_returns_dict(self):
+        repo = FakeRepo()
+        controller = MainScreenController(repo)
+        result = controller.import_project("/tmp/x.zip", "Imported")
+        self.assertEqual(
+            result,
+            {
+                "id": "imported-id",
+                "project_name": "Imported",
+                "song_name": "imported-song",
+            },
+        )
 
 
 class RecentProjectsTests(unittest.TestCase):

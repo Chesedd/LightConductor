@@ -20,8 +20,22 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from lightconductor.domain.models import Project
+from lightconductor.infrastructure.project_archive import (
+    ArchiveError,
+    export_project as _archive_export,
+    extract_archive as _archive_extract,
+    inspect_archive as _archive_inspect,
+)
 
 logger = logging.getLogger(__name__)
+
+
+class ProjectNotFound(ValueError):
+    """Registry has no entry for the given project_id."""
+
+
+class ProjectNameCollision(ValueError):
+    """Another registry entry already uses this project_name."""
 
 
 class ProjectRepository:
@@ -249,6 +263,118 @@ class ProjectRepository:
                     )
             raise
         return True
+
+    def export_project_to_archive(
+        self,
+        project_id: str,
+        output_zip_path: Path | str,
+    ) -> None:
+        """Write a zip archive of the project identified by
+        project_id to output_zip_path. Atomic on disk (see
+        project_archive.export_project).
+
+        Raises:
+            ProjectNotFound: unknown project_id.
+            FileNotFoundError: project directory or its
+                data.json is missing (project exists in
+                registry but its files do not).
+            OSError: on write failure.
+        """
+        registry = self._read_registry()
+        payload = registry.get(project_id)
+        if not isinstance(payload, dict):
+            raise ProjectNotFound(
+                f"unknown project id: {project_id}"
+            )
+        project_name = payload.get("project_name")
+        if not isinstance(project_name, str) or not project_name:
+            raise ProjectNotFound(
+                f"project {project_id} has no project_name"
+            )
+        project_dir = self._project_dir(project_name)
+        if not project_dir.exists():
+            raise FileNotFoundError(
+                f"project directory missing: {project_dir}"
+            )
+        song_name = payload.get("song_name") or ""
+        created_at = payload.get("created_at") or ""
+        _archive_export(
+            project_dir=project_dir,
+            project_name=project_name,
+            song_name=song_name,
+            source_created_at=created_at,
+            output_zip=Path(output_zip_path),
+        )
+
+    def import_project_from_archive(
+        self,
+        zip_path: Path | str,
+        target_project_name: str,
+    ) -> Project:
+        """Extract the archive at zip_path into
+        Projects/<target_project_name>/ and write a new
+        registry entry. Returns the created Project.
+
+        Raises:
+            ProjectNameCollision: target_project_name is
+                already used by another project in the
+                registry.
+            ArchiveError (or subtype): archive is missing,
+                corrupt, or fails schema validation (see
+                project_archive exceptions).
+            OSError: on filesystem errors during extraction
+                or registry write.
+        """
+        target_name = (target_project_name or "").strip()
+        if not target_name:
+            raise ValueError(
+                "target_project_name cannot be empty"
+            )
+        if any(sep in target_name for sep in ("/", "\\")):
+            raise ValueError(
+                "target_project_name cannot contain path separators"
+            )
+        registry = self._read_registry()
+        for payload in registry.values():
+            if (
+                isinstance(payload, dict)
+                and payload.get("project_name") == target_name
+            ):
+                raise ProjectNameCollision(
+                    f"project name already in registry: "
+                    f"{target_name}"
+                )
+        inspection = _archive_inspect(Path(zip_path))
+        target_dir = self._project_dir(target_name)
+        if target_dir.exists():
+            raise ProjectNameCollision(
+                f"target directory already exists: {target_dir}"
+            )
+        _archive_extract(inspection, target_dir)
+        new_id = datetime.now().strftime("%Y%m%d%H%M%S%f")
+        source_created = inspection.source_created_at
+        created_at = (
+            source_created
+            if source_created
+            else datetime.now().isoformat()
+        )
+        song_name = inspection.song_name
+        registry[new_id] = {
+            "id": new_id,
+            "project_name": target_name,
+            "song_name": song_name,
+            "created_at": created_at,
+        }
+        try:
+            self._write_registry(registry)
+        except Exception:
+            shutil.rmtree(target_dir, ignore_errors=True)
+            raise
+        return Project(
+            id=new_id,
+            name=target_name,
+            song_name=song_name,
+        )
 
     def read_registry(self) -> Dict[str, Dict[str, Any]]:
         """Public facade over the internal _read_registry
