@@ -151,7 +151,7 @@ class TagDialog(QDialog):
         if getattr(self, "ledPreview", None) is None:
             return
         from lightconductor.application.led_preview import (
-            render_led_strip_with_overlay,
+            render_canvas_with_overlay,
         )
 
         action_on = self.stateBar.currentText() == "On"
@@ -159,7 +159,7 @@ class TagDialog(QDialog):
             colors = [list(c) for c in self.colors]
         else:
             colors = [[0, 0, 0] for _ in self.topology]
-        buffer = render_led_strip_with_overlay(
+        buffer = render_canvas_with_overlay(
             slave=self._preview_slave,
             time_seconds=self._preview_time,
             overlay_type_name=self._preview_type_name,
