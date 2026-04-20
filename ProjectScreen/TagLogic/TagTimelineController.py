@@ -3,11 +3,13 @@ import logging
 
 import pyqtgraph as pg
 
-from PyQt6.QtCore import QPointF
+from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import QColor
+from PyQt6.QtWidgets import QApplication
 from typing import Dict, List
 
 from ProjectScreen.TagLogic.TagObject import Tag
+from lightconductor.application.beat_detection import snap_to_nearest_beat
 from lightconductor.application.commands import AddTagCommand, MoveTagCommand
 from lightconductor.application.project_state import (
     TagAdded,
@@ -179,9 +181,17 @@ class TagTimelineController:
         return None
 
     def _on_tag_drag_finished(self, scene_tag):
+        shift_held = bool(
+            QApplication.keyboardModifiers() & Qt.KeyboardModifier.ShiftModifier
+        )
+        beats = (
+            getattr(self._renderer, "beat_times", None)
+            if shift_held else None
+        )
         raw_time = max(0.0, float(scene_tag.value()))
-        snapped = round(raw_time / _SNAP_GRANULARITY_SECONDS) * _SNAP_GRANULARITY_SECONDS
-        snapped = round(snapped, 6)
+        snapped = snap_to_nearest_beat(
+            raw_time, beats, _SNAP_GRANULARITY_SECONDS,
+        )
         dur = float(getattr(self._renderer, "duration", 0.0) or 0.0)
         if dur > 0.0 and snapped > dur:
             snapped = dur
