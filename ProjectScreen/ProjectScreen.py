@@ -8,7 +8,12 @@ from ProjectScreen.PlateLogic.MasterBox import MasterBox
 from AssistanceTools.SimpleDialog import SimpleDialog
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from lightconductor.application.compiled_show import CompileShowsForMastersUseCase
-from lightconductor.application.project_state import ProjectState
+from lightconductor.application.project_state import (
+    MasterAdded,
+    MasterRemoved,
+    ProjectState,
+    StateReplaced,
+)
 from lightconductor.application.validation_service import (
     SEVERITY_ERROR,
     ValidationIssue,
@@ -81,7 +86,8 @@ class ProjectWindow(QMainWindow):
         )
         self.validation_service = ValidationService()
         self.state = ProjectState()
-        self._loading = False
+        self._building_widgets_from_state = False
+        self._unsubscribe_state = self.state.subscribe(self._on_state_event)
 
         self.initActions()
         self.init_ui()
@@ -89,7 +95,7 @@ class ProjectWindow(QMainWindow):
         self.initAudioPlayer()
 
     def is_loading(self) -> bool:
-        return self._loading
+        return self._building_widgets_from_state
 
     #создание действий под горячие клавиши
     def initActions(self):
@@ -189,52 +195,55 @@ class ProjectWindow(QMainWindow):
         self.layout.addWidget(controls)
 
     def initExistingData(self):
-        self._loading = True
+        snapshot = self.sessionController.load_session()
+        self.audio = snapshot.audio
+        self.sr = snapshot.sample_rate
+        self.audioPath = snapshot.audio_path
+        self.state.load_masters(snapshot.masters)
+
+    def _on_state_event(self, event):
+        if isinstance(event, StateReplaced):
+            self._rebuild_all_from_state()
+        elif isinstance(event, MasterAdded):
+            self._handle_master_added(event)
+        elif isinstance(event, MasterRemoved):
+            self._handle_master_removed(event)
+
+    def _rebuild_all_from_state(self):
+        self._building_widgets_from_state = True
         try:
-            snapshot = self.sessionController.load_session()
-            self.audio = snapshot.audio
-            self.sr = snapshot.sample_rate
-            self.audioPath = snapshot.audio_path
-            self.state.load_masters(snapshot.masters)
-            for master_id, master in snapshot.masters.items():
-                self.addMaster(master.name, master_id, master.ip)
-                master_widget = self.masters[master_id]
+            for master_id, master in self.state.masters().items():
+                master_widget = self._build_master_widget(master)
                 for slave_id, slave in master.slaves.items():
-                    manager = self.initSlave(slave, master_widget, master_id)
-                    wave = master_widget.slaves[slave_id].wave
-                    for type_name, tag_type in slave.tag_types.items():
-                        self.initTypeAndTags(tag_type, manager, wave)
+                    master_widget._build_slave_widget_from_state(slave)
         finally:
-            self._loading = False
+            self._building_widgets_from_state = False
 
+    def _handle_master_added(self, event):
+        if event.master_id in self.masters:
+            return
+        domain_master = self.state.master(event.master_id)
+        self._build_master_widget(domain_master)
 
-    def initSlave(self, slave, master_widget, master_id):
-        slaveData = {
-            "name": slave.name,
-            "pin": slave.pin,
-            "led_count": slave.led_count,
-        }
-        master_widget.addSlave(slaveData, slave.id)
-        manager = self.masters[master_id].slaves[slave.id].wave.manager
-        return manager
+    def _handle_master_removed(self, event):
+        master_widget = self.masters.pop(event.master_id, None)
+        if master_widget is not None:
+            master_widget.deleteLater()
 
-    def initTypeAndTags(self, tag_type, manager, wave):
-        params = {
-            "name": tag_type.name,
-            "color": tag_type.color,
-            "pin": tag_type.pin,
-            "row": tag_type.rows,
-            "table": tag_type.columns,
-            "topology": list(tag_type.topology),
-        }
-        widget_type = manager.addType(params)
-        for domain_tag in tag_type.tags:
-            tag_dict = {
-                "time": domain_tag.time_seconds,
-                "action": domain_tag.action,
-                "colors": domain_tag.colors,
-            }
-            wave.addExistingTag(tag_dict, widget_type)
+    def _build_master_widget(self, domain_master) -> MasterBox:
+        master = MasterBox(
+            title=domain_master.name,
+            boxID=domain_master.id,
+            audio=self.audio,
+            sr=self.sr,
+            aydioPath=self.audioPath,
+            masterIp=domain_master.ip,
+            state=self.state,
+            project_window=self,
+        )
+        self.masters[domain_master.id] = master
+        self.layout.addWidget(master)
+        return master
 
     def saveData(self):
         logger.info("Save requested")
@@ -280,22 +289,13 @@ class ProjectWindow(QMainWindow):
             masterIp = self.settings.default_master_ip
         if boxID is None:
             boxID = datetime.now().strftime("%Y%m%d%H%M%S%f")
-        master = MasterBox(
-            title=masterName,
-            boxID=boxID,
-            audio=self.audio,
-            sr=self.sr,
-            aydioPath=self.audioPath,
-            masterIp=masterIp,
-            state=self.state,
-            project_window=self,
+        if self._building_widgets_from_state:
+            return
+        if self.state.has_master(boxID):
+            return
+        self.state.add_master(
+            DomainMaster(id=boxID, name=masterName, ip=masterIp)
         )
-        self.masters[boxID] = master
-        self.layout.addWidget(master)
-        if not self._loading:
-            self.state.add_master(
-                DomainMaster(id=boxID, name=masterName, ip=masterIp)
-            )
 
     def updateSlavesAudio(self):
         for master in self.masters.values():
