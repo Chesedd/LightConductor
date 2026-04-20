@@ -13,6 +13,7 @@ class AppSettings:
     default_master_ip: str = "192.168.0.129"
     udp_port: int = 43690
     udp_chunk_size: int = 768
+    autosave_interval_seconds: int = 30
 
 
 def settings_path() -> Path:
@@ -40,6 +41,12 @@ def _from_dict(data: object) -> AppSettings:
             continue
         if expected_type is int and isinstance(value, bool):
             logger.warning("settings field %r is bool, expected int; using default", name)
+            continue
+        if name == "autosave_interval_seconds" and value <= 0:
+            logger.warning(
+                "settings field %r must be positive; using default",
+                name,
+            )
             continue
         kwargs[name] = value
     return AppSettings(**kwargs)
