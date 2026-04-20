@@ -54,10 +54,9 @@ Configuration lives in `pyproject.toml` under
 
 - Baseline (conservative checks) across
   `src/lightconductor/`.
-- Strict mode on `lightconductor.domain.*` and
-  `lightconductor.application.*` (roadmap 7.3a).
-- `lightconductor.infrastructure.*` moves to strict
-  in roadmap 7.3b (follow-up).
+- Strict mode on `lightconductor.domain.*`,
+  `lightconductor.application.*`, and
+  `lightconductor.infrastructure.*` (roadmap 7.3a, 7.3b).
 - `lightconductor.presentation.*` moves to strict in
   roadmap 7.3c (follow-up).
 

@@ -4,7 +4,7 @@ import logging
 import socket
 import struct
 import time
-from typing import Callable, Dict, Iterable, List, Optional
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 from lightconductor.application.compiled_show import CompiledSlaveShow
 
@@ -37,7 +37,13 @@ class UploadFailedError(Exception):
         original: the last OSError raised by sendto.
     """
 
-    def __init__(self, host, port, attempts, original):
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        attempts: int,
+        original: Optional[OSError],
+    ) -> None:
         self.host = host
         self.port = port
         self.attempts = attempts
@@ -138,7 +144,7 @@ class MasterUdpUploadTransport:
         self,
         sock: socket.socket,
         data: bytes,
-        addr: tuple,
+        addr: Tuple[str, int],
     ) -> None:
         """Send ``data`` to ``addr`` via ``sock``, retrying on OSError per
         ``self._retry_delays``. Raises :class:`UploadFailedError` after
@@ -194,7 +200,7 @@ class MasterUdpUploadTransport:
         )
         sent = 0
 
-        def _after_send():
+        def _after_send() -> None:
             nonlocal sent
             sent += 1
             if progress_callback is None:

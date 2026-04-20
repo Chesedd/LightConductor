@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from importlib import import_module
+from typing import Any, List
 
 __all__ = [
     "LibrosaAudioLoader",
@@ -19,7 +20,7 @@ _NAME_TO_MODULE = {
 }
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> Any:
     module_name = _NAME_TO_MODULE.get(name)
     if module_name is None:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
@@ -29,5 +30,5 @@ def __getattr__(name: str):
     return value
 
 
-def __dir__():
+def __dir__() -> List[str]:
     return sorted(set(list(globals()) + __all__))

@@ -21,7 +21,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from lightconductor.infrastructure.project_schema import (
     CURRENT_SCHEMA_VERSION,
@@ -81,7 +81,7 @@ class ArchiveInspection:
     import without re-opening the zip.
     """
 
-    manifest: dict
+    manifest: Dict[str, Any]
     data_json_bytes: bytes
     audio_wav_bytes: Optional[bytes]  # None when has_audio=False
 
@@ -111,7 +111,7 @@ def _now_iso() -> str:
 
 def _atomic_write_zip(
     output_zip: Path,
-    files: dict,  # name_in_archive -> bytes
+    files: Dict[str, bytes],  # name_in_archive -> bytes
 ) -> None:
     """Write a zip atomically: build under <out>.tmp, then
     os.replace. Raises on failure; cleans up tmp."""

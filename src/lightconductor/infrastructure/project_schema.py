@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, Iterable, Tuple
+from typing import Any, Dict, Iterable, Tuple, cast
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ def wrap_boxes(boxes: Dict[str, Any]) -> Dict[str, Any]:
 
 def unwrap_boxes(data: Dict[str, Any]) -> Dict[str, Any]:
     """Return the masters dict from a validated v1 envelope."""
-    return data["masters"]
+    return cast(Dict[str, Any], data["masters"])
 
 
 def migrate_to_current(data: Any) -> Dict[str, Any]:

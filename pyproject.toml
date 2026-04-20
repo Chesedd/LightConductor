@@ -58,6 +58,20 @@ no_implicit_reexport = true
 strict_equality = true
 extra_checks = true
 
+[[tool.mypy.overrides]]
+module = "lightconductor.infrastructure.*"
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+warn_return_any = true
+no_implicit_reexport = true
+strict_equality = true
+extra_checks = true
+
 # Third-party modules without stubs on PyPI.
 [[tool.mypy.overrides]]
 module = [
