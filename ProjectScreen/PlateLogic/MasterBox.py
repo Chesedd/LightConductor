@@ -1,9 +1,17 @@
 import logging
 
-from PyQt6.QtWidgets import QVBoxLayout, QPushButton, QMenu
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import (
+    QVBoxLayout,
+    QPushButton,
+    QMenu,
+    QLabel,
+    QHBoxLayout,
+    QWidget,
+)
+from PyQt6.QtCore import pyqtSignal, Qt, QTimer, QThreadPool
 from PyQt6.QtGui import QAction
 from ProjectScreen.PlateLogic.SlaveBox import SlaveBox
+from ProjectScreen.PlateLogic.MasterPingWorker import MasterPingWorker
 from ProjectScreen.TagLogic.TagManager import TagManager
 from datetime import datetime
 from AssistanceTools.ChooseBox import  TagTypeChooseBox
@@ -20,9 +28,20 @@ from lightconductor.application.duplicate import (
 from lightconductor.application.device_templates import (
     build_apply_template_composite,
 )
+from lightconductor.application.host_reachability import PingStatus
 from lightconductor.domain.models import Slave as DomainSlave
 
 logger = logging.getLogger(__name__)
+
+PING_INTERVAL_MS = 10000
+PING_PORT = 43690
+PING_TIMEOUT_S = 1.0
+
+_INDICATOR_COLORS = {
+    PingStatus.UNKNOWN.value: "#6a6a6a",
+    PingStatus.ONLINE.value:  "#3a9f45",
+    PingStatus.OFFLINE.value: "#c93434",
+}
 
 class newSlaveDialog(SimpleDialog):
     slaveCreated = pyqtSignal(dict)
@@ -81,8 +100,83 @@ class MasterBox(DropBox):
         self.slaves = {}
 
         self.toggleButton.setText(f"▼ {title} (ip: {masterIp})")
+        self._ping_status = PingStatus.UNKNOWN.value
+        self._last_ping_at: str | None = None
+        self._build_header_with_indicator()
+        self._init_ping_timer()
         self.initSlaveButton()
 
+
+    def _build_header_with_indicator(self):
+        """Wrap toggleButton + status indicator in a header row. The
+        base DropBox added toggleButton directly to its mainLayout; we
+        detach, then re-add inside a new QWidget with a horizontal
+        layout."""
+        self.mainLayout.removeWidget(self.toggleButton)
+
+        header = QWidget()
+        headerLayout = QHBoxLayout(header)
+        headerLayout.setContentsMargins(0, 0, 0, 0)
+        headerLayout.setSpacing(8)
+        headerLayout.addWidget(self.toggleButton, stretch=1)
+
+        self.statusIndicator = QLabel()
+        self.statusIndicator.setFixedSize(14, 14)
+        self._apply_indicator_style()
+        self.statusIndicator.setToolTip(
+            "Status: unknown (no probe yet)",
+        )
+        headerLayout.addWidget(
+            self.statusIndicator,
+            alignment=Qt.AlignmentFlag.AlignVCenter,
+        )
+
+        self.mainLayout.insertWidget(0, header)
+
+    def _apply_indicator_style(self):
+        color = _INDICATOR_COLORS.get(
+            self._ping_status,
+            _INDICATOR_COLORS[PingStatus.UNKNOWN.value],
+        )
+        self.statusIndicator.setStyleSheet(
+            f"QLabel {{"
+            f" background-color: {color};"
+            f" border: 1px solid #2e353d;"
+            f" border-radius: 7px;"
+            f"}}"
+        )
+
+    def _init_ping_timer(self):
+        self._ping_timer = QTimer(self)
+        self._ping_timer.setInterval(PING_INTERVAL_MS)
+        self._ping_timer.timeout.connect(self._start_ping_probe)
+        self._ping_timer.start()
+        QTimer.singleShot(0, self._start_ping_probe)
+
+    def _start_ping_probe(self):
+        host = (self.masterIp or "").strip()
+        worker = MasterPingWorker(
+            master_id=self.boxID,
+            host=host,
+            port=PING_PORT,
+            timeout=PING_TIMEOUT_S,
+        )
+        worker.signals.completed.connect(
+            self._on_ping_completed,
+            Qt.ConnectionType.QueuedConnection,
+        )
+        QThreadPool.globalInstance().start(worker)
+
+    def _on_ping_completed(self, master_id: str, status: str):
+        if master_id != self.boxID:
+            return
+        self._ping_status = status
+        self._last_ping_at = datetime.now().strftime("%H:%M:%S")
+        self._apply_indicator_style()
+        self.statusIndicator.setToolTip(
+            f"Status: {status} (last probed at "
+            f"{self._last_ping_at})",
+        )
 
     def initSlaveButton(self):
         newSlaveButton = QPushButton("New slave")
