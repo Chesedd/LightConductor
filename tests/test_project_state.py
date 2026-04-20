@@ -8,7 +8,6 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from lightconductor.domain.models import Master, Slave, Tag, TagType
 from lightconductor.application.project_state import (
     MasterAdded,
     MasterRemoved,
@@ -23,6 +22,7 @@ from lightconductor.application.project_state import (
     TagTypeUpdated,
     TagUpdated,
 )
+from lightconductor.domain.models import Master, Slave, Tag, TagType
 
 
 @pytest.fixture
@@ -66,6 +66,7 @@ def _seed_tag(state, *, tag=None):
 # ---------------------------------------------------------------------------
 # Basic state + master ops
 # ---------------------------------------------------------------------------
+
 
 def test_new_state_has_no_masters(state):
     assert state.masters() == {}
@@ -119,6 +120,7 @@ def test_remove_master_emits_master_removed(state):
 # ---------------------------------------------------------------------------
 # Slave ops
 # ---------------------------------------------------------------------------
+
 
 def test_add_slave_to_missing_master_raises_key_error(state):
     events = _capture(state)
@@ -184,6 +186,7 @@ def test_remove_slave_emits_slave_removed(state):
 # TagType ops
 # ---------------------------------------------------------------------------
 
+
 def test_add_tag_type_and_remove_emit_paired_events(state):
     state.add_master(_master("m1"))
     state.add_slave("m1", _slave("s1"))
@@ -198,7 +201,11 @@ def test_add_tag_type_and_remove_emit_paired_events(state):
     assert isinstance(added, TagTypeAdded)
     assert (added.master_id, added.slave_id, added.type_name) == ("m1", "s1", "tt1")
     assert isinstance(removed, TagTypeRemoved)
-    assert (removed.master_id, removed.slave_id, removed.type_name) == ("m1", "s1", "tt1")
+    assert (removed.master_id, removed.slave_id, removed.type_name) == (
+        "m1",
+        "s1",
+        "tt1",
+    )
     assert "tt1" not in state.master("m1").slaves["s1"].tag_types
 
 
@@ -249,13 +256,16 @@ def test_update_tag_type_mutates_and_emits_tag_type_updated(state):
     assert len(events) == 2
     assert isinstance(events[1], TagTypeUpdated)
     assert (events[1].master_id, events[1].slave_id, events[1].type_name) == (
-        "m1", "s1", "tt1",
+        "m1",
+        "s1",
+        "tt1",
     )
 
 
 # ---------------------------------------------------------------------------
 # Tag ops
 # ---------------------------------------------------------------------------
+
 
 def test_add_tag_returns_new_index_and_emits_tag_added(state):
     state.add_master(_master("m1"))
@@ -269,7 +279,7 @@ def test_add_tag_returns_new_index_and_emits_tag_added(state):
     assert idx0 == 0
     assert idx1 == 1
     assert len(events) == 2
-    for ev, expected_idx in zip(events, (0, 1)):
+    for ev, expected_idx in zip(events, (0, 1), strict=True):
         assert isinstance(ev, TagAdded)
         assert ev.master_id == "m1"
         assert ev.slave_id == "s1"
@@ -424,6 +434,7 @@ def test_load_masters_sorts_tags_by_time(state):
 # Subscription behaviors
 # ---------------------------------------------------------------------------
 
+
 def test_subscribe_returns_working_unsubscribe(state):
     events = []
     unsubscribe = state.subscribe(lambda ev: events.append(ev))
@@ -463,6 +474,7 @@ def test_listener_exception_does_not_block_others(state):
 # ---------------------------------------------------------------------------
 # Bulk load + query-copy semantics
 # ---------------------------------------------------------------------------
+
 
 def test_load_masters_emits_state_replaced_once(state):
     events = _capture(state)

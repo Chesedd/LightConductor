@@ -13,7 +13,6 @@ from lightconductor.application.commands import (
     AddTagCommand,
     AddTagTypeCommand,
     CommandStack,
-    CompositeCommand,
 )
 from lightconductor.application.duplicate import (
     build_duplicate_master_composite,
@@ -52,29 +51,45 @@ def _build_state_with_one_master():
         Slave(id="s_src_2", name="Right", pin="1", led_count=45),
     )
     state.add_tag_type(
-        "m_src", "s_src_1",
+        "m_src",
+        "s_src_1",
         TagType(
-            name="alpha", pin="0", rows=1, columns=2,
-            color=[10, 20, 30], topology=[0, 1],
+            name="alpha",
+            pin="0",
+            rows=1,
+            columns=2,
+            color=[10, 20, 30],
+            topology=[0, 1],
         ),
     )
     state.add_tag_type(
-        "m_src", "s_src_1",
+        "m_src",
+        "s_src_1",
         TagType(
-            name="beta", pin="2", rows=2, columns=1,
-            color="red", topology=[2, 3],
+            name="beta",
+            pin="2",
+            rows=2,
+            columns=1,
+            color="red",
+            topology=[2, 3],
         ),
     )
     state.add_tag(
-        "m_src", "s_src_1", "alpha",
+        "m_src",
+        "s_src_1",
+        "alpha",
         Tag(time_seconds=0.5, action=True, colors=[[1, 2, 3]]),
     )
     state.add_tag(
-        "m_src", "s_src_1", "alpha",
+        "m_src",
+        "s_src_1",
+        "alpha",
         Tag(time_seconds=1.5, action=False, colors=[[4, 5, 6]]),
     )
     state.add_tag(
-        "m_src", "s_src_1", "beta",
+        "m_src",
+        "s_src_1",
+        "beta",
         Tag(time_seconds=2.0, action="toggle", colors=[]),
     )
     return state
@@ -145,9 +160,7 @@ class DeepCopyTests(unittest.TestCase):
         source = state.master("m_src")
         src_name = source.name
         src_slave_count = len(source.slaves)
-        src_tag_count = len(
-            source.slaves["s_src_1"].tag_types["alpha"].tags
-        )
+        src_tag_count = len(source.slaves["s_src_1"].tag_types["alpha"].tags)
 
         _ = deep_copy_master(source)
 
@@ -178,26 +191,17 @@ class BuildDuplicateMasterCompositeTests(unittest.TestCase):
         self.assertIsInstance(head, AddMasterCommand)
         self.assertEqual(head.master.slaves, {})
         # AddSlaveCommand entries carry empty tag_types shells.
-        slave_cmds = [
-            c for c in composite.children
-            if isinstance(c, AddSlaveCommand)
-        ]
+        slave_cmds = [c for c in composite.children if isinstance(c, AddSlaveCommand)]
         self.assertEqual(len(slave_cmds), 2)
         for sc in slave_cmds:
             self.assertEqual(sc.slave.tag_types, {})
         # AddTagTypeCommand entries carry empty tags list.
-        tt_cmds = [
-            c for c in composite.children
-            if isinstance(c, AddTagTypeCommand)
-        ]
+        tt_cmds = [c for c in composite.children if isinstance(c, AddTagTypeCommand)]
         self.assertEqual(len(tt_cmds), 2)
         for ttc in tt_cmds:
             self.assertEqual(ttc.tag_type.tags, [])
         # Three AddTagCommands for the three source tags.
-        tag_cmds = [
-            c for c in composite.children
-            if isinstance(c, AddTagCommand)
-        ]
+        tag_cmds = [c for c in composite.children if isinstance(c, AddTagCommand)]
         self.assertEqual(len(tag_cmds), 3)
 
     def test_new_master_id_and_name_from_factory_and_resolver(self):
@@ -266,10 +270,7 @@ class BuildDuplicateMasterCompositeTests(unittest.TestCase):
         self.assertEqual(set(state.masters()), set(masters_before))
         # Source subtree untouched.
         self.assertEqual(
-            list(
-                state.master("m_src").slaves["s_src_1"]
-                .tag_types["alpha"].tags
-            ),
+            list(state.master("m_src").slaves["s_src_1"].tag_types["alpha"].tags),
             tags_before,
         )
 
@@ -286,11 +287,9 @@ class BuildDuplicateMasterCompositeTests(unittest.TestCase):
 
         dup_master = state.master("id000001")
         src_alpha_tags = source.slaves["s_src_1"].tag_types["alpha"].tags
-        dup_alpha_tags = (
-            dup_master.slaves["id000002"].tag_types["alpha"].tags
-        )
+        dup_alpha_tags = dup_master.slaves["id000002"].tag_types["alpha"].tags
         self.assertEqual(len(src_alpha_tags), len(dup_alpha_tags))
-        for src_tag, dup_tag in zip(src_alpha_tags, dup_alpha_tags):
+        for src_tag, dup_tag in zip(src_alpha_tags, dup_alpha_tags, strict=True):
             self.assertIsNot(src_tag, dup_tag)
             self.assertEqual(src_tag.time_seconds, dup_tag.time_seconds)
             self.assertEqual(src_tag.action, dup_tag.action)
@@ -379,14 +378,14 @@ class BuildDuplicateSlaveCompositeTests(unittest.TestCase):
         stack.undo()
 
         self.assertEqual(
-            set(state.master("m_src").slaves), slaves_before,
+            set(state.master("m_src").slaves),
+            slaves_before,
         )
         # Source still has its tags.
         self.assertEqual(
             [
-                t.time_seconds for t in
-                state.master("m_src").slaves["s_src_1"]
-                .tag_types["alpha"].tags
+                t.time_seconds
+                for t in state.master("m_src").slaves["s_src_1"].tag_types["alpha"].tags
             ],
             [0.5, 1.5],
         )
@@ -422,11 +421,8 @@ class BuildDuplicateSlaveCompositeTests(unittest.TestCase):
         stack.push(composite)
 
         src_alpha = source.tag_types["alpha"].tags
-        dup_alpha = (
-            state.master("m_src").slaves["id000001"]
-            .tag_types["alpha"].tags
-        )
-        for src_tag, dup_tag in zip(src_alpha, dup_alpha):
+        dup_alpha = state.master("m_src").slaves["id000001"].tag_types["alpha"].tags
+        for src_tag, dup_tag in zip(src_alpha, dup_alpha, strict=True):
             self.assertIsNot(src_tag, dup_tag)
 
 

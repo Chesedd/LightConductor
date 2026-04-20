@@ -13,12 +13,9 @@ from lightconductor.application.compiled_show import (
 from lightconductor.infrastructure.master_udp_upload_transport import (
     MasterUdpUploadTransport,
     UploadCancelledError,
-    UploadFailedError,
     count_upload_packets,
 )
-
 from tests._mock_udp import (
-    FailingSocket,
     make_failing_socket_factory,
 )
 
@@ -44,8 +41,10 @@ class CountUploadPacketsTests(unittest.TestCase):
         compiled = {
             "h": [
                 CompiledSlaveShow(
-                    master_ip="h", slave_id=1,
-                    total_led_count=4, blob=b"ab",
+                    master_ip="h",
+                    slave_id=1,
+                    total_led_count=4,
+                    blob=b"ab",
                 )
             ]
         }
@@ -56,8 +55,10 @@ class CountUploadPacketsTests(unittest.TestCase):
         compiled = {
             "h": [
                 CompiledSlaveShow(
-                    master_ip="h", slave_id=1,
-                    total_led_count=4, blob=b"a" * 250,
+                    master_ip="h",
+                    slave_id=1,
+                    total_led_count=4,
+                    blob=b"a" * 250,
                 )
             ]
         }
@@ -68,8 +69,10 @@ class CountUploadPacketsTests(unittest.TestCase):
         compiled = {
             "h": [
                 CompiledSlaveShow(
-                    master_ip="h", slave_id=1,
-                    total_led_count=4, blob=b"",
+                    master_ip="h",
+                    slave_id=1,
+                    total_led_count=4,
+                    blob=b"",
                 )
             ]
         }
@@ -80,22 +83,30 @@ class CountUploadPacketsTests(unittest.TestCase):
         compiled = {
             "h1": [
                 CompiledSlaveShow(
-                    master_ip="h1", slave_id=1,
-                    total_led_count=4, blob=b"a" * 50,
+                    master_ip="h1",
+                    slave_id=1,
+                    total_led_count=4,
+                    blob=b"a" * 50,
                 ),
                 CompiledSlaveShow(
-                    master_ip="h1", slave_id=2,
-                    total_led_count=4, blob=b"a" * 150,
+                    master_ip="h1",
+                    slave_id=2,
+                    total_led_count=4,
+                    blob=b"a" * 150,
                 ),
             ],
             "h2": [
                 CompiledSlaveShow(
-                    master_ip="h2", slave_id=3,
-                    total_led_count=4, blob=b"",
+                    master_ip="h2",
+                    slave_id=3,
+                    total_led_count=4,
+                    blob=b"",
                 ),
                 CompiledSlaveShow(
-                    master_ip="h2", slave_id=4,
-                    total_led_count=4, blob=b"a" * 100,
+                    master_ip="h2",
+                    slave_id=4,
+                    total_led_count=4,
+                    blob=b"a" * 100,
                 ),
             ],
         }

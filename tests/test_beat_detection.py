@@ -15,10 +15,10 @@ from lightconductor.application.beat_detection import (
     snap_to_nearest_beat,
 )
 
-
 # ---------------------------------------------------------------------------
 # snap_to_nearest_beat
 # ---------------------------------------------------------------------------
+
 
 def test_snap_fallback_empty_beats_granularity_0_1():
     empty = np.empty(0, dtype=float)
@@ -79,6 +79,7 @@ def test_snap_return_type_is_plain_float():
 # ---------------------------------------------------------------------------
 # detect_beats
 # ---------------------------------------------------------------------------
+
 
 def test_detect_beats_none_audio_returns_empty():
     result = detect_beats(None, 22050)

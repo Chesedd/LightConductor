@@ -7,7 +7,10 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from lightconductor.application.compiled_show import CompileShowsForMastersUseCase, MAGIC
+from lightconductor.application.compiled_show import (
+    MAGIC,
+    CompileShowsForMastersUseCase,
+)
 from lightconductor.domain.models import Master, Slave, Tag, TagType
 
 
@@ -24,7 +27,9 @@ class CompiledShowTests(unittest.TestCase):
                 Tag(time_seconds=0.35, action="Off", colors=[[0, 0, 0]] * 4),
             ],
         )
-        slave = Slave(id="s1", name="slave", pin="7", led_count=16, tag_types={"front": tag_type})
+        slave = Slave(
+            id="s1", name="slave", pin="7", led_count=16, tag_types={"front": tag_type}
+        )
         master = Master(id="m1", name="master", ip="192.168.0.50", slaves={"s1": slave})
 
         compiled = CompileShowsForMastersUseCase().execute({"m1": master})

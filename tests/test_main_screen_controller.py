@@ -60,19 +60,22 @@ class FakeRepo:
         return False
 
     def project_dir_exists(self, project_name):
-        return project_name in {
-            p.name for p in self.projects.values()
-        }
+        return project_name in {p.name for p in self.projects.values()}
 
     def export_project_to_archive(
-        self, project_id, output_zip_path,
+        self,
+        project_id,
+        output_zip_path,
     ):
         self.last_export = (project_id, str(output_zip_path))
 
     def import_project_from_archive(
-        self, zip_path, target_project_name,
+        self,
+        zip_path,
+        target_project_name,
     ):
         from lightconductor.domain.models import Project
+
         p = Project(
             id="imported-id",
             name=target_project_name,
@@ -146,7 +149,8 @@ class InspectArchiveManifestTests(unittest.TestCase):
         }
         envelope = {"schema_version": 1, "masters": {}}
         with zipfile.ZipFile(
-            zip_path, mode="w",
+            zip_path,
+            mode="w",
             compression=zipfile.ZIP_DEFLATED,
         ) as zf:
             zf.writestr(
@@ -179,14 +183,16 @@ class InspectArchiveManifestTests(unittest.TestCase):
             manifest["source_project_name"],
         )
         self.assertEqual(
-            result["song_name"], manifest["song_name"],
+            result["song_name"],
+            manifest["song_name"],
         )
         self.assertEqual(
             result["source_created_at"],
             manifest["source_created_at"],
         )
         self.assertEqual(
-            result["has_audio"], manifest["has_audio"],
+            result["has_audio"],
+            manifest["has_audio"],
         )
 
     def test_inspect_archive_manifest_propagates_archive_error(self):
@@ -201,9 +207,7 @@ class InspectArchiveManifestTests(unittest.TestCase):
 class RecentProjectsTests(unittest.TestCase):
     def setUp(self):
         self._orig_save = presentation.main_controller.save_settings
-        presentation.main_controller.save_settings = (
-            lambda *_a, **_kw: None
-        )
+        presentation.main_controller.save_settings = lambda *_a, **_kw: None
 
     def tearDown(self):
         presentation.main_controller.save_settings = self._orig_save
@@ -220,7 +224,8 @@ class RecentProjectsTests(unittest.TestCase):
         controller = MainScreenController(repo, settings=settings)
         controller.mark_project_opened("p1")
         self.assertEqual(
-            settings.recent_project_ids, ["p1", "p2", "p3"],
+            settings.recent_project_ids,
+            ["p1", "p2", "p3"],
         )
 
     def test_mark_project_opened_dedupes_existing_id(self):
@@ -231,7 +236,8 @@ class RecentProjectsTests(unittest.TestCase):
         controller = MainScreenController(repo, settings=settings)
         controller.mark_project_opened("p2")
         self.assertEqual(
-            settings.recent_project_ids, ["p2", "p1", "p3"],
+            settings.recent_project_ids,
+            ["p2", "p1", "p3"],
         )
 
     def test_mark_project_opened_truncates_to_limit(self):
@@ -255,7 +261,8 @@ class RecentProjectsTests(unittest.TestCase):
         deleted = controller.delete_project(created["id"])
         self.assertTrue(deleted)
         self.assertNotIn(
-            created["id"], settings.recent_project_ids,
+            created["id"],
+            settings.recent_project_ids,
         )
 
     def test_get_recent_projects_filters_stale_ids(self):

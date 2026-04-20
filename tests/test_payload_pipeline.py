@@ -15,19 +15,28 @@ class PayloadPipelineTests(unittest.TestCase):
     def test_payload_pipeline_on_domain_masters(self):
         use_case = BuildShowPayloadUseCase()
         tt = TagType(
-            name="front", pin="3", rows=2, columns=2,
-            color=[255, 255, 255], topology=[0, 1, 2, 3],
+            name="front",
+            pin="3",
+            rows=2,
+            columns=2,
+            color=[255, 255, 255],
+            topology=[0, 1, 2, 3],
             tags=[
                 Tag(time_seconds=0.1, action=True, colors=[[255, 0, 0]]),
                 Tag(time_seconds=0.25, action=False, colors=[[0, 0, 0]]),
             ],
         )
         slave = Slave(
-            id="slave-1", name="Slave A", pin="7", led_count=4,
+            id="slave-1",
+            name="Slave A",
+            pin="7",
+            led_count=4,
             tag_types={"front": tt},
         )
         master = Master(
-            id="master-1", name="Master A", ip="192.168.0.1",
+            id="master-1",
+            name="Master A",
+            ip="192.168.0.1",
             slaves={"slave-1": slave},
         )
         masters = {"master-1": master}

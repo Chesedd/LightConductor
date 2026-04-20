@@ -49,7 +49,9 @@ class LedPreviewTests(unittest.TestCase):
 
     def test_tag_before_first_time_is_off(self):
         tt = make_tt(
-            "a", "1", [0, 1, 2],
+            "a",
+            "1",
+            [0, 1, 2],
             tags=[Tag(time_seconds=1.0, action=True, colors=[[255, 0, 0]] * 3)],
         )
         slave = make_slave(3, {"a": tt})
@@ -57,7 +59,9 @@ class LedPreviewTests(unittest.TestCase):
 
     def test_tag_at_exact_time_active(self):
         tt = make_tt(
-            "a", "1", [0, 1, 2],
+            "a",
+            "1",
+            [0, 1, 2],
             tags=[Tag(time_seconds=1.0, action=True, colors=[[255, 0, 0]] * 3)],
         )
         slave = make_slave(3, {"a": tt})
@@ -66,7 +70,9 @@ class LedPreviewTests(unittest.TestCase):
 
     def test_action_false_clears_segment(self):
         tt = make_tt(
-            "a", "1", [0, 1, 2],
+            "a",
+            "1",
+            [0, 1, 2],
             tags=[
                 Tag(time_seconds=0.0, action=True, colors=[[255, 0, 0]] * 3),
                 Tag(time_seconds=1.0, action=False, colors=[[0, 0, 0]] * 3),
@@ -77,7 +83,9 @@ class LedPreviewTests(unittest.TestCase):
 
     def test_latest_tag_wins(self):
         tt = make_tt(
-            "a", "1", [0, 1, 2],
+            "a",
+            "1",
+            [0, 1, 2],
             tags=[
                 Tag(time_seconds=0.0, action=True, colors=[[255, 0, 0]] * 3),
                 Tag(time_seconds=1.0, action=True, colors=[[0, 255, 0]] * 3),
@@ -90,7 +98,9 @@ class LedPreviewTests(unittest.TestCase):
 
     def test_topology_out_of_range_skipped(self):
         tt = make_tt(
-            "a", "1", [0, 5, 2],
+            "a",
+            "1",
+            [0, 5, 2],
             tags=[Tag(time_seconds=0.0, action=True, colors=[[255, 0, 0]] * 3)],
         )
         slave = make_slave(3, {"a": tt})
@@ -99,7 +109,9 @@ class LedPreviewTests(unittest.TestCase):
 
     def test_colors_shorter_than_topology_pads_black(self):
         tt = make_tt(
-            "a", "1", [0, 1, 2],
+            "a",
+            "1",
+            [0, 1, 2],
             tags=[Tag(time_seconds=0.0, action=True, colors=[[255, 0, 0]])],
         )
         slave = make_slave(3, {"a": tt})
@@ -108,8 +120,12 @@ class LedPreviewTests(unittest.TestCase):
 
     def test_colors_longer_than_topology_truncated(self):
         tt = make_tt(
-            "a", "1", [0],
-            tags=[Tag(time_seconds=0.0, action=True, colors=[[255, 0, 0], [0, 255, 0]])],
+            "a",
+            "1",
+            [0],
+            tags=[
+                Tag(time_seconds=0.0, action=True, colors=[[255, 0, 0], [0, 255, 0]])
+            ],
         )
         slave = make_slave(1, {"a": tt})
         result = render_led_strip_at(slave, 0.0)
@@ -117,7 +133,9 @@ class LedPreviewTests(unittest.TestCase):
 
     def test_string_action_on(self):
         tt = make_tt(
-            "a", "1", [0, 1, 2],
+            "a",
+            "1",
+            [0, 1, 2],
             tags=[Tag(time_seconds=0.0, action="On", colors=[[10, 20, 30]] * 3)],
         )
         slave = make_slave(3, {"a": tt})
@@ -126,7 +144,9 @@ class LedPreviewTests(unittest.TestCase):
 
     def test_string_action_off(self):
         tt = make_tt(
-            "a", "1", [0, 1, 2],
+            "a",
+            "1",
+            [0, 1, 2],
             tags=[Tag(time_seconds=0.0, action="Off", colors=[[10, 20, 30]] * 3)],
         )
         slave = make_slave(3, {"a": tt})
@@ -135,11 +155,15 @@ class LedPreviewTests(unittest.TestCase):
 
     def test_overlapping_topology_last_pin_wins(self):
         tt_red = make_tt(
-            "red", "1", [0],
+            "red",
+            "1",
+            [0],
             tags=[Tag(time_seconds=0.0, action=True, colors=[[255, 0, 0]])],
         )
         tt_blue = make_tt(
-            "blue", "2", [0],
+            "blue",
+            "2",
+            [0],
             tags=[Tag(time_seconds=0.0, action=True, colors=[[0, 0, 255]])],
         )
         slave_a = make_slave(1, {"red": tt_red, "blue": tt_blue})
@@ -149,7 +173,9 @@ class LedPreviewTests(unittest.TestCase):
 
     def test_color_string_format(self):
         tt = make_tt(
-            "a", "1", [0],
+            "a",
+            "1",
+            [0],
             tags=[Tag(time_seconds=0.0, action=True, colors=["255,0,128"])],
         )
         slave = make_slave(1, {"a": tt})
@@ -158,7 +184,9 @@ class LedPreviewTests(unittest.TestCase):
 
     def test_color_out_of_range_clamped(self):
         tt = make_tt(
-            "a", "1", [0],
+            "a",
+            "1",
+            [0],
             tags=[Tag(time_seconds=0.0, action=True, colors=[[300, -5, 128]])],
         )
         slave = make_slave(1, {"a": tt})

@@ -89,7 +89,9 @@ class MigrationTests(unittest.TestCase):
 
         result = migrate_to_current(legacy)
 
-        coerced_tags = result["masters"]["m1"]["slaves"]["s1"]["tagTypes"]["front"]["tags"]
+        coerced_tags = result["masters"]["m1"]["slaves"]["s1"]["tagTypes"]["front"][
+            "tags"
+        ]
         self.assertIs(coerced_tags["0"]["action"], True)
         self.assertIs(coerced_tags["1"]["action"], False)
         validate(result)
@@ -113,9 +115,7 @@ class ValidateHappyPathTests(unittest.TestCase):
                     slaves={
                         "s1": _minimal_slave(
                             tag_types={
-                                "front": _minimal_tag_type(
-                                    tags={"0": _minimal_tag()}
-                                )
+                                "front": _minimal_tag_type(tags={"0": _minimal_tag()})
                             }
                         )
                     }

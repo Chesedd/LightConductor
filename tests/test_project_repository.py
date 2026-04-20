@@ -38,9 +38,7 @@ class _RepoTestBase(unittest.TestCase):
         self.registry_path.write_text(content, encoding="utf-8")
 
     def _write_registry_json(self, data):
-        self.registry_path.write_text(
-            json.dumps(data), encoding="utf-8"
-        )
+        self.registry_path.write_text(json.dumps(data), encoding="utf-8")
 
     def _ensure_project_dir(self, name):
         (self.projects_root / name).mkdir(parents=True, exist_ok=True)
@@ -54,29 +52,29 @@ class ListProjectsTests(_RepoTestBase):
         self._write_registry_raw("{")
         self.assertEqual(self.repo.list_projects(), [])
         # File must NOT be rewritten.
-        self.assertEqual(
-            self.registry_path.read_text(encoding="utf-8"), "{"
-        )
+        self.assertEqual(self.registry_path.read_text(encoding="utf-8"), "{")
 
     def test_list_returns_empty_if_registry_not_a_dict(self):
         self._write_registry_json([1, 2, 3])
         self.assertEqual(self.repo.list_projects(), [])
 
     def test_list_filters_entries_without_directory(self):
-        self._write_registry_json({
-            "a": {
-                "id": "a",
-                "project_name": "A",
-                "song_name": "sA",
-                "created_at": "2024-01-01T00:00:00",
-            },
-            "b": {
-                "id": "b",
-                "project_name": "B",
-                "song_name": "sB",
-                "created_at": "2024-01-01T00:00:00",
-            },
-        })
+        self._write_registry_json(
+            {
+                "a": {
+                    "id": "a",
+                    "project_name": "A",
+                    "song_name": "sA",
+                    "created_at": "2024-01-01T00:00:00",
+                },
+                "b": {
+                    "id": "b",
+                    "project_name": "B",
+                    "song_name": "sB",
+                    "created_at": "2024-01-01T00:00:00",
+                },
+            }
+        )
         self._ensure_project_dir("A")
         # Directory for B is missing on purpose.
         projects = self.repo.list_projects()
@@ -85,20 +83,24 @@ class ListProjectsTests(_RepoTestBase):
         self.assertEqual(projects[0].name, "A")
 
     def test_list_skips_entries_without_project_name(self):
-        self._write_registry_json({
-            "x": {"id": "x", "created_at": "2024-01-01T00:00:00"},
-        })
+        self._write_registry_json(
+            {
+                "x": {"id": "x", "created_at": "2024-01-01T00:00:00"},
+            }
+        )
         self.assertEqual(self.repo.list_projects(), [])
 
     def test_list_maps_payload_to_domain_project(self):
-        self._write_registry_json({
-            "p1": {
-                "id": "p1",
-                "project_name": "Demo",
-                "song_name": "Song",
-                "created_at": "2024-01-01T00:00:00",
-            },
-        })
+        self._write_registry_json(
+            {
+                "p1": {
+                    "id": "p1",
+                    "project_name": "Demo",
+                    "song_name": "Song",
+                    "created_at": "2024-01-01T00:00:00",
+                },
+            }
+        )
         self._ensure_project_dir("Demo")
         projects = self.repo.list_projects()
         self.assertEqual(
@@ -107,13 +109,15 @@ class ListProjectsTests(_RepoTestBase):
         )
 
     def test_list_defaults_song_name_to_empty_string_if_absent(self):
-        self._write_registry_json({
-            "p1": {
-                "id": "p1",
-                "project_name": "Demo",
-                "created_at": "2024-01-01T00:00:00",
-            },
-        })
+        self._write_registry_json(
+            {
+                "p1": {
+                    "id": "p1",
+                    "project_name": "Demo",
+                    "created_at": "2024-01-01T00:00:00",
+                },
+            }
+        )
         self._ensure_project_dir("Demo")
         projects = self.repo.list_projects()
         self.assertEqual(len(projects), 1)
@@ -132,9 +136,7 @@ class SaveProjectTests(_RepoTestBase):
         project = Project(id="p1", name="Alpha", song_name="s")
         self.repo.save_project(project)
         self.assertTrue(self.registry_path.exists())
-        data = json.loads(
-            self.registry_path.read_text(encoding="utf-8")
-        )
+        data = json.loads(self.registry_path.read_text(encoding="utf-8"))
         self.assertIn("p1", data)
         entry = data["p1"]
         self.assertEqual(entry["id"], "p1")
@@ -146,16 +148,14 @@ class SaveProjectTests(_RepoTestBase):
     def test_save_preserves_created_at_on_update(self):
         first = Project(id="p1", name="Alpha", song_name="s1")
         self.repo.save_project(first)
-        created_at_1 = json.loads(
-            self.registry_path.read_text(encoding="utf-8")
-        )["p1"]["created_at"]
+        created_at_1 = json.loads(self.registry_path.read_text(encoding="utf-8"))["p1"][
+            "created_at"
+        ]
 
         time.sleep(0.01)
         second = Project(id="p1", name="Alpha", song_name="s2")
         self.repo.save_project(second)
-        entry = json.loads(
-            self.registry_path.read_text(encoding="utf-8")
-        )["p1"]
+        entry = json.loads(self.registry_path.read_text(encoding="utf-8"))["p1"]
         self.assertEqual(entry["created_at"], created_at_1)
         self.assertEqual(entry["song_name"], "s2")
 
@@ -179,9 +179,7 @@ class DeleteProjectTests(_RepoTestBase):
         self.assertTrue((self.projects_root / "A").exists())
 
         self.assertTrue(self.repo.delete_project("p1"))
-        data = json.loads(
-            self.registry_path.read_text(encoding="utf-8")
-        )
+        data = json.loads(self.registry_path.read_text(encoding="utf-8"))
         self.assertNotIn("p1", data)
         self.assertFalse((self.projects_root / "A").exists())
 
@@ -190,9 +188,7 @@ class DeleteProjectTests(_RepoTestBase):
         self.repo.save_project(project)
         shutil.rmtree(self.projects_root / "A")
         self.assertTrue(self.repo.delete_project("p1"))
-        data = json.loads(
-            self.registry_path.read_text(encoding="utf-8")
-        )
+        data = json.loads(self.registry_path.read_text(encoding="utf-8"))
         self.assertNotIn("p1", data)
 
     def test_delete_does_not_touch_other_projects(self):
@@ -200,9 +196,7 @@ class DeleteProjectTests(_RepoTestBase):
         self.repo.save_project(Project(id="p2", name="B", song_name="sB"))
 
         self.assertTrue(self.repo.delete_project("p1"))
-        data = json.loads(
-            self.registry_path.read_text(encoding="utf-8")
-        )
+        data = json.loads(self.registry_path.read_text(encoding="utf-8"))
         self.assertNotIn("p1", data)
         self.assertIn("p2", data)
         self.assertFalse((self.projects_root / "A").exists())
@@ -211,37 +205,40 @@ class DeleteProjectTests(_RepoTestBase):
 
 class RenameProjectTests(_RepoTestBase):
     def test_rename_success_renames_dir_and_registry(self):
-        self._write_registry_json({
-            "p1": {
-                "id": "p1",
-                "project_name": "Old",
-                "song_name": "s",
-                "created_at": "2024-01-01T00:00:00",
-            },
-        })
+        self._write_registry_json(
+            {
+                "p1": {
+                    "id": "p1",
+                    "project_name": "Old",
+                    "song_name": "s",
+                    "created_at": "2024-01-01T00:00:00",
+                },
+            }
+        )
         self._ensure_project_dir("Old")
 
         self.assertTrue(self.repo.rename_project("p1", "New"))
 
         self.assertFalse((self.projects_root / "Old").exists())
         self.assertTrue((self.projects_root / "New").exists())
-        data = json.loads(
-            self.registry_path.read_text(encoding="utf-8")
-        )
+        data = json.loads(self.registry_path.read_text(encoding="utf-8"))
         self.assertEqual(data["p1"]["project_name"], "New")
         self.assertEqual(
-            data["p1"]["created_at"], "2024-01-01T00:00:00",
+            data["p1"]["created_at"],
+            "2024-01-01T00:00:00",
         )
 
     def test_rename_to_same_name_is_noop_success(self):
-        self._write_registry_json({
-            "p1": {
-                "id": "p1",
-                "project_name": "Same",
-                "song_name": "s",
-                "created_at": "2024-01-01T00:00:00",
-            },
-        })
+        self._write_registry_json(
+            {
+                "p1": {
+                    "id": "p1",
+                    "project_name": "Same",
+                    "song_name": "s",
+                    "created_at": "2024-01-01T00:00:00",
+                },
+            }
+        )
         self._ensure_project_dir("Same")
         before_bytes = self.registry_path.read_bytes()
 
@@ -251,14 +248,16 @@ class RenameProjectTests(_RepoTestBase):
         self.assertTrue((self.projects_root / "Same").exists())
 
     def test_rename_empty_name_returns_false(self):
-        self._write_registry_json({
-            "p1": {
-                "id": "p1",
-                "project_name": "Old",
-                "song_name": "s",
-                "created_at": "2024-01-01T00:00:00",
-            },
-        })
+        self._write_registry_json(
+            {
+                "p1": {
+                    "id": "p1",
+                    "project_name": "Old",
+                    "song_name": "s",
+                    "created_at": "2024-01-01T00:00:00",
+                },
+            }
+        )
         self._ensure_project_dir("Old")
         before_bytes = self.registry_path.read_bytes()
 
@@ -268,14 +267,16 @@ class RenameProjectTests(_RepoTestBase):
         self.assertTrue((self.projects_root / "Old").exists())
 
     def test_rename_path_separator_rejected(self):
-        self._write_registry_json({
-            "p1": {
-                "id": "p1",
-                "project_name": "Old",
-                "song_name": "s",
-                "created_at": "2024-01-01T00:00:00",
-            },
-        })
+        self._write_registry_json(
+            {
+                "p1": {
+                    "id": "p1",
+                    "project_name": "Old",
+                    "song_name": "s",
+                    "created_at": "2024-01-01T00:00:00",
+                },
+            }
+        )
         self._ensure_project_dir("Old")
         before_bytes = self.registry_path.read_bytes()
 
@@ -286,20 +287,22 @@ class RenameProjectTests(_RepoTestBase):
         self.assertTrue((self.projects_root / "Old").exists())
 
     def test_rename_collision_with_other_project_returns_false(self):
-        self._write_registry_json({
-            "p1": {
-                "id": "p1",
-                "project_name": "Alpha",
-                "song_name": "sA",
-                "created_at": "2024-01-01T00:00:00",
-            },
-            "p2": {
-                "id": "p2",
-                "project_name": "Beta",
-                "song_name": "sB",
-                "created_at": "2024-01-02T00:00:00",
-            },
-        })
+        self._write_registry_json(
+            {
+                "p1": {
+                    "id": "p1",
+                    "project_name": "Alpha",
+                    "song_name": "sA",
+                    "created_at": "2024-01-01T00:00:00",
+                },
+                "p2": {
+                    "id": "p2",
+                    "project_name": "Beta",
+                    "song_name": "sB",
+                    "created_at": "2024-01-02T00:00:00",
+                },
+            }
+        )
         self._ensure_project_dir("Alpha")
         self._ensure_project_dir("Beta")
         before_bytes = self.registry_path.read_bytes()
@@ -311,14 +314,16 @@ class RenameProjectTests(_RepoTestBase):
         self.assertTrue((self.projects_root / "Beta").exists())
 
     def test_rename_unknown_id_returns_false(self):
-        self._write_registry_json({
-            "p1": {
-                "id": "p1",
-                "project_name": "Alpha",
-                "song_name": "sA",
-                "created_at": "2024-01-01T00:00:00",
-            },
-        })
+        self._write_registry_json(
+            {
+                "p1": {
+                    "id": "p1",
+                    "project_name": "Alpha",
+                    "song_name": "sA",
+                    "created_at": "2024-01-01T00:00:00",
+                },
+            }
+        )
         self._ensure_project_dir("Alpha")
         before_bytes = self.registry_path.read_bytes()
 
@@ -327,14 +332,16 @@ class RenameProjectTests(_RepoTestBase):
         self.assertEqual(self.registry_path.read_bytes(), before_bytes)
 
     def test_rename_refuses_when_target_dir_exists_without_registry_entry(self):
-        self._write_registry_json({
-            "p1": {
-                "id": "p1",
-                "project_name": "Alpha",
-                "song_name": "sA",
-                "created_at": "2024-01-01T00:00:00",
-            },
-        })
+        self._write_registry_json(
+            {
+                "p1": {
+                    "id": "p1",
+                    "project_name": "Alpha",
+                    "song_name": "sA",
+                    "created_at": "2024-01-01T00:00:00",
+                },
+            }
+        )
         self._ensure_project_dir("Alpha")
         # Squatter directory without any registry entry.
         self._ensure_project_dir("Gamma")
@@ -359,17 +366,13 @@ class ExportImportTests(_RepoTestBase):
         with_audio=True,
     ):
         self._ensure_project_dir(project_name)
-        data_path = (
-            self.projects_root / project_name / "data.json"
-        )
+        data_path = self.projects_root / project_name / "data.json"
         data_path.write_text(
             json.dumps(self.VALID_ENVELOPE),
             encoding="utf-8",
         )
         if with_audio:
-            (self.projects_root / project_name / "audio.wav").write_bytes(
-                b"\x00\x01"
-            )
+            (self.projects_root / project_name / "audio.wav").write_bytes(b"\x00\x01")
         registry = self.repo._read_registry()
         registry[project_id] = {
             "id": project_id,
@@ -384,8 +387,7 @@ class ExportImportTests(_RepoTestBase):
         project_id = next(
             pid
             for pid, payload in registry.items()
-            if isinstance(payload, dict)
-            and payload.get("project_name") == project_name
+            if isinstance(payload, dict) and payload.get("project_name") == project_name
         )
         self.repo.export_project_to_archive(project_id, output_zip)
         return output_zip
@@ -407,28 +409,33 @@ class ExportImportTests(_RepoTestBase):
             self.repo.export_project_to_archive("nope", out)
 
     def test_export_missing_project_directory_raises_FileNotFoundError(self):
-        self._write_registry_json({
-            "g1": {
-                "id": "g1",
-                "project_name": "Ghost",
-                "song_name": "",
-                "created_at": "2024-01-01T00:00:00",
-            },
-        })
+        self._write_registry_json(
+            {
+                "g1": {
+                    "id": "g1",
+                    "project_name": "Ghost",
+                    "song_name": "",
+                    "created_at": "2024-01-01T00:00:00",
+                },
+            }
+        )
         out = self.root / "out.zip"
         with self.assertRaises(FileNotFoundError):
             self.repo.export_project_to_archive("g1", out)
 
     def test_import_creates_project_directory_and_registry_entry(self):
         self._seed_project(
-            "p1", "Demo", song_name="MySong",
+            "p1",
+            "Demo",
+            song_name="MySong",
             created_at="2024-06-01T12:00:00",
         )
         out = self.root / "demo.zip"
         self._build_archive_for("Demo", out)
 
         project = self.repo.import_project_from_archive(
-            out, "NewProject",
+            out,
+            "NewProject",
         )
         self.assertEqual(project.name, "NewProject")
         self.assertNotEqual(project.id, "p1")
@@ -437,15 +444,14 @@ class ExportImportTests(_RepoTestBase):
         self.assertTrue(new_dir.exists())
         self.assertTrue((new_dir / "data.json").exists())
 
-        registry = json.loads(
-            self.registry_path.read_text(encoding="utf-8")
-        )
+        registry = json.loads(self.registry_path.read_text(encoding="utf-8"))
         self.assertIn(project.id, registry)
         entry = registry[project.id]
         self.assertEqual(entry["project_name"], "NewProject")
         self.assertEqual(entry["song_name"], "MySong")
         self.assertEqual(
-            entry["created_at"], "2024-06-01T12:00:00",
+            entry["created_at"],
+            "2024-06-01T12:00:00",
         )
 
     def test_import_without_audio_does_not_create_audio_wav(self):
@@ -454,7 +460,8 @@ class ExportImportTests(_RepoTestBase):
         self._build_archive_for("NoAudio", out)
 
         project = self.repo.import_project_from_archive(
-            out, "Imported",
+            out,
+            "Imported",
         )
         new_dir = self.projects_root / "Imported"
         self.assertTrue((new_dir / "data.json").exists())
@@ -471,22 +478,25 @@ class ExportImportTests(_RepoTestBase):
             self.repo.import_project_from_archive(out, "Existing")
 
         self.assertEqual(
-            self.registry_path.read_bytes(), before_registry,
+            self.registry_path.read_bytes(),
+            before_registry,
         )
 
     def test_import_empty_target_name_raises_ValueError(self):
         out = self.root / "anything.zip"
         out.write_bytes(b"\x00")
-        before_dirs = set(
-            p.name
-            for p in self.projects_root.iterdir()
-        ) if self.projects_root.exists() else set()
+        before_dirs = (
+            set(p.name for p in self.projects_root.iterdir())
+            if self.projects_root.exists()
+            else set()
+        )
         with self.assertRaises(ValueError):
             self.repo.import_project_from_archive(out, "   ")
-        after_dirs = set(
-            p.name
-            for p in self.projects_root.iterdir()
-        ) if self.projects_root.exists() else set()
+        after_dirs = (
+            set(p.name for p in self.projects_root.iterdir())
+            if self.projects_root.exists()
+            else set()
+        )
         self.assertEqual(before_dirs, after_dirs)
         self.assertFalse(self.registry_path.exists())
 

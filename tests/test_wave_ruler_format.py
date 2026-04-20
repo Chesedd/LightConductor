@@ -10,7 +10,10 @@ from ProjectScreen.TagLogic.ruler_format import format_tick_strings
 
 def test_spacing_ge_1_formats_mm_ss():
     assert format_tick_strings([0, 5, 65, 125], 1.0, 1.0) == [
-        "0:00", "0:05", "1:05", "2:05"
+        "0:00",
+        "0:05",
+        "1:05",
+        "2:05",
     ]
 
 

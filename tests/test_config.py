@@ -123,7 +123,8 @@ class LoadSettingsTests(unittest.TestCase):
             "color_presets": color_presets_value,
         }
         self.settings_file.write_text(
-            json.dumps(payload), encoding="utf-8",
+            json.dumps(payload),
+            encoding="utf-8",
         )
 
     def test_color_presets_defaults_to_empty_list(self):
@@ -190,7 +191,8 @@ class LoadSettingsTests(unittest.TestCase):
             "recent_project_ids": recent_value,
         }
         self.settings_file.write_text(
-            json.dumps(payload), encoding="utf-8",
+            json.dumps(payload),
+            encoding="utf-8",
         )
 
     def test_recent_project_ids_defaults_to_empty_list(self):
@@ -203,7 +205,8 @@ class LoadSettingsTests(unittest.TestCase):
         save_settings(custom, self.settings_file)
         loaded = load_settings(self.settings_file)
         self.assertEqual(
-            loaded.recent_project_ids, ["p1", "p2", "p3"],
+            loaded.recent_project_ids,
+            ["p1", "p2", "p3"],
         )
 
     def test_recent_project_ids_non_list_uses_default(self):
@@ -220,7 +223,8 @@ class LoadSettingsTests(unittest.TestCase):
         self._write_recent_settings(["p1", "p2", "p1", "p3"])
         result = load_settings(self.settings_file)
         self.assertEqual(
-            result.recent_project_ids, ["p1", "p2", "p3"],
+            result.recent_project_ids,
+            ["p1", "p2", "p3"],
         )
 
     def _write_templates_settings(self, templates_value):
@@ -234,7 +238,8 @@ class LoadSettingsTests(unittest.TestCase):
             "device_templates": templates_value,
         }
         self.settings_file.write_text(
-            json.dumps(payload), encoding="utf-8",
+            json.dumps(payload),
+            encoding="utf-8",
         )
 
     def _valid_template(self, tid="tpl-1", name="T1"):

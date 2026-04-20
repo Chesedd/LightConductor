@@ -91,6 +91,7 @@ def _capture(state):
 # AddTagCommand
 # ---------------------------------------------------------------------------
 
+
 def test_add_tag_execute_appends_tag_by_time(state):
     _seed(state, [0.0, 2.0])
     new_tag = _tag(time_seconds=1.0)
@@ -124,6 +125,7 @@ def test_add_tag_undo_before_execute_raises_runtime_error(state):
 # ---------------------------------------------------------------------------
 # DeleteTagCommand
 # ---------------------------------------------------------------------------
+
 
 def test_delete_tag_execute_removes_tag(state):
     _seed(state, [0.0, 1.0, 2.0])
@@ -161,6 +163,7 @@ def test_delete_tag_execute_out_of_range_raises_index_error(state):
 # ---------------------------------------------------------------------------
 # MoveTagCommand
 # ---------------------------------------------------------------------------
+
 
 def test_move_tag_execute_updates_time_and_repositions(state):
     _seed(state, [0.0, 1.0, 2.0])
@@ -223,7 +226,11 @@ def test_move_tag_with_identity_resolves_to_current_index(state):
     target = _tags(state)[1]
     tid = id(target)
     cmd = MoveTagCommand(
-        "m1", "s1", "tt1", tag_index=1, new_time_seconds=5.0,
+        "m1",
+        "s1",
+        "tt1",
+        tag_index=1,
+        new_time_seconds=5.0,
         tag_identity=tid,
     )
     # Insert a tag BEFORE execute so tag_index hint becomes stale:
@@ -257,7 +264,11 @@ def test_move_tag_without_identity_uses_index(state):
     # (time=1.0), not the one originally at index 1 (time=2.0).
     moved_by_index = _tags(state)[1]
     cmd = MoveTagCommand(
-        "m1", "s1", "tt1", tag_index=1, new_time_seconds=5.0,
+        "m1",
+        "s1",
+        "tt1",
+        tag_index=1,
+        new_time_seconds=5.0,
     )
 
     cmd.execute(state)
@@ -270,7 +281,11 @@ def test_move_tag_without_identity_uses_index(state):
 def test_move_tag_with_missing_identity_raises(state):
     _seed(state, [1.0, 2.0, 3.0])
     cmd = MoveTagCommand(
-        "m1", "s1", "tt1", tag_index=0, new_time_seconds=5.0,
+        "m1",
+        "s1",
+        "tt1",
+        tag_index=0,
+        new_time_seconds=5.0,
         tag_identity=9999,
     )
 
@@ -284,15 +299,27 @@ def test_composite_bulk_move_preserves_identities(state):
     ref_a, ref_b, ref_c, ref_d = tags[0], tags[1], tags[2], tags[3]
     children = [
         MoveTagCommand(
-            "m1", "s1", "tt1", tag_index=0, new_time_seconds=10.0,
+            "m1",
+            "s1",
+            "tt1",
+            tag_index=0,
+            new_time_seconds=10.0,
             tag_identity=id(ref_a),
         ),
         MoveTagCommand(
-            "m1", "s1", "tt1", tag_index=2, new_time_seconds=20.0,
+            "m1",
+            "s1",
+            "tt1",
+            tag_index=2,
+            new_time_seconds=20.0,
             tag_identity=id(ref_c),
         ),
         MoveTagCommand(
-            "m1", "s1", "tt1", tag_index=3, new_time_seconds=30.0,
+            "m1",
+            "s1",
+            "tt1",
+            tag_index=3,
+            new_time_seconds=30.0,
             tag_identity=id(ref_d),
         ),
     ]
@@ -321,13 +348,18 @@ def test_composite_bulk_move_preserves_identities(state):
 # EditRangeCommand
 # ---------------------------------------------------------------------------
 
+
 def test_edit_range_execute_updates_pin_and_color(state):
     tag_type = _tag_type_of(state)
     assert tag_type.pin == "0"
     assert tag_type.color == [1, 1, 1]
     events = _capture(state)
     cmd = EditRangeCommand(
-        "m1", "s1", "tt1", new_pin="5", new_color=[9, 9, 9],
+        "m1",
+        "s1",
+        "tt1",
+        new_pin="5",
+        new_color=[9, 9, 9],
     )
 
     cmd.execute(state)
@@ -341,7 +373,11 @@ def test_edit_range_execute_updates_pin_and_color(state):
 def test_edit_range_undo_restores_previous_values(state):
     tag_type = _tag_type_of(state)
     cmd = EditRangeCommand(
-        "m1", "s1", "tt1", new_pin="5", new_color=[9, 9, 9],
+        "m1",
+        "s1",
+        "tt1",
+        new_pin="5",
+        new_color=[9, 9, 9],
     )
     cmd.execute(state)
     events = _capture(state)
@@ -364,6 +400,7 @@ def test_edit_range_undo_before_execute_raises_runtime_error(state):
 # ---------------------------------------------------------------------------
 # Event capture
 # ---------------------------------------------------------------------------
+
 
 def test_add_tag_command_execute_emits_tag_added_event(state):
     events = _capture(state)
@@ -404,6 +441,7 @@ def test_move_tag_command_execute_emits_tag_updated_event(state):
 # AddMasterCommand
 # ---------------------------------------------------------------------------
 
+
 def test_add_master_execute_adds_master():
     s = ProjectState()
     new_master = _master("m2", name="Master 2")
@@ -441,6 +479,7 @@ def test_add_master_execute_emits_master_added_event():
 # AddSlaveCommand
 # ---------------------------------------------------------------------------
 
+
 def test_add_slave_execute_adds_slave(state):
     new_slave = _slave("s2", name="Slave 2", pin="3")
     cmd = AddSlaveCommand("m1", new_slave)
@@ -475,6 +514,7 @@ def test_add_slave_execute_emits_slave_added_event(state):
 # ---------------------------------------------------------------------------
 # DeleteSlaveCommand
 # ---------------------------------------------------------------------------
+
 
 def test_delete_slave_execute_removes_slave(state):
     cmd = DeleteSlaveCommand("m1", "s1")
@@ -535,6 +575,7 @@ def test_delete_slave_undo_before_execute_raises_runtime_error(state):
 # AddTagTypeCommand
 # ---------------------------------------------------------------------------
 
+
 def test_add_tag_type_execute_adds_tag_type(state):
     new_tt = _tag_type(name="tt2", pin="4")
     cmd = AddTagTypeCommand("m1", "s1", new_tt)
@@ -568,6 +609,7 @@ def test_add_tag_type_execute_emits_tag_type_added_event(state):
 # ---------------------------------------------------------------------------
 # DeleteTagTypeCommand
 # ---------------------------------------------------------------------------
+
 
 def test_delete_tag_type_execute_removes_tag_type(state):
     cmd = DeleteTagTypeCommand("m1", "s1", "tt1")
@@ -616,11 +658,16 @@ def test_delete_tag_type_undo_before_execute_raises_runtime_error(state):
 # EditTagCommand
 # ---------------------------------------------------------------------------
 
+
 def test_edit_tag_execute_changes_time_repositions_and_undo_restores(state):
     _seed(state, [0.0, 1.0, 2.0])
     tag_ref = _tags(state)[0]
     cmd = EditTagCommand(
-        "m1", "s1", "tt1", tag_index=0, new_time_seconds=1.5,
+        "m1",
+        "s1",
+        "tt1",
+        tag_index=0,
+        new_time_seconds=1.5,
     )
 
     cmd.execute(state)
@@ -642,7 +689,10 @@ def test_edit_tag_execute_changes_only_action(state):
     tags[0].action = True
     tags[1].action = True
     cmd = EditTagCommand(
-        "m1", "s1", "tt1", tag_index=1,
+        "m1",
+        "s1",
+        "tt1",
+        tag_index=1,
         new_time_seconds=None,
         new_action=False,
         new_colors=None,
@@ -667,7 +717,10 @@ def test_edit_tag_execute_changes_only_colors_and_old_colors_is_copy(state):
     original_colors = [[10, 20, 30]]
     tag.colors = list(original_colors)
     cmd = EditTagCommand(
-        "m1", "s1", "tt1", tag_index=0,
+        "m1",
+        "s1",
+        "tt1",
+        tag_index=0,
         new_colors=[[99, 99, 99]],
     )
 
@@ -690,7 +743,10 @@ def test_edit_tag_execute_changes_all_three_fields_and_undo_restores_all(state):
     tag.action = True
     tag.colors = [[1, 2, 3]]
     cmd = EditTagCommand(
-        "m1", "s1", "tt1", tag_index=0,
+        "m1",
+        "s1",
+        "tt1",
+        tag_index=0,
         new_time_seconds=1.5,
         new_action=False,
         new_colors=[[9, 9, 9]],
@@ -716,7 +772,11 @@ def test_edit_tag_execute_changes_all_three_fields_and_undo_restores_all(state):
 def test_edit_tag_execute_out_of_range_raises_index_error(state):
     _seed(state, [0.0])
     cmd = EditTagCommand(
-        "m1", "s1", "tt1", tag_index=5, new_time_seconds=1.0,
+        "m1",
+        "s1",
+        "tt1",
+        tag_index=5,
+        new_time_seconds=1.0,
     )
 
     with pytest.raises(IndexError):
@@ -725,7 +785,11 @@ def test_edit_tag_execute_out_of_range_raises_index_error(state):
 
 def test_edit_tag_undo_before_execute_raises_runtime_error(state):
     cmd = EditTagCommand(
-        "m1", "s1", "tt1", tag_index=0, new_time_seconds=1.0,
+        "m1",
+        "s1",
+        "tt1",
+        tag_index=0,
+        new_time_seconds=1.0,
     )
 
     with pytest.raises(RuntimeError):

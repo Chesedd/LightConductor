@@ -33,9 +33,7 @@ def _valid_v1_envelope_bytes() -> bytes:
         "schema_version": 1,
         "masters": {},
     }
-    return (
-        json.dumps(envelope, indent=2, ensure_ascii=False) + "\n"
-    ).encode("utf-8")
+    return (json.dumps(envelope, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
 
 
 def _write_manifest(zf, extra_overrides=None):
@@ -102,7 +100,8 @@ class ExportProjectTests(unittest.TestCase):
             self.assertEqual(manifest["source_project_name"], "My Project")
             self.assertEqual(manifest["song_name"], "My Song")
             self.assertEqual(
-                manifest["source_created_at"], "2024-06-15T10:00:00",
+                manifest["source_created_at"],
+                "2024-06-15T10:00:00",
             )
             self.assertEqual(
                 zf.read(DATA_FILENAME_IN_ARCHIVE),
@@ -218,7 +217,8 @@ class InspectArchiveTests(unittest.TestCase):
         self.assertEqual(inspection.source_project_name, "Demo")
         self.assertEqual(inspection.song_name, "Song")
         self.assertEqual(
-            inspection.source_created_at, "2024-06-15T10:00:00",
+            inspection.source_created_at,
+            "2024-06-15T10:00:00",
         )
 
     def test_inspect_valid_archive_with_audio(self):
