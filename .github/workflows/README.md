@@ -67,3 +67,20 @@ work around mypy#11401 (the leaking-globally bug of
 `strict = true` inside overrides).
 
 No badges.
+
+## Coverage
+
+`pytest tests/ -q --cov=src/lightconductor` runs as
+part of the pytest step. HTML report is uploaded as
+a GitHub Actions artifact (`coverage-html`, 14-day
+retention).
+
+No threshold is currently enforced — this is a baseline
+measurement phase (roadmap 7.4a). A fail-under gate
+(target ≥70%) lands in roadmap 7.4c after cross-platform
+stabilization (7.4b).
+
+Coverage config lives in `pyproject.toml` under
+`[tool.coverage.run]` / `[tool.coverage.report]`:
+branch coverage enabled, `__init__.py` omitted, Protocol
+method bodies excluded via `exclude_lines`.
