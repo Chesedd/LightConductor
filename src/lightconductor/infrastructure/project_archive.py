@@ -40,6 +40,7 @@ MANIFEST_CURRENT_VERSION = 1
 
 # --- Exceptions ---
 
+
 class ArchiveError(Exception):
     """Base class for archive failures."""
 
@@ -69,6 +70,7 @@ class ArchiveDataJsonInvalid(ArchiveError):
 
 
 # --- Inspection DTO ---
+
 
 @dataclass(slots=True, frozen=True)
 class ArchiveInspection:
@@ -101,6 +103,7 @@ class ArchiveInspection:
 
 
 # --- Helpers ---
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -144,6 +147,7 @@ def _atomic_write_zip(
 
 # --- Public API ---
 
+
 def export_project(
     project_dir: Path,
     project_name: str,
@@ -163,9 +167,7 @@ def export_project(
     project_dir = Path(project_dir)
     data_path = project_dir / "data.json"
     if not data_path.exists():
-        raise FileNotFoundError(
-            f"data.json not found in {project_dir}"
-        )
+        raise FileNotFoundError(f"data.json not found in {project_dir}")
     data_bytes = data_path.read_bytes()
     audio_path = project_dir / "audio.wav"
     has_audio = audio_path.exists()
@@ -180,9 +182,9 @@ def export_project(
         "data_schema_version": CURRENT_SCHEMA_VERSION,
         "has_audio": has_audio,
     }
-    manifest_bytes = (
-        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
-    ).encode("utf-8")
+    manifest_bytes = (json.dumps(manifest, indent=2, ensure_ascii=False) + "\n").encode(
+        "utf-8"
+    )
 
     files = {
         MANIFEST_FILENAME: manifest_bytes,
@@ -263,7 +265,9 @@ def inspect_archive(zip_path: Path) -> ArchiveInspection:
         data_json_bytes = zf.read(DATA_FILENAME_IN_ARCHIVE)
         try:
             with tempfile.NamedTemporaryFile(
-                mode="wb", suffix=".json", delete=False,
+                mode="wb",
+                suffix=".json",
+                delete=False,
             ) as tmp:
                 tmp.write(data_json_bytes)
                 tmp_path = Path(tmp.name)

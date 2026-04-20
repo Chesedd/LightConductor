@@ -45,14 +45,19 @@ class AddTagCommand:
 
     def execute(self, state: ProjectState) -> None:
         self._applied_index = state.add_tag(
-            self.master_id, self.slave_id, self.type_name, self.tag,
+            self.master_id,
+            self.slave_id,
+            self.type_name,
+            self.tag,
         )
 
     def undo(self, state: ProjectState) -> None:
         if self._applied_index is None:
             raise RuntimeError("undo called before execute")
         state.remove_tag(
-            self.master_id, self.slave_id, self.type_name,
+            self.master_id,
+            self.slave_id,
+            self.type_name,
             self._applied_index,
         )
         self._applied_index = None
@@ -67,12 +72,19 @@ class DeleteTagCommand:
     _deleted_tag: Optional[Tag] = field(default=None, init=False)
 
     def execute(self, state: ProjectState) -> None:
-        tags = state.master(self.master_id).slaves[self.slave_id].tag_types[self.type_name].tags
+        tags = (
+            state.master(self.master_id)
+            .slaves[self.slave_id]
+            .tag_types[self.type_name]
+            .tags
+        )
         if self.tag_index < 0 or self.tag_index >= len(tags):
             raise IndexError(self.tag_index)
         self._deleted_tag = tags[self.tag_index]
         state.remove_tag(
-            self.master_id, self.slave_id, self.type_name,
+            self.master_id,
+            self.slave_id,
+            self.type_name,
             self.tag_index,
         )
 
@@ -86,7 +98,9 @@ class DeleteTagCommand:
         # between execute and undo. In practice the command stack
         # guarantees FIFO reversal, so position holds.
         state.add_tag(
-            self.master_id, self.slave_id, self.type_name,
+            self.master_id,
+            self.slave_id,
+            self.type_name,
             self._deleted_tag,
         )
         self._deleted_tag = None
@@ -104,7 +118,12 @@ class MoveTagCommand:
     _tag_ref: Optional[Tag] = field(default=None, init=False)
 
     def execute(self, state: ProjectState) -> None:
-        tags = state.master(self.master_id).slaves[self.slave_id].tag_types[self.type_name].tags
+        tags = (
+            state.master(self.master_id)
+            .slaves[self.slave_id]
+            .tag_types[self.type_name]
+            .tags
+        )
         resolved_index: Optional[int] = None
         if self.tag_identity is not None:
             for i, t in enumerate(tags):
@@ -126,7 +145,9 @@ class MoveTagCommand:
         # reinsert when time_seconds changes. The _tag_ref
         # identity is preserved across the reposition.
         state.update_tag(
-            self.master_id, self.slave_id, self.type_name,
+            self.master_id,
+            self.slave_id,
+            self.type_name,
             resolved_index,
             time_seconds=self.new_time_seconds,
         )
@@ -134,7 +155,12 @@ class MoveTagCommand:
     def undo(self, state: ProjectState) -> None:
         if self._tag_ref is None or self._old_time_seconds is None:
             raise RuntimeError("undo called before execute")
-        tags = state.master(self.master_id).slaves[self.slave_id].tag_types[self.type_name].tags
+        tags = (
+            state.master(self.master_id)
+            .slaves[self.slave_id]
+            .tag_types[self.type_name]
+            .tags
+        )
         # Find the tag by identity (its post-execute position may
         # differ from self.tag_index due to repositioning).
         current_index = None
@@ -145,7 +171,9 @@ class MoveTagCommand:
         if current_index is None:
             raise RuntimeError("tag not found during undo")
         state.update_tag(
-            self.master_id, self.slave_id, self.type_name,
+            self.master_id,
+            self.slave_id,
+            self.type_name,
             current_index,
             time_seconds=self._old_time_seconds,
         )
@@ -165,12 +193,16 @@ class EditRangeCommand:
     _captured: bool = field(default=False, init=False)
 
     def execute(self, state: ProjectState) -> None:
-        tag_type = state.master(self.master_id).slaves[self.slave_id].tag_types[self.type_name]
+        tag_type = (
+            state.master(self.master_id).slaves[self.slave_id].tag_types[self.type_name]
+        )
         self._old_pin = tag_type.pin
         self._old_color = tag_type.color
         self._captured = True
         state.update_tag_type(
-            self.master_id, self.slave_id, self.type_name,
+            self.master_id,
+            self.slave_id,
+            self.type_name,
             pin=self.new_pin,
             color=self.new_color,
         )
@@ -179,7 +211,9 @@ class EditRangeCommand:
         if not self._captured:
             raise RuntimeError("undo called before execute")
         state.update_tag_type(
-            self.master_id, self.slave_id, self.type_name,
+            self.master_id,
+            self.slave_id,
+            self.type_name,
             pin=self._old_pin,
             color=self._old_color,
         )
@@ -240,7 +274,9 @@ class AddTagTypeCommand:
 
     def undo(self, state: ProjectState) -> None:
         state.remove_tag_type(
-            self.master_id, self.slave_id, self.tag_type.name,
+            self.master_id,
+            self.slave_id,
+            self.tag_type.name,
         )
 
 
@@ -252,7 +288,9 @@ class DeleteTagTypeCommand:
     _deleted_tag_type: Optional[TagType] = field(default=None, init=False)
 
     def execute(self, state: ProjectState) -> None:
-        tt = state.master(self.master_id).slaves[self.slave_id].tag_types[self.type_name]
+        tt = (
+            state.master(self.master_id).slaves[self.slave_id].tag_types[self.type_name]
+        )
         self._deleted_tag_type = tt
         state.remove_tag_type(self.master_id, self.slave_id, self.type_name)
 
@@ -260,7 +298,9 @@ class DeleteTagTypeCommand:
         if self._deleted_tag_type is None:
             raise RuntimeError("undo called before execute")
         state.add_tag_type(
-            self.master_id, self.slave_id, self._deleted_tag_type,
+            self.master_id,
+            self.slave_id,
+            self._deleted_tag_type,
         )
         self._deleted_tag_type = None
 
@@ -281,20 +321,25 @@ class EditTagCommand:
     _captured: bool = field(default=False, init=False)
 
     def execute(self, state: ProjectState) -> None:
-        tags = state.master(self.master_id).slaves[self.slave_id].tag_types[self.type_name].tags
+        tags = (
+            state.master(self.master_id)
+            .slaves[self.slave_id]
+            .tag_types[self.type_name]
+            .tags
+        )
         if self.tag_index < 0 or self.tag_index >= len(tags):
             raise IndexError(self.tag_index)
         self._tag_ref = tags[self.tag_index]
         self._old_time_seconds = self._tag_ref.time_seconds
         self._old_action = self._tag_ref.action
         self._old_colors = (
-            list(self._tag_ref.colors)
-            if self._tag_ref.colors is not None
-            else None
+            list(self._tag_ref.colors) if self._tag_ref.colors is not None else None
         )
         self._captured = True
         state.update_tag(
-            self.master_id, self.slave_id, self.type_name,
+            self.master_id,
+            self.slave_id,
+            self.type_name,
             self.tag_index,
             time_seconds=self.new_time_seconds,
             action=self.new_action,
@@ -304,7 +349,12 @@ class EditTagCommand:
     def undo(self, state: ProjectState) -> None:
         if not self._captured:
             raise RuntimeError("undo called before execute")
-        tags = state.master(self.master_id).slaves[self.slave_id].tag_types[self.type_name].tags
+        tags = (
+            state.master(self.master_id)
+            .slaves[self.slave_id]
+            .tag_types[self.type_name]
+            .tags
+        )
         current_index = None
         for i, t in enumerate(tags):
             if t is self._tag_ref:
@@ -313,7 +363,9 @@ class EditTagCommand:
         if current_index is None:
             raise RuntimeError("tag not found during undo")
         state.update_tag(
-            self.master_id, self.slave_id, self.type_name,
+            self.master_id,
+            self.slave_id,
+            self.type_name,
             current_index,
             time_seconds=self._old_time_seconds,
             action=self._old_action,
@@ -337,6 +389,7 @@ class CompositeCommand:
     bulk-move) where one Ctrl+Z should revert the whole
     group in one step.
     """
+
     children: List[Command] = field(default_factory=list)
     _last_executed: int = field(default=-1, init=False)
 

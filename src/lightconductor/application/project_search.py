@@ -59,7 +59,7 @@ def compute_visibility(
             slave_matches = _match(q, getattr(slave, "name", ""))
             tag_type_visibilities: Dict[str, bool] = {}
             any_type_visible = False
-            for type_name in (slave.tag_types or {}):
+            for type_name in slave.tag_types or {}:
                 tt_visible = _match(q, type_name)
                 tag_type_visibilities[type_name] = tt_visible
                 if tt_visible:

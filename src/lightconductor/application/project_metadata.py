@@ -3,6 +3,7 @@
 Aggregates registry metadata with per-project data.json and
 audio.wav presence. Pure application layer; no Qt.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

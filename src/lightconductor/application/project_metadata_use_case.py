@@ -3,6 +3,7 @@
 Reads the registry, probes per-project artefacts, builds
 ProjectMetadata for each. Tolerant to per-project failures.
 """
+
 from __future__ import annotations
 
 import json
@@ -32,16 +33,14 @@ class ListProjectsWithMetadataUseCase:
         for project_id, payload in raw.items():
             if not isinstance(payload, dict):
                 logger.warning(
-                    "projects.json entry %s has non-dict payload; "
-                    "skipping",
+                    "projects.json entry %s has non-dict payload; skipping",
                     project_id,
                 )
                 continue
             project_name = payload.get("project_name")
             if not project_name or not isinstance(project_name, str):
                 logger.warning(
-                    "projects.json entry %s has no project_name; "
-                    "skipping",
+                    "projects.json entry %s has no project_name; skipping",
                     project_id,
                 )
                 continue
@@ -51,30 +50,31 @@ class ListProjectsWithMetadataUseCase:
             created_at = payload.get("created_at")
             if not isinstance(created_at, str):
                 created_at = None
-            masters_count, slaves_count, modified_at = (
-                self._read_data_json_metadata(project_name)
+            masters_count, slaves_count, modified_at = self._read_data_json_metadata(
+                project_name
             )
             track_present = False
             try:
-                track_present = bool(
-                    self.repository.audio_exists(project_name)
-                )
+                track_present = bool(self.repository.audio_exists(project_name))
             except Exception:
                 logger.warning(
                     "audio_exists probe failed for %s",
-                    project_name, exc_info=True,
+                    project_name,
+                    exc_info=True,
                 )
                 track_present = False
-            results.append(ProjectMetadata(
-                id=project_id,
-                project_name=project_name,
-                song_name=song_name,
-                created_at=created_at,
-                modified_at=modified_at,
-                masters_count=masters_count,
-                slaves_count=slaves_count,
-                track_present=track_present,
-            ))
+            results.append(
+                ProjectMetadata(
+                    id=project_id,
+                    project_name=project_name,
+                    song_name=song_name,
+                    created_at=created_at,
+                    modified_at=modified_at,
+                    masters_count=masters_count,
+                    slaves_count=slaves_count,
+                    track_present=track_present,
+                )
+            )
         return results
 
     def _read_data_json_metadata(self, project_name: str):
@@ -85,7 +85,8 @@ class ListProjectsWithMetadataUseCase:
             path_str = self.repository.data_json_path(project_name)
         except Exception:
             logger.warning(
-                "data_json_path failed for %s", project_name,
+                "data_json_path failed for %s",
+                project_name,
                 exc_info=True,
             )
             return 0, 0, None
@@ -94,7 +95,8 @@ class ListProjectsWithMetadataUseCase:
             return 0, 0, None
         try:
             mtime = datetime.fromtimestamp(
-                path.stat().st_mtime, tz=timezone.utc,
+                path.stat().st_mtime,
+                tz=timezone.utc,
             ).isoformat()
         except OSError:
             mtime = None
@@ -104,7 +106,8 @@ class ListProjectsWithMetadataUseCase:
         except (OSError, json.JSONDecodeError):
             logger.warning(
                 "cannot read data.json for %s; counts=0",
-                project_name, exc_info=True,
+                project_name,
+                exc_info=True,
             )
             return 0, 0, mtime
         masters_count, slaves_count = self._count_from_envelope(data)

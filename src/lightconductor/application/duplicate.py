@@ -6,6 +6,7 @@ composite onto CommandStack.
 Deep copy semantics go through json_mapper so no references
 are shared between source and duplicate.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -97,7 +98,8 @@ def build_duplicate_master_composite(
     dup_master = deep_copy_master(source)
     dup_master.id = make_id()
     dup_master.name = resolve_copy_name(
-        source.name, existing_master_names,
+        source.name,
+        existing_master_names,
     )
     slaves_in_order = list(dup_master.slaves.values())
     dup_master.slaves = {}
@@ -107,10 +109,14 @@ def build_duplicate_master_composite(
     seen_slave_names: set[str] = set()
     for src_slave in slaves_in_order:
         new_slave_id = make_id()
-        new_slave_name = resolve_copy_name(
-            src_slave.name,
-            seen_slave_names,
-        ) if src_slave.name in seen_slave_names else src_slave.name
+        new_slave_name = (
+            resolve_copy_name(
+                src_slave.name,
+                seen_slave_names,
+            )
+            if src_slave.name in seen_slave_names
+            else src_slave.name
+        )
         seen_slave_names.add(new_slave_name)
         slave_shell = Slave(
             id=new_slave_id,
@@ -119,11 +125,13 @@ def build_duplicate_master_composite(
             led_count=src_slave.led_count,
             tag_types={},
         )
-        children.append(AddSlaveCommand(
-            master_id=dup_master.id,
-            slave=slave_shell,
-        ))
-        for type_name, tag_type in src_slave.tag_types.items():
+        children.append(
+            AddSlaveCommand(
+                master_id=dup_master.id,
+                slave=slave_shell,
+            )
+        )
+        for _type_name, tag_type in src_slave.tag_types.items():
             tag_type_shell = TagType(
                 name=tag_type.name,
                 pin=tag_type.pin,
@@ -133,18 +141,22 @@ def build_duplicate_master_composite(
                 topology=list(tag_type.topology),
                 tags=[],
             )
-            children.append(AddTagTypeCommand(
-                master_id=dup_master.id,
-                slave_id=new_slave_id,
-                tag_type=tag_type_shell,
-            ))
-            for tag in tag_type.tags:
-                children.append(AddTagCommand(
+            children.append(
+                AddTagTypeCommand(
                     master_id=dup_master.id,
                     slave_id=new_slave_id,
-                    type_name=tag_type.name,
-                    tag=tag,
-                ))
+                    tag_type=tag_type_shell,
+                )
+            )
+            for tag in tag_type.tags:
+                children.append(
+                    AddTagCommand(
+                        master_id=dup_master.id,
+                        slave_id=new_slave_id,
+                        type_name=tag_type.name,
+                        tag=tag,
+                    )
+                )
     return CompositeCommand(children=children)
 
 
@@ -165,16 +177,19 @@ def build_duplicate_slave_composite(
     dup_slave = deep_copy_slave(source)
     dup_slave.id = make_id()
     dup_slave.name = resolve_copy_name(
-        source.name, existing_slave_names,
+        source.name,
+        existing_slave_names,
     )
     tag_types_copy = list(dup_slave.tag_types.items())
     dup_slave.tag_types = {}
 
-    children: list = [AddSlaveCommand(
-        master_id=target_master_id,
-        slave=dup_slave,
-    )]
-    for type_name, tag_type in tag_types_copy:
+    children: list = [
+        AddSlaveCommand(
+            master_id=target_master_id,
+            slave=dup_slave,
+        )
+    ]
+    for _type_name, tag_type in tag_types_copy:
         tag_type_shell = TagType(
             name=tag_type.name,
             pin=tag_type.pin,
@@ -184,16 +199,20 @@ def build_duplicate_slave_composite(
             topology=list(tag_type.topology),
             tags=[],
         )
-        children.append(AddTagTypeCommand(
-            master_id=target_master_id,
-            slave_id=dup_slave.id,
-            tag_type=tag_type_shell,
-        ))
-        for tag in tag_type.tags:
-            children.append(AddTagCommand(
+        children.append(
+            AddTagTypeCommand(
                 master_id=target_master_id,
                 slave_id=dup_slave.id,
-                type_name=tag_type.name,
-                tag=tag,
-            ))
+                tag_type=tag_type_shell,
+            )
+        )
+        for tag in tag_type.tags:
+            children.append(
+                AddTagCommand(
+                    master_id=target_master_id,
+                    slave_id=dup_slave.id,
+                    type_name=tag_type.name,
+                    tag=tag,
+                )
+            )
     return CompositeCommand(children=children)

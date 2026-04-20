@@ -40,8 +40,8 @@ class MainScreenController:
         self.create_project_use_case = CreateProjectUseCase(self.repository)
         self.delete_project_use_case = DeleteProjectUseCase(self.repository)
         self.rename_project_use_case = RenameProjectUseCase(self.repository)
-        self.list_with_metadata_use_case = (
-            ListProjectsWithMetadataUseCase(self.repository)
+        self.list_with_metadata_use_case = ListProjectsWithMetadataUseCase(
+            self.repository
         )
         self.export_project_use_case = ExportProjectUseCase(self.repository)
         self.import_project_use_case = ImportProjectUseCase(self.repository)
@@ -84,15 +84,14 @@ class MainScreenController:
         if result and self.settings is not None:
             ids = self.settings.recent_project_ids or []
             if project_id in ids:
-                self.settings.recent_project_ids = [
-                    i for i in ids if i != project_id
-                ]
+                self.settings.recent_project_ids = [i for i in ids if i != project_id]
                 self._persist_settings()
         return result
 
     def rename_project(self, project_id: str, new_name: str) -> bool:
         return self.rename_project_use_case.execute(
-            project_id, new_name,
+            project_id,
+            new_name,
         )
 
     def export_project(
@@ -101,7 +100,8 @@ class MainScreenController:
         output_zip_path,
     ) -> None:
         self.export_project_use_case.execute(
-            project_id, output_zip_path,
+            project_id,
+            output_zip_path,
         )
 
     def import_project(
@@ -111,7 +111,8 @@ class MainScreenController:
     ) -> dict:
         """Returns dict with the same shape as create_project."""
         project = self.import_project_use_case.execute(
-            zip_path, target_project_name,
+            zip_path,
+            target_project_name,
         )
         return {
             "id": project.id,
@@ -129,9 +130,11 @@ class MainScreenController:
         Raises OSError on file read failures.
         """
         from pathlib import Path
+
         from lightconductor.infrastructure.project_archive import (
             inspect_archive as _inspect,
         )
+
         inspection = _inspect(Path(zip_path))
         return {
             "source_project_name": inspection.source_project_name,
@@ -164,13 +167,8 @@ class MainScreenController:
         recent_ids = self.settings.recent_project_ids or []
         if not recent_ids:
             return []
-        all_meta = {
-            m["id"]: m
-            for m in self.list_projects_with_metadata()
-        }
-        return [
-            all_meta[rid] for rid in recent_ids if rid in all_meta
-        ]
+        all_meta = {m["id"]: m for m in self.list_projects_with_metadata()}
+        return [all_meta[rid] for rid in recent_ids if rid in all_meta]
 
     def clear_recent_projects(self) -> None:
         """Empty recent_project_ids and persist. No-op when

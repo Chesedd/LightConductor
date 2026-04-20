@@ -9,6 +9,7 @@ This module is intentionally unused in production code during
 PR 2.1a — it lives alongside the legacy storage until PR 2.2
 flips the UI over.
 """
+
 from __future__ import annotations
 
 import json
@@ -78,8 +79,7 @@ class ProjectSessionStorage:
         normal flow after json_mapper).
         """
         packed_masters = {
-            master_id: pack_master(master)
-            for master_id, master in masters.items()
+            master_id: pack_master(master) for master_id, master in masters.items()
         }
         envelope = wrap_boxes(packed_masters)
         try:
@@ -93,7 +93,9 @@ class ProjectSessionStorage:
         path = self._data_path(project_name)
         path.parent.mkdir(parents=True, exist_ok=True)
         content = json.dumps(
-            envelope, indent=4, ensure_ascii=False,
+            envelope,
+            indent=4,
+            ensure_ascii=False,
         ).encode("utf-8")
         write_with_rotation(path, content)
 
@@ -117,15 +119,12 @@ class ProjectSessionStorage:
             packed_masters = unwrap_boxes(envelope)
         except SchemaValidationError as exc:
             logger.warning(
-                "data.json at %s failed schema validation: %s; "
-                "returning empty project",
-                path, exc,
+                "data.json at %s failed schema validation: %s; returning empty project",
+                path,
+                exc,
             )
             return {}
-        return {
-            master_id: unpack_master(m)
-            for master_id, m in packed_masters.items()
-        }
+        return {master_id: unpack_master(m) for master_id, m in packed_masters.items()}
 
     # --- audio ---
 
@@ -141,6 +140,7 @@ class ProjectSessionStorage:
         if audio is None:
             return
         import soundfile as sf
+
         path = self._audio_path(project_name)
         path.parent.mkdir(parents=True, exist_ok=True)
         sf.write(str(path), audio, sample_rate)
@@ -158,5 +158,6 @@ class ProjectSessionStorage:
         if not path.exists():
             return None, None, str(path)
         import librosa
+
         audio, sr = librosa.load(str(path), sr=None, mono=True)
         return audio, sr, str(path)

@@ -2,8 +2,8 @@
 Consumed by WaveRenderer (storage) and later by TagTimelineController (snap).
 """
 
-import numpy as np
 import librosa
+import numpy as np
 
 
 def detect_beats(audio, sr):

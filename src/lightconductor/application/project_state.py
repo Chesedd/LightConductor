@@ -18,7 +18,6 @@ from typing import Callable, Dict, List, Optional, Union
 
 from lightconductor.domain.models import Master, Slave, Tag, TagType
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -256,7 +255,8 @@ class ProjectState:
         tag_type = self._masters[master_id].slaves[slave_id].tag_types[type_name]
         tags = tag_type.tags
         new_index = bisect.bisect_left(
-            [t.time_seconds for t in tags], tag.time_seconds,
+            [t.time_seconds for t in tags],
+            tag.time_seconds,
         )
         tags.insert(new_index, tag)
         self._emit(
@@ -309,10 +309,7 @@ class ProjectState:
         if tag_index < 0 or tag_index >= len(tag_type.tags):
             raise IndexError(tag_index)
         tag = tag_type.tags[tag_index]
-        reposition = (
-            time_seconds is not None
-            and time_seconds != tag.time_seconds
-        )
+        reposition = time_seconds is not None and time_seconds != tag.time_seconds
         if time_seconds is not None:
             tag.time_seconds = time_seconds
         if action is not None:
@@ -322,7 +319,8 @@ class ProjectState:
         if reposition:
             del tag_type.tags[tag_index]
             new_index = bisect.bisect_left(
-                [t.time_seconds for t in tag_type.tags], tag.time_seconds,
+                [t.time_seconds for t in tag_type.tags],
+                tag.time_seconds,
             )
             tag_type.tags.insert(new_index, tag)
         else:
@@ -342,6 +340,7 @@ class ProjectState:
                 listener(event)
             except Exception:
                 logger.warning(
-                    "listener raised while handling %s", type(event).__name__,
+                    "listener raised while handling %s",
+                    type(event).__name__,
                     exc_info=True,
                 )

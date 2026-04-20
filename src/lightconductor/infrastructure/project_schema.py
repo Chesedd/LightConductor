@@ -126,7 +126,7 @@ def _coerce_legacy_tag_actions(envelope: Dict[str, Any]) -> None:
                     if isinstance(tag, dict):
                         action = tag.get("action")
                         if isinstance(action, str):
-                            tag["action"] = (action == "On")
+                            tag["action"] = action == "On"
 
 
 def _format_types(types: Iterable[type]) -> str:
@@ -139,14 +139,10 @@ def _check_fields(
     required_types: Tuple[Tuple[str, Tuple[type, ...]], ...],
 ) -> None:
     if not isinstance(obj, dict):
-        raise SchemaValidationError(
-            f"{path}: expected dict, got {type(obj).__name__}"
-        )
+        raise SchemaValidationError(f"{path}: expected dict, got {type(obj).__name__}")
     for field, expected in required_types:
         if field not in obj:
-            raise SchemaValidationError(
-                f"{path}: missing required field '{field}'"
-            )
+            raise SchemaValidationError(f"{path}: missing required field '{field}'")
         value = obj[field]
         # bool is a subclass of int; reject it where we ask for int.
         if int in expected and bool not in expected and isinstance(value, bool):
@@ -172,7 +168,9 @@ def validate(data: Any) -> None:
             f"top-level: expected dict, got {type(data).__name__}"
         )
     if "schema_version" not in data:
-        raise SchemaValidationError("top-level: missing required field 'schema_version'")
+        raise SchemaValidationError(
+            "top-level: missing required field 'schema_version'"
+        )
     version = data["schema_version"]
     if not isinstance(version, int) or isinstance(version, bool):
         raise SchemaValidationError(
@@ -218,13 +216,9 @@ def load_and_migrate(path: Path) -> Dict[str, Any]:
         with open(path, "r", encoding="utf-8") as f:
             raw = json.load(f)
     except json.JSONDecodeError as exc:
-        raise SchemaValidationError(
-            f"{path}: file is not valid JSON: {exc}"
-        ) from exc
+        raise SchemaValidationError(f"{path}: file is not valid JSON: {exc}") from exc
     except OSError as exc:
-        raise SchemaValidationError(
-            f"{path}: cannot read file: {exc}"
-        ) from exc
+        raise SchemaValidationError(f"{path}: cannot read file: {exc}") from exc
 
     envelope = migrate_to_current(raw)
     validate(envelope)

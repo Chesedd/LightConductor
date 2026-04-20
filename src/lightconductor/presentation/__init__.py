@@ -4,4 +4,8 @@ from .main_controller import MainScreenController
 from .project_controller import ProjectScreenController
 from .project_session_controller import ProjectSessionController
 
-__all__ = ["MainScreenController", "ProjectScreenController", "ProjectSessionController"]
+__all__ = [
+    "MainScreenController",
+    "ProjectScreenController",
+    "ProjectSessionController",
+]

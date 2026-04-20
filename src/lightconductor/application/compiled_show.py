@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import struct
 import zlib
+from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
 from lightconductor.domain.models import Master, Slave, Tag
@@ -54,7 +54,9 @@ class CompileShowsForMastersUseCase:
             compiled_by_host.setdefault(host, [])
 
             for slave in master.slaves.values():
-                compiled_by_host[host].append(self._compile_slave_show(master_ip=host, slave=slave))
+                compiled_by_host[host].append(
+                    self._compile_slave_show(master_ip=host, slave=slave)
+                )
 
         return compiled_by_host
 
@@ -63,24 +65,34 @@ class CompileShowsForMastersUseCase:
         segment_defs = self._segment_defs(slave)
 
         if len(segment_defs) > 255:
-            raise ValueError(f"Too many segments for slave {slave.name}: {len(segment_defs)}")
+            raise ValueError(
+                f"Too many segments for slave {slave.name}: {len(segment_defs)}"
+            )
 
         total_led_count = int(slave.led_count or 0)
         if total_led_count <= 0:
-            total_led_count = max((segment.start + segment.size) for segment in segment_defs) if segment_defs else 0
+            total_led_count = (
+                max((segment.start + segment.size) for segment in segment_defs)
+                if segment_defs
+                else 0
+            )
 
         palette: List[Tuple[int, int, int]] = [(0, 0, 0)]
         palette_map: Dict[Tuple[int, int, int], int] = {(0, 0, 0): 0}
 
         raw_events: List[Tuple[int, int, int, bytes]] = []
 
-        tag_type_items = sorted(slave.tag_types.items(), key=lambda item: self._safe_int(item[1].pin))
+        tag_type_items = sorted(
+            slave.tag_types.items(), key=lambda item: self._safe_int(item[1].pin)
+        )
         for segment_id, (_, tag_type) in enumerate(tag_type_items):
             segment_size = self._segment_size(tag_type)
             for tag in tag_type.tags:
                 timestamp_ms = max(0, round(float(tag.time_seconds) * 1000.0))
                 normalized_colors = self._normalize_colors(tag.colors, segment_size)
-                opcode, payload = self._classify_event(tag, normalized_colors, palette, palette_map)
+                opcode, payload = self._classify_event(
+                    tag, normalized_colors, palette, palette_map
+                )
                 raw_events.append((timestamp_ms, segment_id, opcode, payload))
 
         raw_events.sort(key=lambda item: (item[0], item[1], item[2]))
@@ -129,7 +141,9 @@ class CompileShowsForMastersUseCase:
 
     def _segment_defs(self, slave: Slave) -> List[SegmentDef]:
         defs: List[SegmentDef] = []
-        for tag_type in sorted(slave.tag_types.values(), key=lambda item: self._safe_int(item.pin)):
+        for tag_type in sorted(
+            slave.tag_types.values(), key=lambda item: self._safe_int(item.pin)
+        ):
             defs.append(
                 SegmentDef(
                     start=self._safe_int(tag_type.pin),
@@ -195,7 +209,9 @@ class CompileShowsForMastersUseCase:
 
         return (0, 0, 0)
 
-    def _normalize_colors(self, colors: List[List[int]], segment_size: int) -> List[Tuple[int, int, int]]:
+    def _normalize_colors(
+        self, colors: List[List[int]], segment_size: int
+    ) -> List[Tuple[int, int, int]]:
         normalized = [self._normalize_color(color) for color in colors[:segment_size]]
         if len(normalized) < segment_size:
             normalized.extend([(0, 0, 0)] * (segment_size - len(normalized)))
@@ -239,7 +255,11 @@ class CompileShowsForMastersUseCase:
         palette_map: Dict[Tuple[int, int, int], int],
     ) -> Tuple[int, bytes]:
         action_on = self._action_is_on(tag.action)
-        if not action_on or not colors or all(self._is_black(color) for color in colors):
+        if (
+            not action_on
+            or not colors
+            or all(self._is_black(color) for color in colors)
+        ):
             return OP_OFF, b""
 
         if self._all_same(colors):
@@ -254,8 +274,12 @@ class CompileShowsForMastersUseCase:
 
         return OP_FRAME_RLE, self._encode_frame_rle(colors, palette, palette_map)
 
-    def _try_fill_range(self, colors: List[Tuple[int, int, int]]) -> Tuple[int, int, Tuple[int, int, int]] | None:
-        non_black_indices = [idx for idx, color in enumerate(colors) if not self._is_black(color)]
+    def _try_fill_range(
+        self, colors: List[Tuple[int, int, int]]
+    ) -> Tuple[int, int, Tuple[int, int, int]] | None:
+        non_black_indices = [
+            idx for idx, color in enumerate(colors) if not self._is_black(color)
+        ]
         if not non_black_indices:
             return None
 
@@ -279,7 +303,9 @@ class CompileShowsForMastersUseCase:
         palette: List[Tuple[int, int, int]],
         palette_map: Dict[Tuple[int, int, int], int],
     ) -> bytes:
-        color_ids = [self._intern_color(color, palette, palette_map) for color in colors]
+        color_ids = [
+            self._intern_color(color, palette, palette_map) for color in colors
+        ]
         runs: List[Tuple[int, int]] = []
 
         current_id = color_ids[0]

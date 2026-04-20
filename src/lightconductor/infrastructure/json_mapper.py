@@ -16,17 +16,22 @@ Functions unpack_* receive a plain dict and return a domain object.
 Values are passed through without type normalization to preserve
 exact JSON equality for round-trip tests.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict
 
 from lightconductor.domain.models import Master, Slave, Tag, TagType
 
-
 _TAG_REQUIRED_FIELDS = ("time", "action", "colors")
 
 _TAG_TYPE_REQUIRED_FIELDS = (
-    "color", "pin", "row", "table", "topology", "tags",
+    "color",
+    "pin",
+    "row",
+    "table",
+    "topology",
+    "tags",
 )
 
 _SLAVE_REQUIRED_FIELDS = ("name", "pin", "led_count", "id", "tagTypes")
@@ -98,16 +103,13 @@ def unpack_tag_type(data: Dict[str, Any], *, name: str) -> TagType:
     to recover the original tag order.
     """
     if not isinstance(data, dict):
-        raise ValueError(
-            f"tag_type: expected dict, got {type(data).__name__}"
-        )
+        raise ValueError(f"tag_type: expected dict, got {type(data).__name__}")
     missing = [k for k in _TAG_TYPE_REQUIRED_FIELDS if k not in data]
     if missing:
         raise ValueError(f"tag_type: missing required field(s): {missing}")
     if not isinstance(data["tags"], dict):
         raise ValueError(
-            f"tag_type.tags: expected dict, got "
-            f"{type(data['tags']).__name__}"
+            f"tag_type.tags: expected dict, got {type(data['tags']).__name__}"
         )
     try:
         ordered_keys = sorted(data["tags"], key=lambda k: int(k))
@@ -139,8 +141,7 @@ def pack_slave(slave: Slave) -> Dict[str, Any]:
         "led_count": slave.led_count,
         "id": slave.id,
         "tagTypes": {
-            type_name: pack_tag_type(tt)
-            for type_name, tt in slave.tag_types.items()
+            type_name: pack_tag_type(tt) for type_name, tt in slave.tag_types.items()
         },
     }
 
@@ -158,8 +159,7 @@ def unpack_slave(data: Dict[str, Any]) -> Slave:
         raise ValueError(f"slave: missing required field(s): {missing}")
     if not isinstance(data["tagTypes"], dict):
         raise ValueError(
-            f"slave.tagTypes: expected dict, got "
-            f"{type(data['tagTypes']).__name__}"
+            f"slave.tagTypes: expected dict, got {type(data['tagTypes']).__name__}"
         )
     tag_types = {
         type_name: unpack_tag_type(td, name=type_name)
@@ -184,10 +184,7 @@ def pack_master(master: Master) -> Dict[str, Any]:
         "name": master.name,
         "id": master.id,
         "ip": master.ip,
-        "slaves": {
-            slave_id: pack_slave(s)
-            for slave_id, s in master.slaves.items()
-        },
+        "slaves": {slave_id: pack_slave(s) for slave_id, s in master.slaves.items()},
     }
 
 
@@ -206,13 +203,9 @@ def unpack_master(data: Dict[str, Any]) -> Master:
         raise ValueError(f"master: missing required field(s): {missing}")
     if not isinstance(data["slaves"], dict):
         raise ValueError(
-            f"master.slaves: expected dict, got "
-            f"{type(data['slaves']).__name__}"
+            f"master.slaves: expected dict, got {type(data['slaves']).__name__}"
         )
-    slaves = {
-        slave_id: unpack_slave(sd)
-        for slave_id, sd in data["slaves"].items()
-    }
+    slaves = {slave_id: unpack_slave(sd) for slave_id, sd in data["slaves"].items()}
     return Master(
         id=data["id"],
         name=data["name"],
