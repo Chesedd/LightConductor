@@ -72,7 +72,7 @@ class MastersStorageTests(unittest.TestCase):
         raw = json.loads(
             (self.root / "proj_A" / "data.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(raw["schema_version"], 2)
+        self.assertEqual(raw["schema_version"], 3)
         self.assertIn("masters", raw)
         self.assertIn("m1", raw["masters"])
 

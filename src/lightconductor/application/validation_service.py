@@ -29,8 +29,13 @@ class ValidationIssue:
                    "overlap", "out_of_bounds",
                    "duplicate_segment_start",
                    "duplicate_slave_pin", "invalid_ip",
-                   "unused_leds", "gap",
-                   "grid_led_mismatch".
+                   "gap",
+                   "led_cells_mismatch",
+                   "led_cells_duplicate",
+                   "led_cells_out_of_canvas",
+                   "canvas_too_small_for_leds",
+                   "canvas_zero",
+                   "topology_non_led_cell".
         path:      Dotted path pointing to the offending element,
                    e.g. "masters.m1.slaves.s1.tag_types.front".
                    Used for UI highlighting / grouping.
@@ -57,7 +62,8 @@ class ValidationService:
             issues.extend(self._check_duplicate_slave_pins(master, master_path))
             for slave_id, slave in master.slaves.items():
                 slave_path = f"{master_path}.slaves.{slave_id}"
-                issues.extend(self._check_slave_grid(slave, slave_path))
+                issues.extend(self._check_led_cells(slave, slave_path))
+                issues.extend(self._check_topology_cells_have_leds(slave, slave_path))
                 issues.extend(self._check_slave_segments(slave, slave_path))
         return issues
 
@@ -101,29 +107,114 @@ class ValidationService:
                 )
         return issues
 
-    def _check_slave_grid(
+    def _check_led_cells(
         self,
         slave: Slave,
         path: str,
     ) -> List[ValidationIssue]:
-        rows = max(0, self._safe_int(getattr(slave, "grid_rows", 0)))
-        cols = max(0, self._safe_int(getattr(slave, "grid_columns", 0)))
-        led_count = max(0, self._safe_int(getattr(slave, "led_count", 0)))
-        if rows * cols != led_count:
-            return [
+        """Check invariants on led_cells + canvas + led_count.
+
+        I1: len(led_cells) == led_count.
+        I2: all values are unique.
+        I3: all values are in [0, grid_rows * grid_columns).
+        I4: grid_rows >= 1 AND grid_columns >= 1.
+        I5: led_count <= canvas size.
+        """
+        issues: List[ValidationIssue] = []
+        rows = self._safe_int(getattr(slave, "grid_rows", 0))
+        cols = self._safe_int(getattr(slave, "grid_columns", 0))
+        led_count = self._safe_int(getattr(slave, "led_count", 0))
+        led_cells = list(getattr(slave, "led_cells", []) or [])
+        canvas = rows * cols
+
+        if rows < 1 or cols < 1:
+            issues.append(
                 ValidationIssue(
                     severity=SEVERITY_ERROR,
-                    category="grid_led_mismatch",
+                    category="canvas_zero",
+                    path=path,
+                    message=(f"Canvas dimensions must be >= 1x1, got {rows}x{cols}"),
+                )
+            )
+            return issues
+
+        if led_count > canvas:
+            issues.append(
+                ValidationIssue(
+                    severity=SEVERITY_ERROR,
+                    category="canvas_too_small_for_leds",
                     path=path,
                     message=(
-                        f"Slave grid_rows*grid_columns mismatch: "
-                        f"grid is {rows}x{cols} but "
-                        f"led_count={led_count} "
-                        f"(expected {rows * cols})"
+                        f"led_count={led_count} exceeds canvas "
+                        f"size {rows}*{cols}={canvas}"
                     ),
                 )
-            ]
-        return []
+            )
+
+        if len(led_cells) != led_count:
+            issues.append(
+                ValidationIssue(
+                    severity=SEVERITY_ERROR,
+                    category="led_cells_mismatch",
+                    path=path,
+                    message=(
+                        f"led_cells length {len(led_cells)} "
+                        f"does not match led_count {led_count}"
+                    ),
+                )
+            )
+
+        if len(set(led_cells)) != len(led_cells):
+            dupes = [c for c in set(led_cells) if led_cells.count(c) > 1]
+            issues.append(
+                ValidationIssue(
+                    severity=SEVERITY_ERROR,
+                    category="led_cells_duplicate",
+                    path=path,
+                    message=(f"led_cells contains duplicate values: {sorted(dupes)}"),
+                )
+            )
+
+        out_of_range = [c for c in led_cells if c < 0 or c >= canvas]
+        if out_of_range:
+            issues.append(
+                ValidationIssue(
+                    severity=SEVERITY_ERROR,
+                    category="led_cells_out_of_canvas",
+                    path=path,
+                    message=(
+                        f"led_cells values out of canvas "
+                        f"[0,{canvas}): {sorted(out_of_range)}"
+                    ),
+                )
+            )
+
+        return issues
+
+    def _check_topology_cells_have_leds(
+        self,
+        slave: Slave,
+        path: str,
+    ) -> List[ValidationIssue]:
+        """I6: every TagType.topology cell must be in led_cells."""
+        issues: List[ValidationIssue] = []
+        led_cells_set = set(getattr(slave, "led_cells", []) or [])
+        for type_name, tag_type in (slave.tag_types or {}).items():
+            topology = list(getattr(tag_type, "topology", []) or [])
+            non_led = [c for c in topology if c not in led_cells_set]
+            if non_led:
+                issues.append(
+                    ValidationIssue(
+                        severity=SEVERITY_ERROR,
+                        category="topology_non_led_cell",
+                        path=f"{path}.tag_types.{type_name}",
+                        message=(
+                            f"TagType {type_name!r} references cells "
+                            f"without LEDs: {sorted(non_led)}"
+                        ),
+                    )
+                )
+        return issues
 
     def _check_slave_segments(
         self,
@@ -132,6 +223,9 @@ class ValidationService:
     ) -> List[ValidationIssue]:
         issues: List[ValidationIssue] = []
         segments: List[Dict[str, Any]] = []
+        canvas = self._safe_int(getattr(slave, "grid_rows", 0)) * self._safe_int(
+            getattr(slave, "grid_columns", 0)
+        )
         for tag_type_name, tag_type in slave.tag_types.items():
             start = self._safe_int(tag_type.pin)
             size = self._segment_size(tag_type)
@@ -142,7 +236,7 @@ class ValidationService:
                     "name": tag_type_name,
                 }
             )
-            if slave.led_count > 0 and start + size > slave.led_count:
+            if canvas > 0 and start + size > canvas:
                 issues.append(
                     ValidationIssue(
                         severity=SEVERITY_ERROR,
@@ -150,7 +244,7 @@ class ValidationService:
                         path=f"{path}.tag_types.{tag_type_name}",
                         message=(
                             f"Segment [{start}..{start + size - 1}] "
-                            f"exceeds slave.led_count={slave.led_count}"
+                            f"exceeds slave canvas size {canvas}"
                         ),
                     )
                 )
@@ -206,20 +300,6 @@ class ValidationService:
                             ),
                         )
                     )
-        if slave.led_count > 0 and sorted_segs:
-            total_covered = sum(s["size"] for s in sorted_segs)
-            if total_covered < slave.led_count:
-                issues.append(
-                    ValidationIssue(
-                        severity=SEVERITY_WARNING,
-                        category="unused_leds",
-                        path=path,
-                        message=(
-                            f"Only {total_covered}/{slave.led_count} LEDs "
-                            f"are covered by segments"
-                        ),
-                    )
-                )
         return issues
 
     # --- helpers ---
