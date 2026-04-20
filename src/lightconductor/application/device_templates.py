@@ -47,6 +47,7 @@ def template_from_slave(
         "led_count": packed["led_count"],
         "grid_rows": packed["grid_rows"],
         "grid_columns": packed["grid_columns"],
+        "led_cells": list(packed["led_cells"]),
         "id": packed["id"],
         "tagTypes": stripped_tag_types,
     }
@@ -78,6 +79,12 @@ def slave_from_template(
     slave_config_copy["id"] = new_slave_id
     if new_slave_name is not None:
         slave_config_copy["name"] = new_slave_name
+    if "led_cells" not in slave_config_copy:
+        try:
+            default_n = int(slave_config_copy.get("led_count", 0))
+        except (TypeError, ValueError):
+            default_n = 0
+        slave_config_copy["led_cells"] = list(range(max(0, default_n)))
     tag_types_copy = {}
     for type_name, tt in slave_config.get("tagTypes", {}).items():
         if not isinstance(tt, dict):
@@ -116,6 +123,7 @@ def build_apply_template_composite(
         led_count=full.led_count,
         grid_rows=full.grid_rows,
         grid_columns=full.grid_columns,
+        led_cells=list(full.led_cells),
         tag_types={},
     )
     children: List[Command] = [

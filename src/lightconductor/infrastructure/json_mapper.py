@@ -40,6 +40,7 @@ _SLAVE_REQUIRED_FIELDS = (
     "led_count",
     "grid_rows",
     "grid_columns",
+    "led_cells",
     "id",
     "tagTypes",
 )
@@ -149,6 +150,7 @@ def pack_slave(slave: Slave) -> Dict[str, Any]:
         "led_count": slave.led_count,
         "grid_rows": slave.grid_rows,
         "grid_columns": slave.grid_columns,
+        "led_cells": list(slave.led_cells),
         "id": slave.id,
         "tagTypes": {
             type_name: pack_tag_type(tt) for type_name, tt in slave.tag_types.items()
@@ -182,6 +184,7 @@ def unpack_slave(data: Dict[str, Any]) -> Slave:
         led_count=data["led_count"],
         grid_rows=data["grid_rows"],
         grid_columns=data["grid_columns"],
+        led_cells=list(data["led_cells"]),
         tag_types=tag_types,
     )
 
