@@ -5,6 +5,17 @@ from PyQt6.QtWidgets import QWidget
 from lightconductor.application.led_preview import (
     render_led_strip_at, _safe_int,
 )
+from lightconductor.application.project_state import (
+    SlaveAdded,
+    SlaveRemoved,
+    StateReplaced,
+    TagAdded,
+    TagRemoved,
+    TagTypeAdded,
+    TagTypeRemoved,
+    TagTypeUpdated,
+    TagUpdated,
+)
 
 
 class LedStripView(QWidget):
@@ -18,6 +29,18 @@ class LedStripView(QWidget):
 
         self.setFixedHeight(28)
         self.setMinimumWidth(100)
+
+        self._unsubscribe = None
+        if self._state is not None:
+            self._unsubscribe = self._state.subscribe(
+                self._on_state_event,
+            )
+            # Qt will call the lambda after C++ destruction; the
+            # lambda only touches the unsubscribe callable, never
+            # self, so it is safe regardless of Python-side state.
+            self.destroyed.connect(
+                lambda _=None, u=self._unsubscribe: u(),
+            )
 
         self._recompute()
 
@@ -40,6 +63,21 @@ class LedStripView(QWidget):
         else:
             self._buffer = render_led_strip_at(slave, self._current_time)
         self.update()
+
+    def _on_state_event(self, event):
+        if isinstance(event, StateReplaced):
+            self._recompute()
+            return
+        if getattr(event, "master_id", None) != self._master_id:
+            return
+        if getattr(event, "slave_id", None) != self._slave_id:
+            return
+        if isinstance(event, (
+            TagAdded, TagRemoved, TagUpdated,
+            TagTypeAdded, TagTypeRemoved, TagTypeUpdated,
+            SlaveAdded, SlaveRemoved,
+        )):
+            self._recompute()
 
     def paintEvent(self, event):
         painter = QPainter(self)
