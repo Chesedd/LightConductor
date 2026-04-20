@@ -42,6 +42,8 @@ def _minimal_slave(tag_types=None):
         "name": "S",
         "pin": "5",
         "led_count": 30,
+        "grid_rows": 1,
+        "grid_columns": 30,
         "id": "s1",
         "tagTypes": tag_types if tag_types is not None else {},
     }
@@ -59,7 +61,9 @@ def _minimal_master(slaves=None):
 class MigrationTests(unittest.TestCase):
     def test_migrate_wraps_legacy_empty_dict(self):
         result = migrate_to_current({})
-        self.assertEqual(result, {"schema_version": 1, "masters": {}})
+        self.assertEqual(
+            result, {"schema_version": CURRENT_SCHEMA_VERSION, "masters": {}}
+        )
 
     def test_migrate_wraps_legacy_non_empty_dict(self):
         legacy = {"m1": _minimal_master()}
@@ -96,6 +100,106 @@ class MigrationTests(unittest.TestCase):
         self.assertIs(coerced_tags["1"]["action"], False)
         validate(result)
 
+    def test_migrate_v1_to_v2_fills_grid_fields(self):
+        # Hand-crafted v1 envelope: schema_version=1, two slaves each
+        # lacking grid_rows/grid_columns. Migration must bump schema
+        # to v2 and populate grid fields from led_count.
+        envelope = {
+            "schema_version": 1,
+            "masters": {
+                "m1": {
+                    "name": "M",
+                    "id": "m1",
+                    "ip": "10.0.0.1",
+                    "slaves": {
+                        "s1": {
+                            "name": "S1",
+                            "pin": "1",
+                            "led_count": 30,
+                            "id": "s1",
+                            "tagTypes": {},
+                        },
+                        "s2": {
+                            "name": "S2",
+                            "pin": "2",
+                            "led_count": 60,
+                            "id": "s2",
+                            "tagTypes": {},
+                        },
+                    },
+                }
+            },
+        }
+
+        result = migrate_to_current(envelope)
+
+        self.assertEqual(result["schema_version"], 2)
+        slaves = result["masters"]["m1"]["slaves"]
+        self.assertEqual(slaves["s1"]["grid_rows"], 1)
+        self.assertEqual(slaves["s1"]["grid_columns"], 30)
+        self.assertEqual(slaves["s2"]["grid_rows"], 1)
+        self.assertEqual(slaves["s2"]["grid_columns"], 60)
+        validate(result)
+
+    def test_migrate_v0_legacy_goes_to_v2_via_v1(self):
+        # Legacy dict without schema_version (pre-v1 project). Chain:
+        # v0 → v1 (wrap_boxes) → v2 (grid fields). Result must be a
+        # valid v2 envelope with grid fields populated.
+        legacy = {
+            "m1": {
+                "name": "M",
+                "id": "m1",
+                "ip": "10.0.0.1",
+                "slaves": {
+                    "s1": {
+                        "name": "S1",
+                        "pin": "1",
+                        "led_count": 45,
+                        "id": "s1",
+                        "tagTypes": {},
+                    },
+                },
+            }
+        }
+
+        result = migrate_to_current(legacy)
+
+        self.assertEqual(result["schema_version"], 2)
+        slave = result["masters"]["m1"]["slaves"]["s1"]
+        self.assertEqual(slave["grid_rows"], 1)
+        self.assertEqual(slave["grid_columns"], 45)
+        validate(result)
+
+    def test_migrate_v2_envelope_passes_through_unchanged(self):
+        envelope = {
+            "schema_version": 2,
+            "masters": {
+                "m1": {
+                    "name": "M",
+                    "id": "m1",
+                    "ip": "10.0.0.1",
+                    "slaves": {
+                        "s1": {
+                            "name": "S1",
+                            "pin": "1",
+                            "led_count": 40,
+                            "grid_rows": 4,
+                            "grid_columns": 10,
+                            "id": "s1",
+                            "tagTypes": {},
+                        }
+                    },
+                }
+            },
+        }
+
+        result = migrate_to_current(envelope)
+
+        slave = result["masters"]["m1"]["slaves"]["s1"]
+        self.assertEqual(slave["grid_rows"], 4)
+        self.assertEqual(slave["grid_columns"], 10)
+        self.assertEqual(result["schema_version"], 2)
+
 
 class WrapUnwrapTests(unittest.TestCase):
     def test_wrap_unwrap_roundtrip(self):
@@ -105,11 +209,11 @@ class WrapUnwrapTests(unittest.TestCase):
 
 class ValidateHappyPathTests(unittest.TestCase):
     def test_validate_accepts_empty_envelope(self):
-        validate({"schema_version": 1, "masters": {}})
+        validate({"schema_version": CURRENT_SCHEMA_VERSION, "masters": {}})
 
     def test_validate_accepts_realistic_structure(self):
         envelope = {
-            "schema_version": 1,
+            "schema_version": CURRENT_SCHEMA_VERSION,
             "masters": {
                 "m1": _minimal_master(
                     slaves={
@@ -146,12 +250,12 @@ class ValidateRejectionTests(unittest.TestCase):
 
     def test_validate_rejects_wrong_schema_version(self):
         with self.assertRaises(SchemaValidationError) as ctx:
-            validate({"schema_version": 2, "masters": {}})
-        self.assertIn("2", str(ctx.exception))
+            validate({"schema_version": 1, "masters": {}})
+        self.assertIn("1", str(ctx.exception))
 
     def test_validate_rejects_missing_masters(self):
         with self.assertRaises(SchemaValidationError) as ctx:
-            validate({"schema_version": 1})
+            validate({"schema_version": CURRENT_SCHEMA_VERSION})
         self.assertIn("masters", str(ctx.exception))
 
     def test_validate_rejects_slave_missing_required_field(self):
@@ -202,12 +306,12 @@ class FileIOTests(unittest.TestCase):
         legacy = {"m1": _minimal_master()}
         path = self._write("legacy.json", json.dumps(legacy))
         envelope = load_and_migrate(path)
-        self.assertEqual(envelope["schema_version"], 1)
+        self.assertEqual(envelope["schema_version"], CURRENT_SCHEMA_VERSION)
         self.assertEqual(envelope["masters"], legacy)
 
-    def test_load_and_migrate_v1_file(self):
+    def test_load_and_migrate_current_file(self):
         envelope = wrap_boxes({"m1": _minimal_master()})
-        path = self._write("v1.json", json.dumps(envelope))
+        path = self._write("current.json", json.dumps(envelope))
         self.assertEqual(load_and_migrate(path), envelope)
 
     def test_load_and_migrate_corrupt_file(self):

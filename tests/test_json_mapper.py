@@ -354,13 +354,23 @@ class TagTypeRoundTripTests(unittest.TestCase):
 
 class PackSlaveTests(unittest.TestCase):
     def test_pack_slave_minimal_without_tag_types(self):
-        s = Slave(id="s1", name="Front", pin="7", led_count=60, tag_types={})
+        s = Slave(
+            id="s1",
+            name="Front",
+            pin="7",
+            led_count=60,
+            grid_rows=1,
+            grid_columns=60,
+            tag_types={},
+        )
         self.assertEqual(
             pack_slave(s),
             {
                 "name": "Front",
                 "pin": "7",
                 "led_count": 60,
+                "grid_rows": 1,
+                "grid_columns": 60,
                 "id": "s1",
                 "tagTypes": {},
             },
@@ -370,7 +380,7 @@ class PackSlaveTests(unittest.TestCase):
         result = pack_slave(Slave(id="x", name="x", pin="0", led_count=0, tag_types={}))
         self.assertEqual(
             list(result.keys()),
-            ["name", "pin", "led_count", "id", "tagTypes"],
+            ["name", "pin", "led_count", "grid_rows", "grid_columns", "id", "tagTypes"],
         )
 
     def test_pack_slave_tag_types_becomes_tagTypes(self):
@@ -407,6 +417,8 @@ class PackSlaveTests(unittest.TestCase):
         s.name = "x"
         s.pin = 7
         s.led_count = 0
+        s.grid_rows = 1
+        s.grid_columns = 0
         s.tag_types = {}
         result = pack_slave(s)
         self.assertEqual(result["pin"], 7)
@@ -445,6 +457,8 @@ class UnpackSlaveTests(unittest.TestCase):
             "name": "Front",
             "pin": "7",
             "led_count": 60,
+            "grid_rows": 1,
+            "grid_columns": 60,
             "id": "s1",
             "tagTypes": {},
         }
@@ -454,6 +468,8 @@ class UnpackSlaveTests(unittest.TestCase):
         self.assertEqual(s.name, "Front")
         self.assertEqual(s.pin, "7")
         self.assertEqual(s.led_count, 60)
+        self.assertEqual(s.grid_rows, 1)
+        self.assertEqual(s.grid_columns, 60)
         self.assertEqual(s.tag_types, {})
 
     def test_unpack_slave_recurses_into_tag_types(self):
@@ -461,6 +477,8 @@ class UnpackSlaveTests(unittest.TestCase):
             "name": "x",
             "pin": "0",
             "led_count": 0,
+            "grid_rows": 1,
+            "grid_columns": 0,
             "id": "x",
             "tagTypes": {
                 "front": {
@@ -504,6 +522,8 @@ class UnpackSlaveTests(unittest.TestCase):
             "name": "x",
             "pin": "0",
             "led_count": 0,
+            "grid_rows": 1,
+            "grid_columns": 0,
             "id": "x",
             "tagTypes": ["not", "dict"],
         }
@@ -515,10 +535,45 @@ class UnpackSlaveTests(unittest.TestCase):
         # led_count has default=0 on the dataclass, but in JSON the
         # field is mandatory: missing led_count must raise, not
         # silently default to 0.
-        data = {"name": "x", "pin": "0", "id": "x", "tagTypes": {}}
+        data = {
+            "name": "x",
+            "pin": "0",
+            "grid_rows": 1,
+            "grid_columns": 0,
+            "id": "x",
+            "tagTypes": {},
+        }
         with self.assertRaises(ValueError) as ctx:
             unpack_slave(data)
         self.assertIn("led_count", str(ctx.exception))
+
+    def test_unpack_slave_rejects_missing_grid_rows(self):
+        # grid_rows is required in v2 data — missing must raise,
+        # not fall back to the dataclass default.
+        data = {
+            "name": "x",
+            "pin": "0",
+            "led_count": 0,
+            "grid_columns": 0,
+            "id": "x",
+            "tagTypes": {},
+        }
+        with self.assertRaises(ValueError) as ctx:
+            unpack_slave(data)
+        self.assertIn("grid_rows", str(ctx.exception))
+
+    def test_unpack_slave_rejects_missing_grid_columns(self):
+        data = {
+            "name": "x",
+            "pin": "0",
+            "led_count": 0,
+            "grid_rows": 1,
+            "id": "x",
+            "tagTypes": {},
+        }
+        with self.assertRaises(ValueError) as ctx:
+            unpack_slave(data)
+        self.assertIn("grid_columns", str(ctx.exception))
 
 
 class SlaveRoundTripTests(unittest.TestCase):
@@ -633,6 +688,8 @@ class UnpackMasterTests(unittest.TestCase):
                     "name": "Front",
                     "pin": "7",
                     "led_count": 60,
+                    "grid_rows": 1,
+                    "grid_columns": 60,
                     "id": "s1",
                     "tagTypes": {},
                 },

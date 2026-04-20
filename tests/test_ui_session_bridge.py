@@ -95,7 +95,7 @@ class UiSessionBridgeTests(unittest.TestCase):
             self.assertTrue(data_path.exists())
             with data_path.open("r", encoding="utf-8") as fh:
                 envelope = json.load(fh)
-            self.assertEqual(envelope.get("schema_version"), 1)
+            self.assertEqual(envelope.get("schema_version"), 2)
             self.assertEqual(envelope.get("masters"), {})
 
     def test_save_domain_masters_persists_custom_ip(self):
@@ -114,7 +114,7 @@ class UiSessionBridgeTests(unittest.TestCase):
             self.assertTrue(data_path.exists())
             with data_path.open("r", encoding="utf-8") as fh:
                 envelope = json.load(fh)
-            self.assertEqual(envelope, {"schema_version": 1, "masters": {}})
+            self.assertEqual(envelope, {"schema_version": 2, "masters": {}})
 
     def test_load_audio_delegates_with_project_name(self):
         with tempfile.TemporaryDirectory() as td:
