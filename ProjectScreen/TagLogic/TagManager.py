@@ -209,8 +209,16 @@ class TagManager(QWidget):
             if getattr(btn, "tagType", None) is not None and btn.tagType.name == type_name:
                 self.buttons.removeButton(btn)
                 btn.deleteLater()
-        if hasattr(self.checkBox, "removeType"):
-            self.checkBox.removeType(type_name)
+        # TagTypeChooseBox has no removeType yet; drop matching checkbox
+        # directly. TODO: consolidate into ChooseBox.removeType in 3.1b.3.
+        inner = getattr(self.checkBox, "innerLayout", None)
+        if inner is not None:
+            for i in range(inner.count()):
+                item = inner.itemAt(i)
+                w = item.widget() if item is not None else None
+                if isinstance(w, QCheckBox) and w.text() == type_name:
+                    w.deleteLater()
+                    break
         if self.box is not None:
             states = self.box.tagsLayout
             for i in range(states.count()):

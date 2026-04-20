@@ -1,13 +1,8 @@
-import logging
-
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout,
     QCheckBox, QGroupBox, QScrollArea
 )
 from PyQt6.QtCore import pyqtSignal
-
-logger = logging.getLogger(__name__)
-
 
 class TagTypeChooseBox(QGroupBox):
     stateChanged = pyqtSignal(dict)
@@ -36,20 +31,6 @@ class TagTypeChooseBox(QGroupBox):
         buttonChecker.toggled.connect(self.onStateChanged)
         buttonChecker.setChecked(True)
         self.innerLayout.addWidget(buttonChecker)
-
-    def removeType(self, name: str) -> None:
-        for i in range(self.innerLayout.count()):
-            item = self.innerLayout.itemAt(i)
-            widget = item.widget() if item is not None else None
-            if isinstance(widget, QCheckBox) and widget.text() == name:
-                try:
-                    widget.toggled.disconnect(self.onStateChanged)
-                except TypeError:
-                    pass
-                self.innerLayout.removeWidget(widget)
-                widget.deleteLater()
-                return
-        logger.warning("TagTypeChooseBox.removeType: unknown name %r", name)
 
     def onStateChanged(self, checked):
         checkbox = self.sender()
