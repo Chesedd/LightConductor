@@ -48,6 +48,42 @@ class UploadFailedError(Exception):
         )
 
 
+class UploadCancelledError(Exception):
+    """Raised when a progress callback returns False.
+
+    Carries progress counters so callers can report how much was sent
+    before cancel.
+    """
+
+    def __init__(self, packets_sent: int, total_packets: int):
+        self.packets_sent = packets_sent
+        self.total_packets = total_packets
+        super().__init__(
+            f"upload cancelled after {packets_sent} of "
+            f"{total_packets} packet(s)"
+        )
+
+
+def count_upload_packets(
+    compiled_by_host: Optional[Dict[str, List[CompiledSlaveShow]]],
+    chunk_size: int,
+) -> int:
+    """Total sendto() calls an upload() invocation will make for the
+    given compiled input. Mirrors the packet-count arithmetic in
+    upload_plan.build_upload_plan but intentionally re-derived here to
+    keep the transport standalone (no reverse import from application
+    layer).
+    """
+    size = max(1, int(chunk_size))
+    total = 0
+    for _host, shows in (compiled_by_host or {}).items():
+        for show in shows:
+            blob_size = len(show.blob or b"")
+            chunk_count = -(-blob_size // size)
+            total += 2 + chunk_count  # BEGIN + chunks + END
+    return total
+
+
 def compute_backoff_delays(
     max_retries: int,
     base_delay: float,
@@ -146,7 +182,27 @@ class MasterUdpUploadTransport:
             original=last_error,
         )
 
-    def upload(self, compiled_by_host: Dict[str, List[CompiledSlaveShow]]) -> None:
+    def upload(
+        self,
+        compiled_by_host: Dict[str, List[CompiledSlaveShow]],
+        *,
+        progress_callback: Optional[
+            Callable[[int, int], bool]
+        ] = None,
+    ) -> None:
+        total = count_upload_packets(
+            compiled_by_host, self.chunk_size,
+        )
+        sent = 0
+
+        def _after_send():
+            nonlocal sent
+            sent += 1
+            if progress_callback is None:
+                return
+            if progress_callback(sent, total) is False:
+                raise UploadCancelledError(sent, total)
+
         sock = self._socket_factory()
         try:
             for host, shows in compiled_by_host.items():
@@ -161,6 +217,7 @@ class MasterUdpUploadTransport:
                         ),
                         addr,
                     )
+                    _after_send()
                     time.sleep(self.inter_packet_delay)
 
                     offset = 0
@@ -174,6 +231,7 @@ class MasterUdpUploadTransport:
                             len(chunk),
                         ) + chunk
                         self._send_with_retry(sock, packet, addr)
+                        _after_send()
                         offset += len(chunk)
                         time.sleep(self.inter_packet_delay)
 
@@ -182,17 +240,31 @@ class MasterUdpUploadTransport:
                         END_STRUCT.pack(APP_MAGIC, CMD_UPLOAD_END, show.slave_id),
                         addr,
                     )
+                    _after_send()
                     time.sleep(self.inter_packet_delay)
         finally:
             sock.close()
 
-    def start_show(self, hosts: Iterable[str]) -> None:
+    def start_show(
+        self,
+        hosts: Iterable[str],
+        *,
+        progress_callback: Optional[
+            Callable[[int, int], bool]
+        ] = None,
+    ) -> None:
         unique_hosts = sorted({host for host in hosts if host})
+        total = len(unique_hosts)
+        sent = 0
         sock = self._socket_factory()
         try:
             payload = START_STRUCT.pack(APP_MAGIC, CMD_START_SHOW)
             for host in unique_hosts:
                 self._send_with_retry(sock, payload, (host, self.port))
+                sent += 1
+                if progress_callback is not None:
+                    if progress_callback(sent, total) is False:
+                        raise UploadCancelledError(sent, total)
                 time.sleep(self.inter_packet_delay)
         finally:
             sock.close()
