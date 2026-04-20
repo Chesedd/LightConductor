@@ -28,15 +28,19 @@ def format_tick_strings(values, scale, spacing):
             continue
 
         frac_value = absv - total_seconds
-        frac_int = int(round(frac_value * (10 ** dec)))
-        if frac_int >= 10 ** dec:
-            frac_int -= 10 ** dec
+        frac_int = int(round(frac_value * (10**dec)))
+        if frac_int >= 10**dec:
+            frac_int -= 10**dec
             seconds += 1
             if seconds >= 60:
                 seconds = 0
                 minutes += 1
-        out.append(fmt.format(
-            sign=sign, m=minutes, s=seconds,
-            frac=str(frac_int).zfill(dec),
-        ))
+        out.append(
+            fmt.format(
+                sign=sign,
+                m=minutes,
+                s=seconds,
+                frac=str(frac_int).zfill(dec),
+            )
+        )
     return out

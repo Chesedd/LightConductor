@@ -1,35 +1,36 @@
 import logging
+from datetime import datetime
 
+from PyQt6.QtCore import Qt, QThreadPool, QTimer, pyqtSignal
+from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
-    QVBoxLayout,
-    QPushButton,
-    QMenu,
-    QLabel,
     QHBoxLayout,
+    QLabel,
+    QMenu,
+    QPushButton,
+    QVBoxLayout,
     QWidget,
 )
-from PyQt6.QtCore import pyqtSignal, Qt, QTimer, QThreadPool
-from PyQt6.QtGui import QAction
-from ProjectScreen.PlateLogic.SlaveBox import SlaveBox
-from ProjectScreen.PlateLogic.MasterPingWorker import MasterPingWorker
-from ProjectScreen.TagLogic.TagManager import TagManager
-from datetime import datetime
-from AssistanceTools.ChooseBox import  TagTypeChooseBox
-from AssistanceTools.SimpleDialog import SimpleDialog
-from ProjectScreen.TagLogic.WaveWidget import WaveWidget
+
+from AssistanceTools.ChooseBox import TagTypeChooseBox
 from AssistanceTools.DropBox import DropBox
+from AssistanceTools.SimpleDialog import SimpleDialog
 from lightconductor.application.commands import (
     AddSlaveCommand,
     DeleteSlaveCommand,
 )
-from lightconductor.application.duplicate import (
-    build_duplicate_master_composite,
-)
 from lightconductor.application.device_templates import (
     build_apply_template_composite,
 )
+from lightconductor.application.duplicate import (
+    build_duplicate_master_composite,
+)
 from lightconductor.application.host_reachability import PingStatus
 from lightconductor.domain.models import Slave as DomainSlave
+from ProjectScreen.PlateLogic.MasterPingWorker import MasterPingWorker
+from ProjectScreen.PlateLogic.SlaveBox import SlaveBox
+from ProjectScreen.TagLogic.TagManager import TagManager
+from ProjectScreen.TagLogic.WaveWidget import WaveWidget
 
 logger = logging.getLogger(__name__)
 
@@ -39,12 +40,14 @@ PING_TIMEOUT_S = 1.0
 
 _INDICATOR_COLORS = {
     PingStatus.UNKNOWN.value: "#6a6a6a",
-    PingStatus.ONLINE.value:  "#3a9f45",
+    PingStatus.ONLINE.value: "#3a9f45",
     PingStatus.OFFLINE.value: "#c93434",
 }
 
+
 class newSlaveDialog(SimpleDialog):
     slaveCreated = pyqtSignal(dict)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.uiCreate()
@@ -71,12 +74,13 @@ class newSlaveDialog(SimpleDialog):
         self.slaveCreated.emit(data)
         self.accept()
 
+
 class MasterBox(DropBox):
     def __init__(
         self,
         title="",
         parent=None,
-        boxID='',
+        boxID="",
         audio=None,
         sr=None,
         aydioPath=None,
@@ -105,7 +109,6 @@ class MasterBox(DropBox):
         self._build_header_with_indicator()
         self._init_ping_timer()
         self.initSlaveButton()
-
 
     def _build_header_with_indicator(self):
         """Wrap toggleButton + status indicator in a header row. The
@@ -174,8 +177,7 @@ class MasterBox(DropBox):
         self._last_ping_at = datetime.now().strftime("%H:%M:%S")
         self._apply_indicator_style()
         self.statusIndicator.setToolTip(
-            f"Status: {status} (last probed at "
-            f"{self._last_ping_at})",
+            f"Status: {status} (last probed at {self._last_ping_at})",
         )
 
     def initSlaveButton(self):
@@ -249,7 +251,11 @@ class MasterBox(DropBox):
                 self._state.add_slave(self.boxID, domain_slave)
 
     def deleteSlavesData(self, boxID):
-        logger.debug("Deleting slave boxID=%s, current slaves=%s", boxID, list(self.slaves.keys()))
+        logger.debug(
+            "Deleting slave boxID=%s, current slaves=%s",
+            boxID,
+            list(self.slaves.keys()),
+        )
         if boxID in self.slaves:
             del self.slaves[boxID]
             if (
@@ -268,7 +274,8 @@ class MasterBox(DropBox):
                     except KeyError:
                         logger.warning(
                             "state missing slave %s on master %s during delete",
-                            boxID, self.boxID,
+                            boxID,
+                            self.boxID,
                         )
                 else:
                     try:
@@ -276,7 +283,8 @@ class MasterBox(DropBox):
                     except KeyError:
                         logger.warning(
                             "state missing slave %s on master %s during delete",
-                            boxID, self.boxID,
+                            boxID,
+                            self.boxID,
                         )
             return True
         return False
@@ -290,18 +298,21 @@ class MasterBox(DropBox):
         if templates:
             submenu = menu.addMenu("Add slave from template")
             for template in templates:
-                name = template.get(
-                    "template_name",
-                ) or "(unnamed)"
+                name = (
+                    template.get(
+                        "template_name",
+                    )
+                    or "(unnamed)"
+                )
                 action = QAction(name, self)
                 action.triggered.connect(
-                    lambda _checked=False, tpl=template:
-                        self._on_apply_template(tpl),
+                    lambda _checked=False, tpl=template: self._on_apply_template(tpl),
                 )
                 submenu.addAction(action)
         else:
             disabled = QAction(
-                "Add slave from template (no templates)", self,
+                "Add slave from template (no templates)",
+                self,
             )
             disabled.setEnabled(False)
             menu.addAction(disabled)
@@ -314,9 +325,7 @@ class MasterBox(DropBox):
             source = self._state.master(self.boxID)
         except KeyError:
             return
-        existing_names = [
-            m.name for m in self._state.masters().values()
-        ]
+        existing_names = [m.name for m in self._state.masters().values()]
         composite = build_duplicate_master_composite(
             source=source,
             existing_master_names=existing_names,

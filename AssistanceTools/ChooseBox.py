@@ -1,11 +1,10 @@
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout,
-    QCheckBox, QGroupBox, QScrollArea
-)
 from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import QCheckBox, QGroupBox, QScrollArea, QVBoxLayout, QWidget
+
 
 class TagTypeChooseBox(QGroupBox):
     stateChanged = pyqtSignal(dict)
+
     def __init__(self, title):
         super().__init__(title=title)
 

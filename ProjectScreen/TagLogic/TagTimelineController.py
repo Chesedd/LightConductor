@@ -1,14 +1,12 @@
 import bisect
 import logging
+from typing import Dict, List, Optional, Set, Tuple
 
 import pyqtgraph as pg
-
 from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QApplication
-from typing import Dict, List, Optional, Set, Tuple
 
-from ProjectScreen.TagLogic.TagObject import Tag
 from lightconductor.application.beat_detection import snap_to_nearest_beat
 from lightconductor.application.commands import AddTagCommand, MoveTagCommand
 from lightconductor.application.project_state import (
@@ -17,7 +15,7 @@ from lightconductor.application.project_state import (
     TagUpdated,
 )
 from lightconductor.domain.models import Tag as DomainTag
-
+from ProjectScreen.TagLogic.TagObject import Tag
 
 _SNAP_GRANULARITY_SECONDS = 0.1
 
@@ -84,9 +82,7 @@ class TagTimelineController:
             if scene is not None:
                 scene.removeItem(tag)
             self._scene_by_domain_id = {
-                did: st
-                for did, st in self._scene_by_domain_id.items()
-                if st is not tag
+                did: st for did, st in self._scene_by_domain_id.items() if st is not tag
             }
         self._selected_tags -= set(self._scene_tags.get(type_name, []))
         self._scene_tags.pop(type_name, None)
@@ -143,7 +139,9 @@ class TagTimelineController:
             self._apply_selection_visual(scene_tag, selected=True)
 
     def _apply_selection_visual(
-        self, scene_tag: Tag, selected: bool,
+        self,
+        scene_tag: Tag,
+        selected: bool,
     ) -> None:
         type_ = getattr(scene_tag, "type", None)
         if type_ is None:
@@ -185,7 +183,7 @@ class TagTimelineController:
 
     def _parse_color(self, color):
         if isinstance(color, str):
-            return tuple(int(c) for c in color.split(','))
+            return tuple(int(c) for c in color.split(","))
         return int(color[0]), int(color[1]), int(color[2])
 
     def _drag_bounds(self):
@@ -244,6 +242,7 @@ class TagTimelineController:
                 return
             delta = anchor_new - anchor_origin
             from PyQt6.QtCore import QSignalBlocker
+
             for other in self._selected_tags:
                 if other is scene_tag:
                     continue
@@ -273,9 +272,7 @@ class TagTimelineController:
             self._drag_group_origin = {}
             return
         self._drag_anchor_tag = scene_tag
-        self._drag_group_origin = {
-            id(t): float(t.value()) for t in self._selected_tags
-        }
+        self._drag_group_origin = {id(t): float(t.value()) for t in self._selected_tags}
 
     def _on_tag_drag_finished(self, scene_tag):
         # Group drag: anchor matches and selection > 1.
@@ -293,13 +290,12 @@ class TagTimelineController:
         shift_held = bool(
             QApplication.keyboardModifiers() & Qt.KeyboardModifier.ShiftModifier
         )
-        beats = (
-            getattr(self._renderer, "beat_times", None)
-            if shift_held else None
-        )
+        beats = getattr(self._renderer, "beat_times", None) if shift_held else None
         raw_time = max(0.0, float(scene_tag.value()))
         snapped = snap_to_nearest_beat(
-            raw_time, beats, _SNAP_GRANULARITY_SECONDS,
+            raw_time,
+            beats,
+            _SNAP_GRANULARITY_SECONDS,
         )
         dur = float(getattr(self._renderer, "duration", 0.0) or 0.0)
         if dur > 0.0 and snapped > dur:
@@ -348,15 +344,19 @@ class TagTimelineController:
             except (KeyError, IndexError):
                 logger.warning(
                     "MoveTagCommand push failed: type=%s idx=%s",
-                    type_name, idx,
+                    type_name,
+                    idx,
                 )
                 scene_tag.setPos(old_time)
                 scene_tag.time = old_time
         else:
             try:
                 self._state.update_tag(
-                    self._master_id, self._slave_id, type_name,
-                    idx, time_seconds=snapped,
+                    self._master_id,
+                    self._slave_id,
+                    type_name,
+                    idx,
+                    time_seconds=snapped,
                 )
             except (KeyError, IndexError):
                 scene_tag.setPos(old_time)
@@ -364,20 +364,13 @@ class TagTimelineController:
 
     def _finish_bulk_drag(self, anchor):
         from lightconductor.application.commands import CompositeCommand
+
         shift_held = bool(
-            QApplication.keyboardModifiers()
-            & Qt.KeyboardModifier.ShiftModifier
+            QApplication.keyboardModifiers() & Qt.KeyboardModifier.ShiftModifier
         )
-        beats = (
-            getattr(self._renderer, "beat_times", None)
-            if shift_held else None
-        )
+        beats = getattr(self._renderer, "beat_times", None) if shift_held else None
         dur = float(getattr(self._renderer, "duration", 0.0) or 0.0)
-        if (
-            self._state is None
-            or self._master_id is None
-            or self._slave_id is None
-        ):
+        if self._state is None or self._master_id is None or self._slave_id is None:
             # Headless fallback: no command stack available.
             self._drag_anchor_tag = None
             self._drag_group_origin = {}
@@ -403,7 +396,9 @@ class TagTimelineController:
                 continue
             raw = max(0.0, float(scene_tag.value()))
             snapped = snap_to_nearest_beat(
-                raw, beats, _SNAP_GRANULARITY_SECONDS,
+                raw,
+                beats,
+                _SNAP_GRANULARITY_SECONDS,
             )
             if dur > 0.0 and snapped > dur:
                 snapped = dur
@@ -456,14 +451,16 @@ class TagTimelineController:
         if domain_tags is None or event.tag_index >= len(domain_tags):
             logger.warning(
                 "TagAdded refers to missing domain tag: type=%s idx=%s",
-                event.type_name, event.tag_index,
+                event.type_name,
+                event.tag_index,
             )
             return
         domain_tag = domain_tags[event.tag_index]
         widget_type = self._manager.types.get(event.type_name)
         if widget_type is None:
             logger.warning(
-                "TagAdded for unknown widget type: %s", event.type_name,
+                "TagAdded for unknown widget type: %s",
+                event.type_name,
             )
             return
         scene_tag = self._create_scene_tag(
@@ -481,7 +478,9 @@ class TagTimelineController:
         if event.tag_index < 0 or event.tag_index >= len(lst):
             logger.warning(
                 "TagRemoved index out of range: type=%s idx=%s len=%s",
-                event.type_name, event.tag_index, len(lst),
+                event.type_name,
+                event.tag_index,
+                len(lst),
             )
             return
         scene_tag = lst[event.tag_index]
@@ -500,7 +499,8 @@ class TagTimelineController:
         if domain_tags is None or event.tag_index >= len(domain_tags):
             logger.warning(
                 "TagUpdated refers to missing domain tag: type=%s idx=%s",
-                event.type_name, event.tag_index,
+                event.type_name,
+                event.tag_index,
             )
             return
         domain_tag = domain_tags[event.tag_index]
@@ -508,7 +508,8 @@ class TagTimelineController:
         if scene_tag is None:
             logger.warning(
                 "TagUpdated for unknown scene tag: type=%s idx=%s",
-                event.type_name, event.tag_index,
+                event.type_name,
+                event.tag_index,
             )
             return
         scene_tag.time = float(domain_tag.time_seconds)
@@ -538,10 +539,7 @@ class TagTimelineController:
         curType = self._manager.curType
         if curType is None:
             return
-        if (
-            self._project_window is not None
-            and self._project_window.is_loading()
-        ):
+        if self._project_window is not None and self._project_window.is_loading():
             # Load-path mutates state via load_masters only; user-action
             # creation during loading would break the load invariant.
             return
@@ -632,8 +630,7 @@ class TagTimelineController:
 
     def _vb_mouse_press(self, ev):
         shift_held = bool(
-            QApplication.keyboardModifiers()
-            & Qt.KeyboardModifier.ShiftModifier
+            QApplication.keyboardModifiers() & Qt.KeyboardModifier.ShiftModifier
         )
         if ev.button() == Qt.MouseButton.LeftButton and shift_held:
             vb = self._plot_widget.getViewBox()
@@ -648,10 +645,7 @@ class TagTimelineController:
             ev.accept()
             return
         # Plain left click on empty area: clear selection.
-        if (
-            ev.button() == Qt.MouseButton.LeftButton
-            and self._selected_tags
-        ):
+        if ev.button() == Qt.MouseButton.LeftButton and self._selected_tags:
             self.clear_selection()
         if self._orig_vb_mouse_press is not None:
             self._orig_vb_mouse_press(ev)
@@ -662,7 +656,8 @@ class TagTimelineController:
             view_pos = vb.mapSceneToView(ev.scenePos())
             x_now = float(view_pos.x())
             self._update_rubber_band_item(
-                x0=self._rubber_band_start_x, x1=x_now,
+                x0=self._rubber_band_start_x,
+                x1=x_now,
             )
             ev.accept()
             return
@@ -687,8 +682,10 @@ class TagTimelineController:
 
     def _create_rubber_band_item(self, x0, x1):
         from PyQt6.QtCore import QRectF
-        from PyQt6.QtGui import QBrush, QColor as _QColor, QPen
+        from PyQt6.QtGui import QBrush, QPen
+        from PyQt6.QtGui import QColor as _QColor
         from PyQt6.QtWidgets import QGraphicsRectItem
+
         vb = self._plot_widget.getViewBox()
         vr = vb.viewRect()
         rect = QRectF(x0, vr.top(), x1 - x0, vr.height())
@@ -708,6 +705,7 @@ class TagTimelineController:
         if self._rubber_band_item is None:
             return
         from PyQt6.QtCore import QRectF
+
         vb = self._plot_widget.getViewBox()
         vr = vb.viewRect()
         lo, hi = (x0, x1) if x0 <= x1 else (x1, x0)
@@ -729,7 +727,7 @@ class TagTimelineController:
         self.clear_selection()
         if x1 <= x0:
             return
-        for type_name, lst in self._scene_tags.items():
+        for _type_name, lst in self._scene_tags.items():
             for scene_tag in lst:
                 try:
                     tval = float(scene_tag.value())
@@ -738,5 +736,6 @@ class TagTimelineController:
                 if x0 <= tval <= x1:
                     self._selected_tags.add(scene_tag)
                     self._apply_selection_visual(
-                        scene_tag, selected=True,
+                        scene_tag,
+                        selected=True,
                     )

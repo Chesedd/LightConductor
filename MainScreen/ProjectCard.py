@@ -3,9 +3,13 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
-    QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -24,9 +28,7 @@ class ProjectCard(QFrame):
         super().__init__(parent)
         self._metadata = dict(metadata)
         self.setFrameShape(QFrame.Shape.StyledPanel)
-        self.setStyleSheet(
-            "QFrame { border: 1px solid #2e353d; border-radius: 10px; }"
-        )
+        self.setStyleSheet("QFrame { border: 1px solid #2e353d; border-radius: 10px; }")
         self._build_ui()
 
     def project_id(self) -> str:
@@ -53,8 +55,7 @@ class ProjectCard(QFrame):
             self._metadata.get("project_name", ""),
         )
         self._title_label.setStyleSheet(
-            "QLabel { font-size: 15px; font-weight: 600; "
-            "border: none; }"
+            "QLabel { font-size: 15px; font-weight: 600; border: none; }"
         )
         top_row.addWidget(self._title_label, stretch=1)
 
@@ -86,8 +87,7 @@ class ProjectCard(QFrame):
 
         self._meta_label = QLabel(self._build_meta_line())
         self._meta_label.setStyleSheet(
-            "QLabel { color: #9aa5b1; font-size: 12px; "
-            "border: none; }"
+            "QLabel { color: #9aa5b1; font-size: 12px; border: none; }"
         )
         outer.addWidget(self._meta_label)
 
@@ -106,12 +106,8 @@ class ProjectCard(QFrame):
         )
         if modified_fmt:
             parts.append(f"Modified: {modified_fmt}")
-        parts.append(
-            f"Masters: {int(self._metadata.get('masters_count', 0) or 0)}"
-        )
-        parts.append(
-            f"Slaves: {int(self._metadata.get('slaves_count', 0) or 0)}"
-        )
+        parts.append(f"Masters: {int(self._metadata.get('masters_count', 0) or 0)}")
+        parts.append(f"Slaves: {int(self._metadata.get('slaves_count', 0) or 0)}")
         track = bool(self._metadata.get("track_present", False))
         parts.append(f"Track: {'yes' if track else 'no'}")
         return " · ".join(parts)

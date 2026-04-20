@@ -1,14 +1,33 @@
-from pyqtgraph import  InfiniteLine
-from PyQt6 import QtWidgets, QtCore
+from PyQt6 import QtCore, QtWidgets
+from pyqtgraph import InfiniteLine
 
 from lightconductor.application.commands import DeleteTagCommand
 
-class Tag(InfiniteLine):
-    def __init__(self, action=None, colors=None, pos=None, angle=90, pen=None, movable=False, bounds=None,
-                 hoverPen=None, type=None, manager = None):
 
-        super().__init__(pos=pos, angle=angle, pen=pen, movable=movable,
-                         bounds=bounds, hoverPen=hoverPen, name=None)
+class Tag(InfiniteLine):
+    def __init__(
+        self,
+        action=None,
+        colors=None,
+        pos=None,
+        angle=90,
+        pen=None,
+        movable=False,
+        bounds=None,
+        hoverPen=None,
+        type=None,
+        manager=None,
+    ):
+
+        super().__init__(
+            pos=pos,
+            angle=angle,
+            pen=pen,
+            movable=movable,
+            bounds=bounds,
+            hoverPen=hoverPen,
+            name=None,
+        )
         self.time = pos.x()
         self.action = action
         self.colors = colors
@@ -17,10 +36,10 @@ class Tag(InfiniteLine):
         self.setAcceptHoverEvents(True)
         self.setZValue(100)
 
-
     def mousePressEvent(self, event):
-        from PyQt6.QtWidgets import QApplication
         from PyQt6.QtCore import Qt as QtEnum
+        from PyQt6.QtWidgets import QApplication
+
         # Find the controller via manager.box.wave._tagController.
         # Same resolution pattern used by deleteTag below.
         controller = None
@@ -33,7 +52,8 @@ class Tag(InfiniteLine):
                     controller = getattr(wave, "_tagController", None)
         mods = QApplication.keyboardModifiers()
         is_extend = bool(
-            mods & (
+            mods
+            & (
                 QtEnum.KeyboardModifier.ControlModifier
                 | QtEnum.KeyboardModifier.ShiftModifier
             )
@@ -53,6 +73,7 @@ class Tag(InfiniteLine):
         if self.manager is not None and self.manager.tagScreen is not None:
             self.manager.tagScreen.setTag(self)
         super().mousePressEvent(event)
+
     def hoverEnterEvent(self, event):
         if self.movable:
             QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.SizeHorCursor)
@@ -121,9 +142,11 @@ class Tag(InfiniteLine):
                     return
                 except (KeyError, IndexError):
                     import logging
+
                     logging.getLogger(__name__).warning(
                         "state missing tag during delete: type=%s idx=%s",
-                        type_name, idx,
+                        type_name,
+                        idx,
                     )
         if controller is not None and type_name is not None:
             controller.remove_scene_tag(type_name, self)

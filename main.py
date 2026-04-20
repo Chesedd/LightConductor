@@ -1,8 +1,8 @@
 import logging
 import sys
 from pathlib import Path
-from PyQt6.QtWidgets import QApplication
 
+from PyQt6.QtWidgets import QApplication
 
 SRC_PATH = Path(__file__).resolve().parent / "src"
 if str(SRC_PATH) not in sys.path:

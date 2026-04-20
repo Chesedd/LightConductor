@@ -1,11 +1,20 @@
 import logging
 
-from  PyQt6.QtWidgets import QWidget, QLabel, QLineEdit, QVBoxLayout, QHBoxLayout, QPushButton, QButtonGroup
-from AssistanceTools.ColorPicker import ColorPicker
+from PyQt6.QtWidgets import (
+    QButtonGroup,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
+from AssistanceTools.ColorPicker import ColorPicker
 from lightconductor.application.commands import EditTagCommand
 
 logger = logging.getLogger(__name__)
+
 
 class ColorButton(QPushButton):
     def __init__(self, text="", parent=None):
@@ -25,14 +34,14 @@ class ColorButton(QPushButton):
                                 }
                             """)
 
-
     def setColor(self, rgb):
         self.rgb = rgb
-        self.setStyleSheet("""
+        self.setStyleSheet(
+            """
                                 QPushButton {
                                 """
-                                    f"background-color: rgb({rgb[0]}, {rgb[1]}, {rgb[2]});"
-                                """
+            f"background-color: rgb({rgb[0]}, {rgb[1]}, {rgb[2]});"
+            """
                                 }
                                 QPushButton:checked {
                                     border: 2px solid #ff9900; 
@@ -42,7 +51,9 @@ class ColorButton(QPushButton):
                                     background-color: #2f2f2f;
                                     border: 1px dashed #7a7a7a;
                                 }
-                            """)
+                            """
+        )
+
 
 class TagInfoScreen(QWidget):
     def __init__(self, state, master_id, slave_id, wave, commands=None):
@@ -117,7 +128,6 @@ class TagInfoScreen(QWidget):
 
         return buttonWidget
 
-
     def initColorWidget(self):
         colorPickerWidget = QWidget()
         colorPickerLayout = QVBoxLayout(colorPickerWidget)
@@ -141,7 +151,11 @@ class TagInfoScreen(QWidget):
     def setColor(self):
         button = self.buttons.checkedButton()
         if button:
-            rgb = [self.colorPicker.rgb[0], self.colorPicker.rgb[1], self.colorPicker.rgb[2]]
+            rgb = [
+                self.colorPicker.rgb[0],
+                self.colorPicker.rgb[1],
+                self.colorPicker.rgb[2],
+            ]
             logger.debug("Color picked: %s", rgb)
             button.setColor(rgb)
 
@@ -163,7 +177,9 @@ class TagInfoScreen(QWidget):
 
         colors = tag.colors
         self.deleteAllWidgets(self.tagStateLayout)
-        topology = getattr(tag.type, "topology", [i for i in range(tag.type.row * tag.type.table)])
+        topology = getattr(
+            tag.type, "topology", [i for i in range(tag.type.row * tag.type.table)]
+        )
         color_index_by_cell = {cell: i for i, cell in enumerate(topology)}
         for i in range(tag.type.row):
             row = QWidget()
@@ -187,7 +203,6 @@ class TagInfoScreen(QWidget):
                 rowLayout.addWidget(button)
             self.tagStateLayout.addWidget(row)
 
-
     def deleteAllWidgets(self, layout):
         if layout is None:
             return
@@ -201,6 +216,7 @@ class TagInfoScreen(QWidget):
 
             elif item.layout() is not None:
                 self.deleteAllWidgets(item.layout())
+
     def setNone(self):
         return
 
@@ -209,7 +225,11 @@ class TagInfoScreen(QWidget):
         params["time"] = self.tagTimeText.text()
         action_text = self.tagActionText.text().strip().lower()
         params["action"] = action_text in ("on", "true", "1")
-        topology = getattr(self.tag.type, "topology", [i for i in range(self.tag.type.row * self.tag.type.table)])
+        topology = getattr(
+            self.tag.type,
+            "topology",
+            [i for i in range(self.tag.type.row * self.tag.type.table)],
+        )
         params["colors"] = []
         for cell in topology:
             params["colors"].append(self.buttons.buttons()[cell].rgb)
@@ -260,7 +280,8 @@ class TagInfoScreen(QWidget):
                 except (KeyError, IndexError):
                     logger.warning(
                         "state update_tag failed: type=%s idx=%s",
-                        type_name, idx,
+                        type_name,
+                        idx,
                     )
         self.tag.editParams(params)
         if controller is not None and type_name is not None:

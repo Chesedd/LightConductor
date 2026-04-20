@@ -1,4 +1,4 @@
-class TagType():
+class TagType:
     def __init__(self, color, name, pin, row, table, topology=None):
         self.setColor(color)
         self.setName(name)

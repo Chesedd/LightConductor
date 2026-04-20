@@ -1,14 +1,14 @@
 import pyqtgraph as pg
-
 from PyQt6.QtCore import Qt, pyqtSignal
 
-from ProjectScreen.TagLogic.WaveRenderer import WaveRenderer
 from ProjectScreen.TagLogic.TagTimelineController import TagTimelineController
+from ProjectScreen.TagLogic.WaveRenderer import WaveRenderer
 
 
 class WaveWidget(pg.PlotWidget):
     positionUpdate = pyqtSignal(float, str)
     waveActivated = pyqtSignal()
+
     def __init__(
         self,
         audioData,
@@ -26,9 +26,7 @@ class WaveWidget(pg.PlotWidget):
         self.manager = manager
         self.chooseBox = chooseBox
         self.vb = self.getViewBox()
-        self.scene().sigMouseClicked.connect(
-            lambda ev: self.waveActivated.emit()
-        )
+        self.scene().sigMouseClicked.connect(lambda ev: self.waveActivated.emit())
         self._renderer = WaveRenderer(
             plot_widget=self,
             audioData=audioData,
@@ -61,10 +59,12 @@ class WaveWidget(pg.PlotWidget):
         step = 1.0 if modifiers & Qt.KeyboardModifier.ShiftModifier else 0.1
         if ev.key() == Qt.Key.Key_Right:
             self._renderer.audioPlayer.setPosition(
-                round((self._renderer.selectedLine.value() + step) * 1000))
+                round((self._renderer.selectedLine.value() + step) * 1000)
+            )
         elif ev.key() == Qt.Key.Key_Left:
             self._renderer.audioPlayer.setPosition(
-                round((self._renderer.selectedLine.value() - step) * 1000))
+                round((self._renderer.selectedLine.value() - step) * 1000)
+            )
 
     def addTag(self, data):
         self._tagController.addTag(data)

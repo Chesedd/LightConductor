@@ -1,16 +1,14 @@
 import logging
 import time
 
-import pyqtgraph as pg
-
-from PyQt6.QtCore import QPointF, QUrl, QTimer
-from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
-import numpy as np
-
 import librosa
+import numpy as np
+import pyqtgraph as pg
+from PyQt6.QtCore import QPointF, QTimer, QUrl
+from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
 
-from ProjectScreen.TagLogic.ruler_format import format_tick_strings
 from lightconductor.application.beat_detection import detect_beats
+from ProjectScreen.TagLogic.ruler_format import format_tick_strings
 
 logger = logging.getLogger(__name__)
 
@@ -50,11 +48,15 @@ class WaveRenderer:
         if elapsed_ms > 500.0:
             logger.warning(
                 "Beat detection slow: %d beats in %.1f ms (duration=%.3fs)",
-                len(beat_times), elapsed_ms, self.duration,
+                len(beat_times),
+                elapsed_ms,
+                self.duration,
             )
         else:
             logger.info(
-                "Beat detection: %d beats in %.1f ms", len(beat_times), elapsed_ms,
+                "Beat detection: %d beats in %.1f ms",
+                len(beat_times),
+                elapsed_ms,
             )
         self.beat_times = beat_times
 
@@ -66,10 +68,10 @@ class WaveRenderer:
 
         self._plot_widget.setStyleSheet("QGraphicsView { border: 2px solid black; }")
         self._plot_widget.hideAxis("left")
-        bottom_axis = self._plot_widget.getAxis('bottom')
+        bottom_axis = self._plot_widget.getAxis("bottom")
         bottom_axis.tickStrings = WaveRenderer._format_tick_strings
-        self._plot_widget.setLabel('bottom', '')
-        self._plot_widget.setBackground('w')
+        self._plot_widget.setLabel("bottom", "")
+        self._plot_widget.setBackground("w")
         self.drawWave()
 
         self.vb.setLimits(
@@ -78,12 +80,11 @@ class WaveRenderer:
             yMin=-1,
             yMax=1,
             minXRange=0.05,
-            maxXRange=self.duration
+            maxXRange=self.duration,
         )
 
         self._plot_widget.setMenuEnabled(False)
         self.vb.disableAutoRange()
-
 
     def drawWave(self):
         timeAxis = np.linspace(0, self.duration, len(self.audioData))
@@ -94,27 +95,25 @@ class WaveRenderer:
             x_down = timeAxis[::downsampleFactor]
             y_down = self.audioData[::downsampleFactor]
 
-            self._plot_widget.plot(x_down, y_down, pen=pg.mkPen('b', width=1))
+            self._plot_widget.plot(x_down, y_down, pen=pg.mkPen("b", width=1))
         else:
-            self._plot_widget.plot(timeAxis, self.audioData, pen=pg.mkPen('b', width=1))
+            self._plot_widget.plot(timeAxis, self.audioData, pen=pg.mkPen("b", width=1))
 
-        #центральная линия
-        self.zeroLine = pg.InfiniteLine(pos = 0, angle=0, pen=pg.mkPen('r', width=1))
+        # центральная линия
+        self.zeroLine = pg.InfiniteLine(pos=0, angle=0, pen=pg.mkPen("r", width=1))
         self._plot_widget.addItem(self.zeroLine)
 
-        #курсор
-        self.vLine = pg.InfiniteLine(pos=0, angle=90, pen='y')
+        # курсор
+        self.vLine = pg.InfiniteLine(pos=0, angle=90, pen="y")
         self._plot_widget.addItem(self.vLine)
 
-        #метка
-        self.selectedLine = pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen('r', width=1))
+        # метка
+        self.selectedLine = pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen("r", width=1))
         self._plot_widget.addItem(self.selectedLine)
 
-        #движение мышью
+        # движение мышью
         self.proxy = pg.SignalProxy(
-            self._plot_widget.scene().sigMouseMoved,
-            rateLimit=60,
-            slot=self.mouseMoved
+            self._plot_widget.scene().sigMouseMoved, rateLimit=60, slot=self.mouseMoved
         )
 
     def mouseMoved(self, evt):
@@ -136,17 +135,14 @@ class WaveRenderer:
 
         center = QPointF(cursorPos.x(), vr.center().y())
 
-        s = 1.02 ** (ev.delta() * self.vb.state['wheelScaleFactor'])
+        s = 1.02 ** (ev.delta() * self.vb.state["wheelScaleFactor"])
 
         self.vb.scaleBy([s, 1], center)
 
         ev.accept()
 
-
     def updateVisibleFragment(self):
-        currentRange = self.vb.viewRange()[0]
-        vissibleDuration = currentRange[1] - currentRange[0]
-
+        pass
 
     def onClick(self, ev):
         pos = ev.scenePos()
@@ -178,6 +174,7 @@ class WaveRenderer:
             self.audioPlayer.play()
         else:
             self.audioPlayer.pause()
+
     def playAndPause(self):
         self.audioPlayer.play()
         QTimer.singleShot(100, self.audioPlayer.pause)

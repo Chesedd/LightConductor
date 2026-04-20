@@ -1,15 +1,24 @@
 import logging
 
-from PyQt6.QtWidgets import (QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QDialog,
-                             QLabel, QLineEdit, QToolButton, QButtonGroup, QMenu, QScrollArea, QComboBox,
-                             QCheckBox)
-from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtGui import QAction
-from ProjectScreen.TagLogic.TagType import TagType
-from AssistanceTools.ColorPicker import ColorPicker
 import pyqtgraph as pg
-from PyQt6.QtGui import QColor
-from ProjectScreen.PlateLogic.DeleteDialog import DeleteDialog
+from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtGui import QAction, QColor
+from PyQt6.QtWidgets import (
+    QButtonGroup,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QMenu,
+    QPushButton,
+    QScrollArea,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
+
+from AssistanceTools.ColorPicker import ColorPicker
 from AssistanceTools.FlowLayout import FlowLayout
 from AssistanceTools.SimpleDialog import SimpleDialog
 from lightconductor.application.commands import (
@@ -17,19 +26,22 @@ from lightconductor.application.commands import (
     DeleteTagTypeCommand,
     EditRangeCommand,
 )
-from lightconductor.application.range_allocator import available_starts
 from lightconductor.application.project_state import (
     TagTypeAdded,
     TagTypeRemoved,
     TagTypeUpdated,
 )
+from lightconductor.application.range_allocator import available_starts
 from lightconductor.domain.models import TagType as DomainTagType
-
+from ProjectScreen.PlateLogic.DeleteDialog import DeleteDialog
+from ProjectScreen.TagLogic.TagType import TagType
 
 logger = logging.getLogger(__name__)
 
+
 class TagManager(QWidget):
     newTypeCreate = pyqtSignal(TagType)
+
     def __init__(
         self,
         checkBox,
@@ -79,7 +91,9 @@ class TagManager(QWidget):
 
     def showNewTypeDialog(self):
         led_count = self.box.ledCount if self.box else 0
-        dialog = newTypeDialog(self, led_count=led_count, occupied_ranges=self.getOccupiedRanges())
+        dialog = newTypeDialog(
+            self, led_count=led_count, occupied_ranges=self.getOccupiedRanges()
+        )
         dialog.newType.connect(self.addType)
         dialog.exec()
 
@@ -181,7 +195,8 @@ class TagManager(QWidget):
             )
         except KeyError:
             logger.warning(
-                "TagTypeAdded for missing domain type: %s", event.type_name,
+                "TagTypeAdded for missing domain type: %s",
+                event.type_name,
             )
             return
         params = {
@@ -198,7 +213,8 @@ class TagManager(QWidget):
         type_name = event.type_name
         if type_name not in self.types:
             logger.warning(
-                "TagTypeRemoved for unknown widget type: %s", type_name,
+                "TagTypeRemoved for unknown widget type: %s",
+                type_name,
             )
             return
         wave = self.box.wave if self.box is not None else None
@@ -206,7 +222,10 @@ class TagManager(QWidget):
         if controller is not None:
             controller.remove_scene_tag_type(type_name)
         for btn in list(self.buttons.buttons()):
-            if getattr(btn, "tagType", None) is not None and btn.tagType.name == type_name:
+            if (
+                getattr(btn, "tagType", None) is not None
+                and btn.tagType.name == type_name
+            ):
                 self.buttons.removeButton(btn)
                 btn.deleteLater()
         # TagTypeChooseBox has no removeType yet; drop matching checkbox
@@ -224,8 +243,11 @@ class TagManager(QWidget):
             for i in range(states.count()):
                 item = states.itemAt(i)
                 st = item.widget() if item is not None else None
-                if st is not None and getattr(st, "tagType", None) is not None \
-                        and st.tagType.name == type_name:
+                if (
+                    st is not None
+                    and getattr(st, "tagType", None) is not None
+                    and st.tagType.name == type_name
+                ):
                     st.deleteLater()
         self.types.pop(type_name, None)
         if self.curType is not None and self.curType.name == type_name:
@@ -236,7 +258,8 @@ class TagManager(QWidget):
         tt = self.types.get(type_name)
         if tt is None:
             logger.warning(
-                "TagTypeUpdated for unknown widget type: %s", type_name,
+                "TagTypeUpdated for unknown widget type: %s",
+                type_name,
             )
             return
         try:
@@ -247,7 +270,8 @@ class TagManager(QWidget):
             )
         except KeyError:
             logger.warning(
-                "TagTypeUpdated for missing domain type: %s", type_name,
+                "TagTypeUpdated for missing domain type: %s",
+                type_name,
             )
             return
         tt.pin = domain_tt.pin
@@ -258,7 +282,7 @@ class TagManager(QWidget):
                 break
         color = domain_tt.color
         if isinstance(color, str):
-            r, g, b = map(int, color.split(','))
+            r, g, b = map(int, color.split(","))
         else:
             r, g, b = color[:3]
         wave = self.box.wave if self.box is not None else None
@@ -270,10 +294,11 @@ class TagManager(QWidget):
     def setNewType(self):
         self.curType = self.buttons.checkedButton().tagType
 
+
 class editDialog(SimpleDialog):
     editType = pyqtSignal(dict)
 
-    def __init__(self, parent=None, tagType = None):
+    def __init__(self, parent=None, tagType=None):
         super().__init__(parent=parent)
         self.type = tagType
         self.setWindowTitle(self.type.name)
@@ -285,7 +310,7 @@ class editDialog(SimpleDialog):
 
         self.colorPicker = ColorPicker()
         color = self.type.color
-        rgb = list(map(int, color.split(',')))
+        rgb = list(map(int, color.split(",")))
         for i in range(3):
             self.colorPicker.slidersLabels[i][0].setValue(rgb[i])
         self.layout().addWidget(self.colorPicker)
@@ -298,14 +323,16 @@ class editDialog(SimpleDialog):
     def onOkClicked(self):
         params = {
             "name": self.newNameBar.text(),
-            "color": f"{self.colorPicker.rgb[0]}, {self.colorPicker.rgb[1]}, {self.colorPicker.rgb[2]}",
-            "pin": self.newPinBar.text()
+            "color": f"{self.colorPicker.rgb[0]}, {self.colorPicker.rgb[1]}, {self.colorPicker.rgb[2]}",  # noqa: E501
+            "pin": self.newPinBar.text(),
         }
         self.editType.emit(params)
         self.accept()
 
+
 class newTypeDialog(SimpleDialog):
     newType = pyqtSignal(dict)
+
     def __init__(self, parent=None, led_count=0, occupied_ranges=None):
         super().__init__(parent=parent)
         self.setWindowTitle("New range")
@@ -383,7 +410,7 @@ class newTypeDialog(SimpleDialog):
             topology = [i for i in range(length)]
         params = {
             "name": self.newNameBar.text(),
-            "color": f"{self.colorPicker.rgb[0]}, {self.colorPicker.rgb[1]}, {self.colorPicker.rgb[2]}",
+            "color": f"{self.colorPicker.rgb[0]}, {self.colorPicker.rgb[1]}, {self.colorPicker.rgb[2]}",  # noqa: E501
             "pin": start,
             "row": rows,
             "table": cols,
@@ -406,7 +433,13 @@ class newTypeDialog(SimpleDialog):
         except ValueError:
             cols = 1
 
-        dialog = TopologyDialog(rows=max(1, rows), cols=max(1, cols), led_count=max(1, length), order=self.topology, parent=self)
+        dialog = TopologyDialog(
+            rows=max(1, rows),
+            cols=max(1, cols),
+            led_count=max(1, length),
+            order=self.topology,
+            parent=self,
+        )
         if dialog.exec():
             self.topology = dialog.order
 
@@ -420,7 +453,7 @@ class TopologyDialog(QDialog):
         self.led_count = led_count
         self.order = list(order) if order else []
         if len(self.order) > self.led_count:
-            self.order = self.order[:self.led_count]
+            self.order = self.order[: self.led_count]
         self.buttons = {}
 
         layout = QVBoxLayout(self)
@@ -470,6 +503,7 @@ class TopologyDialog(QDialog):
         self.counterLabel.setText(f"Selected LEDs: {len(self.order)}/{self.led_count}")
         self.okBtn.setEnabled(len(self.order) == self.led_count)
 
+
 class TagButton(QToolButton):
     def __init__(self, tagType, manager=None):
         super().__init__()
@@ -480,7 +514,6 @@ class TagButton(QToolButton):
 
         self.initButton()
 
-
     def initButton(self):
         container = QWidget()
         containerLayout = QHBoxLayout(container)
@@ -489,8 +522,7 @@ class TagButton(QToolButton):
         self.color = QLabel()
         self.color.setFixedSize(10, 10)
         self.color.setStyleSheet(
-            f"background-color: rgb({self.tagType.color});"
-            "border-radius: 5px;"
+            f"background-color: rgb({self.tagType.color});border-radius: 5px;"
         )
 
         self.name = QLabel(self.tagType.name)
@@ -558,6 +590,7 @@ class TagButton(QToolButton):
                 return
             except KeyError:
                 import logging
+
                 logging.getLogger(__name__).warning(
                     "state missing tag_type %s during edit",
                     self.tagType.name,
@@ -566,7 +599,7 @@ class TagButton(QToolButton):
         self.tagType.color = params["color"]
         self.tagType.pin = params["pin"]
         self.editButton()
-        r, g, b = map(int, self.tagType.color.split(','))
+        r, g, b = map(int, self.tagType.color.split(","))
         wave = self.manager.box.wave if self.manager.box is not None else None
         controller = getattr(wave, "_tagController", None)
         if controller is not None:
@@ -575,13 +608,11 @@ class TagButton(QToolButton):
 
     def editButton(self):
         self.color.setStyleSheet(
-            f"background-color: rgb({self.tagType.color});"
-            "border-radius: 5px;"
+            f"background-color: rgb({self.tagType.color});border-radius: 5px;"
         )
 
         self.name = QLabel(self.tagType.name)
         self.pin = QLabel(f"seg:{self.tagType.pin}")
-
 
     def showDeleteDialog(self):
         dialog = DeleteDialog(self)
@@ -621,6 +652,7 @@ class TagButton(QToolButton):
                 return
             except KeyError:
                 import logging
+
                 logging.getLogger(__name__).warning(
                     "state missing tag_type %s during delete",
                     self.tagType.name,

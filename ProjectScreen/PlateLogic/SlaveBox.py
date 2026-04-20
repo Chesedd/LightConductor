@@ -1,27 +1,32 @@
-from PyQt6.QtWidgets import (
-    QLabel, QHBoxLayout, QVBoxLayout, QPushButton,
-    QWidget, QMenu)
-from PyQt6.QtGui import QAction
-
-from AssistanceTools.TagState import TagState
-from ProjectScreen.TagLogic.TagScreen import TagInfoScreen
-from AssistanceTools.FlowLayout import FlowLayout
-from AssistanceTools.DropBox import DropBox
 import bisect
 
-from ProjectScreen.PlateLogic.TagDialog import TagDialog
-from ProjectScreen.PlateLogic.TagGroupPatternDialog import TagGroupPatternDialog
-from ProjectScreen.PlateLogic.RenameDialog import RenameDialog
-from ProjectScreen.PlateLogic.DeleteDialog import DeleteDialog
-from ProjectScreen.TagLogic.WaveMiniMap import WaveMiniMap
-from ProjectScreen.TagLogic.LedStripView import LedStripView
-from lightconductor.application.duplicate import (
-    build_duplicate_slave_composite,
+from PyQt6.QtGui import QAction
+from PyQt6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QMenu,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
+
+from AssistanceTools.DropBox import DropBox
+from AssistanceTools.FlowLayout import FlowLayout
+from AssistanceTools.TagState import TagState
 from lightconductor.application.device_templates import (
     template_from_slave,
 )
+from lightconductor.application.duplicate import (
+    build_duplicate_slave_composite,
+)
 from lightconductor.config import save_settings
+from ProjectScreen.PlateLogic.DeleteDialog import DeleteDialog
+from ProjectScreen.PlateLogic.RenameDialog import RenameDialog
+from ProjectScreen.PlateLogic.TagDialog import TagDialog
+from ProjectScreen.PlateLogic.TagGroupPatternDialog import TagGroupPatternDialog
+from ProjectScreen.TagLogic.LedStripView import LedStripView
+from ProjectScreen.TagLogic.TagScreen import TagInfoScreen
+from ProjectScreen.TagLogic.WaveMiniMap import WaveMiniMap
 
 
 class SlaveBox(DropBox):
@@ -29,9 +34,9 @@ class SlaveBox(DropBox):
         self,
         title="",
         parent=None,
-        boxID='',
+        boxID="",
         wave=None,
-        slavePin='',
+        slavePin="",
         ledCount=0,
         state=None,
         master_id=None,
@@ -167,17 +172,12 @@ class SlaveBox(DropBox):
         slave = None
         if self._state is not None and self._master_id is not None:
             try:
-                slave = (
-                    self._state.master(self._master_id)
-                    .slaves[self.boxID]
-                )
+                slave = self._state.master(self._master_id).slaves[self.boxID]
             except KeyError:
                 slave = None
         current_time = 0.0
         try:
-            current_time = float(
-                self.wave._renderer.selectedLine.value()
-            )
+            current_time = float(self.wave._renderer.selectedLine.value())
         except Exception:
             current_time = 0.0
         led_count = int(getattr(slave, "led_count", 0) or 0) if slave else 0
@@ -191,7 +191,10 @@ class SlaveBox(DropBox):
                 None,
             )
         dialog = TagDialog(
-            curType.row, curType.table, curType.topology, self,
+            curType.row,
+            curType.table,
+            curType.topology,
+            self,
             slave=slave,
             type_name=curType.name,
             current_time=current_time,
@@ -306,9 +309,7 @@ class SlaveBox(DropBox):
             source = master.slaves[self.boxID]
         except KeyError:
             return
-        existing_names = [
-            s.name for s in master.slaves.values()
-        ]
+        existing_names = [s.name for s in master.slaves.values()]
         composite = build_duplicate_slave_composite(
             source=source,
             target_master_id=self._master_id,
@@ -318,6 +319,7 @@ class SlaveBox(DropBox):
             self._commands.push(composite)
         except Exception:
             import logging
+
             logging.getLogger(__name__).exception(
                 "Duplicate slave composite push failed",
             )
@@ -334,17 +336,19 @@ class SlaveBox(DropBox):
         if settings is None:
             return
         try:
-            source = (
-                self._state.master(self._master_id)
-                .slaves[self.boxID]
-            )
+            source = self._state.master(self._master_id).slaves[self.boxID]
         except KeyError:
             return
         from PyQt6.QtWidgets import (
-            QDialog, QLabel, QLineEdit,
-            QVBoxLayout, QHBoxLayout, QPushButton,
+            QDialog,
+            QHBoxLayout,
+            QLabel,
+            QLineEdit,
             QMessageBox,
+            QPushButton,
+            QVBoxLayout,
         )
+
         dialog = QDialog(self)
         dialog.setWindowTitle("Save as template")
         dialog.setModal(True)
@@ -367,7 +371,8 @@ class SlaveBox(DropBox):
         template_name = name_edit.text().strip()
         if not template_name:
             QMessageBox.warning(
-                self, "Invalid name",
+                self,
+                "Invalid name",
                 "Template name cannot be empty.",
             )
             return
@@ -379,12 +384,12 @@ class SlaveBox(DropBox):
             save_settings(settings)
         except Exception:
             import logging
+
             logging.getLogger(__name__).exception(
                 "failed to persist device template",
             )
             QMessageBox.warning(
-                self, "Save failed",
-                "Template saved in memory but could not be "
-                "persisted to settings.json.",
+                self,
+                "Save failed",
+                "Template saved in memory but could not be persisted to settings.json.",
             )
-

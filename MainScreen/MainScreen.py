@@ -1,23 +1,32 @@
-from pathlib import Path
-
-from PyQt6.QtWidgets import (
-    QMainWindow, QPushButton, QVBoxLayout,
-    QHBoxLayout, QWidget, QLabel, QMessageBox,
-    QDialog, QLineEdit, QFrame, QFileDialog,
-)
 from PyQt6.QtCore import pyqtSignal
-from ProjectScreen.ProjectScreen import ProjectWindow
+from PyQt6.QtWidgets import (
+    QDialog,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
+
 from AssistanceTools.SimpleDialog import SimpleDialog
-from MainScreen.ProjectCard import ProjectCard
 from lightconductor.config import load_settings
 from lightconductor.infrastructure.project_archive import (
     ArchiveError,
 )
 from lightconductor.infrastructure.project_repository import ProjectRepository
 from lightconductor.presentation.main_controller import MainScreenController
+from MainScreen.ProjectCard import ProjectCard
+from ProjectScreen.ProjectScreen import ProjectWindow
+
 
 class NewProjectScreen(SimpleDialog):
     projectCreated = pyqtSignal(dict)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Новый проект")
@@ -29,22 +38,21 @@ class NewProjectScreen(SimpleDialog):
         self.paramsCreate()
         self.buttonsCreate()
 
-    #создание баров под название и трек
+    # создание баров под название и трек
     def paramsCreate(self):
         self.projectNameBar = self.LabelAndLine("Название проекта")
         self.songNameBar = self.LabelAndLine("Трек")
 
-
-    #создание ok и cancel
+    # создание ok и cancel
     def buttonsCreate(self):
         okBtn = self.OkAndCancel()
         okBtn.clicked.connect(self.onOkClicked)
 
     def onOkClicked(self):
         data = {
-            'project_name': self.projectNameBar.text(),
-            'song_name': self.songNameBar.text(),
-            'id': ''
+            "project_name": self.projectNameBar.text(),
+            "song_name": self.songNameBar.text(),
+            "id": "",
         }
         self.projectCreated.emit(data)
         self.accept()
@@ -76,21 +84,21 @@ class RenameProjectDialog(QDialog):
 
 
 class MainWindow(QMainWindow):
-
     def __init__(self):
         super(MainWindow, self).__init__()
 
         self.settings = load_settings()
         self.controller = MainScreenController(
-            ProjectRepository(), settings=self.settings,
+            ProjectRepository(),
+            settings=self.settings,
         )
-        self.projectWidgets = {} # айди проекта -> бокс с кнопками
+        self.projectWidgets = {}  # айди проекта -> бокс с кнопками
 
         self.initUI()
         self.loadExistingProjects()
         self.showMaximized()
 
-    #инициализация интерфейса
+    # инициализация интерфейса
     def initUI(self):
         self.setWindowTitle("LightConductor")
 
@@ -108,7 +116,7 @@ class MainWindow(QMainWindow):
         self.createUIButtons()
         self.layout.addStretch(1)
 
-    #создание пространства под кнопки и кнопки нового проекта
+    # создание пространства под кнопки и кнопки нового проекта
     def createUIButtons(self):
         buttonContainer = QWidget()
         self.buttonLayout = QVBoxLayout(buttonContainer)
@@ -130,13 +138,13 @@ class MainWindow(QMainWindow):
         actionsRowLayout.addWidget(importBtn)
         self.buttonLayout.addWidget(actionsRow)
 
-    #Загрузка существующих проектов
+    # Загрузка существующих проектов
     def loadExistingProjects(self):
         projects = self.controller.list_projects_with_metadata()
         for project in projects:
             self.initProject(project)
 
-    #открытие диалога нового проекта
+    # открытие диалога нового проекта
     def showProjectDialog(self):
         dialog = NewProjectScreen(self)
         dialog.projectCreated.connect(self.createAndInitProject)
@@ -144,22 +152,23 @@ class MainWindow(QMainWindow):
 
     def createAndInitProject(self, data):
         project = self.controller.create_project(
-            data["project_name"], data["song_name"],
+            data["project_name"],
+            data["song_name"],
         )
-        all_meta = {
-            m["id"]: m
-            for m in self.controller.list_projects_with_metadata()
-        }
-        metadata = all_meta.get(project["id"], {
-            "id": project["id"],
-            "project_name": project["project_name"],
-            "song_name": project["song_name"],
-            "created_at": None,
-            "modified_at": None,
-            "masters_count": 0,
-            "slaves_count": 0,
-            "track_present": False,
-        })
+        all_meta = {m["id"]: m for m in self.controller.list_projects_with_metadata()}
+        metadata = all_meta.get(
+            project["id"],
+            {
+                "id": project["id"],
+                "project_name": project["project_name"],
+                "song_name": project["song_name"],
+                "created_at": None,
+                "modified_at": None,
+                "masters_count": 0,
+                "slaves_count": 0,
+                "track_present": False,
+            },
+        )
         self.initProject(metadata)
 
     def initProject(self, data: dict):
@@ -169,7 +178,8 @@ class MainWindow(QMainWindow):
         card.deleteRequested.connect(self._on_delete_requested)
         card.exportRequested.connect(self._on_export_requested)
         self.buttonLayout.insertWidget(
-            self.buttonLayout.count() - 1, card,
+            self.buttonLayout.count() - 1,
+            card,
         )
         self.projectWidgets[data["id"]] = card
 
@@ -177,10 +187,12 @@ class MainWindow(QMainWindow):
         card = self.projectWidgets.get(project_id)
         if card is None:
             return
-        self.openProject({
-            "id": card.project_id(),
-            "project_name": card.project_name(),
-        })
+        self.openProject(
+            {
+                "id": card.project_id(),
+                "project_name": card.project_name(),
+            }
+        )
 
     def _on_rename_requested(self, project_id: str):
         card = self.projectWidgets.get(project_id)
@@ -193,33 +205,36 @@ class MainWindow(QMainWindow):
             new_name = dialog.new_name().strip()
             if not new_name:
                 QMessageBox.warning(
-                    self, "Invalid name",
+                    self,
+                    "Invalid name",
                     "Project name cannot be empty.",
                 )
                 continue
             if any(sep in new_name for sep in ("/", "\\")):
                 QMessageBox.warning(
-                    self, "Invalid name",
+                    self,
+                    "Invalid name",
                     "Project name cannot contain path separators.",
                 )
                 continue
             try:
                 ok = self.controller.rename_project(
-                    project_id, new_name,
+                    project_id,
+                    new_name,
                 )
             except Exception:
                 ok = False
             if not ok:
                 QMessageBox.warning(
-                    self, "Rename failed",
+                    self,
+                    "Rename failed",
                     "Could not rename project. The name may "
                     "be in use or the filesystem blocked the "
                     "operation.",
                 )
                 continue
             all_meta = {
-                m["id"]: m
-                for m in self.controller.list_projects_with_metadata()
+                m["id"]: m for m in self.controller.list_projects_with_metadata()
             }
             if project_id in all_meta:
                 card.update_metadata(all_meta[project_id])
@@ -230,11 +245,10 @@ class MainWindow(QMainWindow):
         if card is None:
             return
         reply = QMessageBox.question(
-            self, "Delete project",
-            f"Delete project \"{card.project_name()}\"? "
-            "This cannot be undone.",
-            QMessageBox.StandardButton.Yes
-            | QMessageBox.StandardButton.No,
+            self,
+            "Delete project",
+            f'Delete project "{card.project_name()}"? This cannot be undone.',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
@@ -261,24 +275,28 @@ class MainWindow(QMainWindow):
             self.controller.export_project(project_id, file_path)
         except FileNotFoundError as exc:
             QMessageBox.critical(
-                self, "Export failed",
+                self,
+                "Export failed",
                 f"Source files missing:\n{exc}",
             )
             return
         except OSError as exc:
             QMessageBox.critical(
-                self, "Export failed",
+                self,
+                "Export failed",
                 f"Could not write archive:\n{exc}",
             )
             return
         except Exception as exc:
             QMessageBox.critical(
-                self, "Export failed",
+                self,
+                "Export failed",
                 f"Unexpected error:\n{exc}",
             )
             return
         QMessageBox.information(
-            self, "Export complete",
+            self,
+            "Export complete",
             f"Exported to:\n{file_path}",
         )
 
@@ -286,6 +304,7 @@ class MainWindow(QMainWindow):
         from lightconductor.infrastructure.project_repository import (
             ProjectNameCollision,
         )
+
         file_path, _filter = QFileDialog.getOpenFileName(
             self,
             "Import project",
@@ -302,27 +321,28 @@ class MainWindow(QMainWindow):
             )
         except ArchiveError as exc:
             QMessageBox.critical(
-                self, "Invalid archive",
+                self,
+                "Invalid archive",
                 f"Cannot import this archive:\n{exc}",
             )
             return
         except OSError as exc:
             QMessageBox.critical(
-                self, "Invalid archive",
+                self,
+                "Invalid archive",
                 f"Cannot read archive:\n{exc}",
             )
             return
         except Exception as exc:
             QMessageBox.critical(
-                self, "Invalid archive",
+                self,
+                "Invalid archive",
                 f"Unexpected error inspecting archive:\n{exc}",
             )
             return
         # Step 2: ask for target name, pre-filled with the
         # manifest's source name. Dialog loops on collision.
-        initial_name = (
-            manifest.get("source_project_name") or ""
-        )
+        initial_name = manifest.get("source_project_name") or ""
         dialog = RenameProjectDialog(initial_name, self)
         dialog.setWindowTitle("Import project")
         while True:
@@ -331,50 +351,58 @@ class MainWindow(QMainWindow):
             target_name = dialog.new_name().strip()
             if not target_name:
                 QMessageBox.warning(
-                    self, "Invalid name",
+                    self,
+                    "Invalid name",
                     "Project name cannot be empty.",
                 )
                 continue
             if any(sep in target_name for sep in ("/", "\\")):
                 QMessageBox.warning(
-                    self, "Invalid name",
+                    self,
+                    "Invalid name",
                     "Project name cannot contain path separators.",
                 )
                 continue
             try:
                 self.controller.import_project(
-                    file_path, target_name,
+                    file_path,
+                    target_name,
                 )
             except ProjectNameCollision:
                 QMessageBox.warning(
-                    self, "Name in use",
-                    f"\"{target_name}\" is already used by "
+                    self,
+                    "Name in use",
+                    f'"{target_name}" is already used by '
                     f"another project. Choose a different name.",
                 )
                 continue
             except ArchiveError as exc:
                 QMessageBox.critical(
-                    self, "Import failed",
+                    self,
+                    "Import failed",
                     f"Archive invalid:\n{exc}",
                 )
                 return
             except OSError as exc:
                 QMessageBox.critical(
-                    self, "Import failed",
+                    self,
+                    "Import failed",
                     f"Filesystem error:\n{exc}",
                 )
                 return
             except Exception as exc:
                 QMessageBox.critical(
-                    self, "Import failed",
+                    self,
+                    "Import failed",
                     f"Unexpected error:\n{exc}",
                 )
                 return
             # Success — rebuild the card list from scratch.
             self._reload_cards()
             QMessageBox.information(
-                self, "Import complete",
-                f"Imported project \"{target_name}\".",
+                self,
+                "Import complete",
+                f'Imported project "{target_name}".',
             )
             return
 
@@ -392,7 +420,7 @@ class MainWindow(QMainWindow):
             self.initProject(project)
         self._refresh_recent_section()
 
-    #удаление проекта
+    # удаление проекта
     def deleteProject(self, projectId):
         if self.controller.delete_project(projectId):
             widget = self.projectWidgets[projectId]
@@ -402,7 +430,7 @@ class MainWindow(QMainWindow):
             del self.projectWidgets[projectId]
             self._refresh_recent_section()
 
-    #открытие проекта
+    # открытие проекта
     def openProject(self, project_data):
         self.controller.mark_project_opened(
             project_data.get("id", ""),
@@ -461,7 +489,6 @@ class MainWindow(QMainWindow):
             return
         self._recentFrame.setVisible(True)
         for meta in recent:
-            pid = meta.get("id", "")
             pname = meta.get("project_name", "")
             btn = QPushButton(f"\u25b6 {pname}")
             btn.setFixedHeight(30)
@@ -470,8 +497,7 @@ class MainWindow(QMainWindow):
                 "border: 1px solid transparent; }"
             )
             btn.clicked.connect(
-                lambda _checked=False, data=dict(meta):
-                    self._on_recent_clicked(data),
+                lambda _checked=False, data=dict(meta): self._on_recent_clicked(data),
             )
             self._recentListLayout.addWidget(btn)
 
