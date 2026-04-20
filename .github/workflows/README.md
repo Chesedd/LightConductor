@@ -50,17 +50,20 @@ No badges yet.
 `mypy src/lightconductor/` runs before pytest.
 
 Configuration lives in `pyproject.toml` under
-`[tool.mypy]`. Strategy is gradual strictness:
+`[tool.mypy]`. The entire `src/lightconductor/` tree
+is under mypy strict mode:
 
-- Baseline (conservative checks) across
-  `src/lightconductor/`.
-- Strict mode on `lightconductor.domain.*`,
-  `lightconductor.application.*`, and
-  `lightconductor.infrastructure.*` (roadmap 7.3a, 7.3b).
-- `lightconductor.presentation.*` moves to strict in
-  roadmap 7.3c (follow-up).
+- `lightconductor.domain.*`
+- `lightconductor.application.*`
+- `lightconductor.infrastructure.*`
+- `lightconductor.presentation.*`
 
 Third-party modules without stubs (librosa, pyqtgraph,
 numpy, etc.) are marked `ignore_missing_imports`.
 
-No badges yet.
+Each package has its own `[[tool.mypy.overrides]]`
+block with the strict flags expanded explicitly, to
+work around mypy#11401 (the leaking-globally bug of
+`strict = true` inside overrides).
+
+No badges.

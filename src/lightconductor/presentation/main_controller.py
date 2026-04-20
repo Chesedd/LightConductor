@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import List, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from lightconductor.application import (
     CreateProjectUseCase,
@@ -46,7 +47,7 @@ class MainScreenController:
         self.export_project_use_case = ExportProjectUseCase(self.repository)
         self.import_project_use_case = ImportProjectUseCase(self.repository)
 
-    def list_projects(self) -> List[dict]:
+    def list_projects(self) -> List[Dict[str, Any]]:
         return [
             {
                 "id": project.id,
@@ -56,7 +57,7 @@ class MainScreenController:
             for project in self.list_projects_use_case.execute()
         ]
 
-    def list_projects_with_metadata(self) -> list[dict]:
+    def list_projects_with_metadata(self) -> List[Dict[str, Any]]:
         return [
             {
                 "id": m.id,
@@ -71,7 +72,7 @@ class MainScreenController:
             for m in self.list_with_metadata_use_case.execute()
         ]
 
-    def create_project(self, project_name: str, song_name: str) -> dict:
+    def create_project(self, project_name: str, song_name: str) -> Dict[str, Any]:
         project = self.create_project_use_case.execute(project_name, song_name)
         return {
             "id": project.id,
@@ -97,7 +98,7 @@ class MainScreenController:
     def export_project(
         self,
         project_id: str,
-        output_zip_path,
+        output_zip_path: Path | str,
     ) -> None:
         self.export_project_use_case.execute(
             project_id,
@@ -106,9 +107,9 @@ class MainScreenController:
 
     def import_project(
         self,
-        zip_path,
+        zip_path: Path | str,
         target_project_name: str,
-    ) -> dict:
+    ) -> Dict[str, Any]:
         """Returns dict with the same shape as create_project."""
         project = self.import_project_use_case.execute(
             zip_path,
@@ -120,7 +121,7 @@ class MainScreenController:
             "song_name": project.song_name,
         }
 
-    def inspect_archive_manifest(self, zip_path) -> dict:
+    def inspect_archive_manifest(self, zip_path: Path | str) -> Dict[str, Any]:
         """Read an archive's manifest without extracting.
         Returns a dict with keys:
             source_project_name, song_name,
@@ -129,8 +130,6 @@ class MainScreenController:
         Raises ArchiveError (or subtype) on invalid archives.
         Raises OSError on file read failures.
         """
-        from pathlib import Path
-
         from lightconductor.infrastructure.project_archive import (
             inspect_archive as _inspect,
         )
@@ -157,7 +156,7 @@ class MainScreenController:
         self.settings.recent_project_ids = current
         self._persist_settings()
 
-    def get_recent_projects(self) -> list[dict]:
+    def get_recent_projects(self) -> List[Dict[str, Any]]:
         """Return metadata dicts for surviving recent
         projects, in most-recent-first order. Filters out
         ids not present in the repository. Returns [] when
