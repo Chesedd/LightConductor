@@ -43,6 +43,9 @@ class Tag(InfiniteLine):
                 controller.toggle_selection(self)
             else:
                 controller.select_only(self)
+        # Snapshot origin times if a group-drag is about to start.
+        if controller is not None and self.movable:
+            controller.notify_drag_started(self)
         # Preserve the existing single-tag info-panel behavior
         # for plain clicks. On extend-clicks, still set the
         # TagInfoScreen to this tag — user's last-clicked tag

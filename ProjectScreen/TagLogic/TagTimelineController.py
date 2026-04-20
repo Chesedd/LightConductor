@@ -6,7 +6,7 @@ import pyqtgraph as pg
 from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QApplication
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from ProjectScreen.TagLogic.TagObject import Tag
 from lightconductor.application.beat_detection import snap_to_nearest_beat
@@ -52,6 +52,14 @@ class TagTimelineController:
         # regardless of its current position in the time-sorted list.
         self._scene_by_domain_id: Dict[int, Tag] = {}
         self._selected_tags: Set[Tag] = set()
+        self._drag_anchor_tag: Optional[Tag] = None
+        self._drag_group_origin: Dict[int, float] = {}
+        self._orig_vb_mouse_press = None
+        self._orig_vb_mouse_move = None
+        self._orig_vb_mouse_release = None
+        self._rubber_band_item = None
+        self._rubber_band_start_x: Optional[float] = None
+        self._rubber_band_active: bool = False
         self._unsubscribe = None
         if self._state is not None:
             self._unsubscribe = self._state.subscribe(self._on_state_event)
@@ -212,17 +220,42 @@ class TagTimelineController:
 
     def _on_tag_position_changed(self, scene_tag):
         tag_info = getattr(self._manager, "tagScreen", None)
-        if tag_info is None:
-            return
-        if getattr(tag_info, "tag", None) is not scene_tag:
-            return
-        try:
-            new_x = float(scene_tag.value())
-        except (TypeError, ValueError):
-            return
-        scene_tag.time = new_x
-        if getattr(tag_info, "tagTimeText", None) is not None:
-            tag_info.tagTimeText.setText(f"{new_x:.3f}")
+        if tag_info is not None and getattr(tag_info, "tag", None) is scene_tag:
+            try:
+                new_x = float(scene_tag.value())
+            except (TypeError, ValueError):
+                return
+            scene_tag.time = new_x
+            if getattr(tag_info, "tagTimeText", None) is not None:
+                tag_info.tagTimeText.setText(f"{new_x:.3f}")
+        # If this scene_tag is the anchor of an active bulk
+        # drag, mirror its delta across the selection.
+        if (
+            scene_tag is self._drag_anchor_tag
+            and scene_tag in self._selected_tags
+            and len(self._selected_tags) > 1
+        ):
+            try:
+                anchor_new = float(scene_tag.value())
+            except (TypeError, ValueError):
+                return
+            anchor_origin = self._drag_group_origin.get(id(scene_tag))
+            if anchor_origin is None:
+                return
+            delta = anchor_new - anchor_origin
+            from PyQt6.QtCore import QSignalBlocker
+            for other in self._selected_tags:
+                if other is scene_tag:
+                    continue
+                other_origin = self._drag_group_origin.get(id(other))
+                if other_origin is None:
+                    continue
+                blocker = QSignalBlocker(other)
+                try:
+                    other.setPos(other_origin + delta)
+                    other.time = other_origin + delta
+                finally:
+                    del blocker
 
     def _find_domain_id_for_scene_tag(self, scene_tag):
         for did, st in self._scene_by_domain_id.items():
@@ -230,7 +263,33 @@ class TagTimelineController:
                 return did
         return None
 
+    def notify_drag_started(self, scene_tag):
+        """Called from Tag.mousePressEvent when a move is
+        initiated. Captures the pre-drag time of every selected
+        scene tag (so we can compute deltas later) if the pressed
+        tag is part of the selection."""
+        if scene_tag not in self._selected_tags:
+            self._drag_anchor_tag = None
+            self._drag_group_origin = {}
+            return
+        self._drag_anchor_tag = scene_tag
+        self._drag_group_origin = {
+            id(t): float(t.value()) for t in self._selected_tags
+        }
+
     def _on_tag_drag_finished(self, scene_tag):
+        # Group drag: anchor matches and selection > 1.
+        if (
+            scene_tag is self._drag_anchor_tag
+            and scene_tag in self._selected_tags
+            and len(self._selected_tags) > 1
+        ):
+            self._finish_bulk_drag(scene_tag)
+            return
+        # Single-tag path (existing 4.3b behavior verbatim).
+        self._finish_single_drag(scene_tag)
+
+    def _finish_single_drag(self, scene_tag):
         shift_held = bool(
             QApplication.keyboardModifiers() & Qt.KeyboardModifier.ShiftModifier
         )
@@ -302,6 +361,95 @@ class TagTimelineController:
             except (KeyError, IndexError):
                 scene_tag.setPos(old_time)
                 scene_tag.time = old_time
+
+    def _finish_bulk_drag(self, anchor):
+        from lightconductor.application.commands import CompositeCommand
+        shift_held = bool(
+            QApplication.keyboardModifiers()
+            & Qt.KeyboardModifier.ShiftModifier
+        )
+        beats = (
+            getattr(self._renderer, "beat_times", None)
+            if shift_held else None
+        )
+        dur = float(getattr(self._renderer, "duration", 0.0) or 0.0)
+        if (
+            self._state is None
+            or self._master_id is None
+            or self._slave_id is None
+        ):
+            # Headless fallback: no command stack available.
+            self._drag_anchor_tag = None
+            self._drag_group_origin = {}
+            return
+        children = []
+        for scene_tag in self._selected_tags:
+            type_ = getattr(scene_tag, "type", None)
+            type_name = type_.name if type_ is not None else None
+            if type_name is None:
+                continue
+            domain_id = self._find_domain_id_for_scene_tag(scene_tag)
+            if domain_id is None:
+                continue
+            tags = self._domain_tag_list(type_name)
+            if tags is None:
+                continue
+            idx_hint = None
+            for i, dt in enumerate(tags):
+                if id(dt) == domain_id:
+                    idx_hint = i
+                    break
+            if idx_hint is None:
+                continue
+            raw = max(0.0, float(scene_tag.value()))
+            snapped = snap_to_nearest_beat(
+                raw, beats, _SNAP_GRANULARITY_SECONDS,
+            )
+            if dur > 0.0 and snapped > dur:
+                snapped = dur
+            old_time = float(tags[idx_hint].time_seconds)
+            if abs(old_time - snapped) < 1e-6:
+                continue
+            children.append(
+                MoveTagCommand(
+                    master_id=self._master_id,
+                    slave_id=self._slave_id,
+                    type_name=type_name,
+                    tag_index=idx_hint,
+                    new_time_seconds=snapped,
+                    tag_identity=domain_id,
+                )
+            )
+        self._drag_anchor_tag = None
+        self._drag_group_origin = {}
+        if not children:
+            # No-op drag: revert live-echo side effects.
+            for scene_tag in list(self._selected_tags):
+                type_ = getattr(scene_tag, "type", None)
+                type_name = type_.name if type_ is not None else None
+                if type_name is None:
+                    continue
+                tags = self._domain_tag_list(type_name)
+                if tags is None:
+                    continue
+                domain_id = self._find_domain_id_for_scene_tag(scene_tag)
+                if domain_id is None:
+                    continue
+                for dt in tags:
+                    if id(dt) == domain_id:
+                        scene_tag.setPos(float(dt.time_seconds))
+                        scene_tag.time = float(dt.time_seconds)
+                        break
+            return
+        if self._commands is not None:
+            try:
+                self._commands.push(
+                    CompositeCommand(children=children),
+                )
+            except Exception:
+                logger.exception(
+                    "bulk-move CompositeCommand push failed",
+                )
 
     def _handle_tag_added(self, event):
         domain_tags = self._domain_tag_list(event.type_name)
@@ -464,3 +612,131 @@ class TagTimelineController:
                 tag.show()
             else:
                 tag.hide()
+
+    # ------------------------------------------------------------------
+    # Rubber-band selection
+    # ------------------------------------------------------------------
+
+    def install_rubber_band(self):
+        """Install rubber-band selection on the plot scene by
+        monkey-patching the ViewBox mouse handlers. Preserves the
+        originals for delegation when Shift is not held, matching
+        the WaveRenderer.wheelEventFixedCenter pattern."""
+        vb = self._plot_widget.getViewBox()
+        self._orig_vb_mouse_press = vb.mousePressEvent
+        self._orig_vb_mouse_move = vb.mouseMoveEvent
+        self._orig_vb_mouse_release = vb.mouseReleaseEvent
+        vb.mousePressEvent = self._vb_mouse_press
+        vb.mouseMoveEvent = self._vb_mouse_move
+        vb.mouseReleaseEvent = self._vb_mouse_release
+
+    def _vb_mouse_press(self, ev):
+        shift_held = bool(
+            QApplication.keyboardModifiers()
+            & Qt.KeyboardModifier.ShiftModifier
+        )
+        if ev.button() == Qt.MouseButton.LeftButton and shift_held:
+            vb = self._plot_widget.getViewBox()
+            scene_pos = ev.scenePos()
+            view_pos = vb.mapSceneToView(scene_pos)
+            self._rubber_band_start_x = float(view_pos.x())
+            self._rubber_band_active = True
+            self._create_rubber_band_item(
+                x0=self._rubber_band_start_x,
+                x1=self._rubber_band_start_x,
+            )
+            ev.accept()
+            return
+        # Plain left click on empty area: clear selection.
+        if (
+            ev.button() == Qt.MouseButton.LeftButton
+            and self._selected_tags
+        ):
+            self.clear_selection()
+        if self._orig_vb_mouse_press is not None:
+            self._orig_vb_mouse_press(ev)
+
+    def _vb_mouse_move(self, ev):
+        if self._rubber_band_active:
+            vb = self._plot_widget.getViewBox()
+            view_pos = vb.mapSceneToView(ev.scenePos())
+            x_now = float(view_pos.x())
+            self._update_rubber_band_item(
+                x0=self._rubber_band_start_x, x1=x_now,
+            )
+            ev.accept()
+            return
+        if self._orig_vb_mouse_move is not None:
+            self._orig_vb_mouse_move(ev)
+
+    def _vb_mouse_release(self, ev):
+        if self._rubber_band_active:
+            vb = self._plot_widget.getViewBox()
+            view_pos = vb.mapSceneToView(ev.scenePos())
+            x_end = float(view_pos.x())
+            x0 = min(self._rubber_band_start_x, x_end)
+            x1 = max(self._rubber_band_start_x, x_end)
+            self._apply_rubber_band_selection(x0, x1)
+            self._destroy_rubber_band_item()
+            self._rubber_band_active = False
+            self._rubber_band_start_x = None
+            ev.accept()
+            return
+        if self._orig_vb_mouse_release is not None:
+            self._orig_vb_mouse_release(ev)
+
+    def _create_rubber_band_item(self, x0, x1):
+        from PyQt6.QtCore import QRectF
+        from PyQt6.QtGui import QBrush, QColor as _QColor, QPen
+        from PyQt6.QtWidgets import QGraphicsRectItem
+        vb = self._plot_widget.getViewBox()
+        vr = vb.viewRect()
+        rect = QRectF(x0, vr.top(), x1 - x0, vr.height())
+        item = QGraphicsRectItem(rect)
+        brush = QBrush(_QColor(100, 150, 255, 60))
+        pen = QPen(_QColor(70, 110, 200))
+        pen.setStyle(Qt.PenStyle.DashLine)
+        pen.setWidth(1)
+        pen.setCosmetic(True)
+        item.setBrush(brush)
+        item.setPen(pen)
+        item.setZValue(200)
+        self._plot_widget.scene().addItem(item)
+        self._rubber_band_item = item
+
+    def _update_rubber_band_item(self, x0, x1):
+        if self._rubber_band_item is None:
+            return
+        from PyQt6.QtCore import QRectF
+        vb = self._plot_widget.getViewBox()
+        vr = vb.viewRect()
+        lo, hi = (x0, x1) if x0 <= x1 else (x1, x0)
+        self._rubber_band_item.setRect(
+            QRectF(lo, vr.top(), hi - lo, vr.height()),
+        )
+
+    def _destroy_rubber_band_item(self):
+        if self._rubber_band_item is None:
+            return
+        scene = self._plot_widget.scene()
+        if scene is not None:
+            scene.removeItem(self._rubber_band_item)
+        self._rubber_band_item = None
+
+    def _apply_rubber_band_selection(self, x0, x1):
+        """Replace selection with all scene tags whose time falls
+        in [x0, x1]."""
+        self.clear_selection()
+        if x1 <= x0:
+            return
+        for type_name, lst in self._scene_tags.items():
+            for scene_tag in lst:
+                try:
+                    tval = float(scene_tag.value())
+                except (TypeError, ValueError):
+                    continue
+                if x0 <= tval <= x1:
+                    self._selected_tags.add(scene_tag)
+                    self._apply_selection_visual(
+                        scene_tag, selected=True,
+                    )

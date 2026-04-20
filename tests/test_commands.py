@@ -13,6 +13,7 @@ from lightconductor.application.commands import (
     AddSlaveCommand,
     AddTagCommand,
     AddTagTypeCommand,
+    CompositeCommand,
     DeleteSlaveCommand,
     DeleteTagCommand,
     DeleteTagTypeCommand,
@@ -215,6 +216,105 @@ def test_move_tag_execute_out_of_range_raises_index_error(state):
 
     with pytest.raises(IndexError):
         cmd.execute(state)
+
+
+def test_move_tag_with_identity_resolves_to_current_index(state):
+    _seed(state, [1.0, 2.0, 3.0])
+    target = _tags(state)[1]
+    tid = id(target)
+    cmd = MoveTagCommand(
+        "m1", "s1", "tt1", tag_index=1, new_time_seconds=5.0,
+        tag_identity=tid,
+    )
+    # Insert a tag BEFORE execute so tag_index hint becomes stale:
+    # the target (time=2.0) is now at index 2, not 1.
+    inserted = _tag(time_seconds=0.5)
+    state.add_tag("m1", "s1", "tt1", inserted)
+    assert [t.time_seconds for t in _tags(state)] == [0.5, 1.0, 2.0, 3.0]
+    assert _tags(state)[2] is target
+
+    cmd.execute(state)
+
+    tags = _tags(state)
+    assert [t.time_seconds for t in tags] == [0.5, 1.0, 3.0, 5.0]
+    # Identity-matched tag moved to 5.0; the tag we inserted at 0.5 untouched.
+    assert tags[3] is target
+    assert tags[0] is inserted
+
+    cmd.undo(state)
+
+    tags = _tags(state)
+    assert [t.time_seconds for t in tags] == [0.5, 1.0, 2.0, 3.0]
+    assert tags[2] is target
+
+
+def test_move_tag_without_identity_uses_index(state):
+    _seed(state, [1.0, 2.0, 3.0])
+    # Insert a tag BEFORE execute: tags becomes [0.5, 1.0, 2.0, 3.0].
+    state.add_tag("m1", "s1", "tt1", _tag(time_seconds=0.5))
+    assert [t.time_seconds for t in _tags(state)] == [0.5, 1.0, 2.0, 3.0]
+    # With tag_identity=None, tag_index=1 moves the tag at index 1
+    # (time=1.0), not the one originally at index 1 (time=2.0).
+    moved_by_index = _tags(state)[1]
+    cmd = MoveTagCommand(
+        "m1", "s1", "tt1", tag_index=1, new_time_seconds=5.0,
+    )
+
+    cmd.execute(state)
+
+    tags = _tags(state)
+    assert [t.time_seconds for t in tags] == [0.5, 2.0, 3.0, 5.0]
+    assert tags[3] is moved_by_index
+
+
+def test_move_tag_with_missing_identity_raises(state):
+    _seed(state, [1.0, 2.0, 3.0])
+    cmd = MoveTagCommand(
+        "m1", "s1", "tt1", tag_index=0, new_time_seconds=5.0,
+        tag_identity=9999,
+    )
+
+    with pytest.raises(IndexError):
+        cmd.execute(state)
+
+
+def test_composite_bulk_move_preserves_identities(state):
+    _seed(state, [1.0, 2.0, 3.0, 4.0])
+    tags = _tags(state)
+    ref_a, ref_b, ref_c, ref_d = tags[0], tags[1], tags[2], tags[3]
+    children = [
+        MoveTagCommand(
+            "m1", "s1", "tt1", tag_index=0, new_time_seconds=10.0,
+            tag_identity=id(ref_a),
+        ),
+        MoveTagCommand(
+            "m1", "s1", "tt1", tag_index=2, new_time_seconds=20.0,
+            tag_identity=id(ref_c),
+        ),
+        MoveTagCommand(
+            "m1", "s1", "tt1", tag_index=3, new_time_seconds=30.0,
+            tag_identity=id(ref_d),
+        ),
+    ]
+    composite = CompositeCommand(children=children)
+
+    composite.execute(state)
+
+    tags_after = _tags(state)
+    by_identity = {id(t): t.time_seconds for t in tags_after}
+    assert by_identity[id(ref_a)] == 10.0
+    assert by_identity[id(ref_b)] == 2.0
+    assert by_identity[id(ref_c)] == 20.0
+    assert by_identity[id(ref_d)] == 30.0
+
+    composite.undo(state)
+
+    tags_restored = _tags(state)
+    assert [t.time_seconds for t in tags_restored] == [1.0, 2.0, 3.0, 4.0]
+    assert tags_restored[0] is ref_a
+    assert tags_restored[1] is ref_b
+    assert tags_restored[2] is ref_c
+    assert tags_restored[3] is ref_d
 
 
 # ---------------------------------------------------------------------------

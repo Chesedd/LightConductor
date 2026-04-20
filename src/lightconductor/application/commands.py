@@ -99,21 +99,35 @@ class MoveTagCommand:
     type_name: str
     tag_index: int
     new_time_seconds: float
+    tag_identity: Optional[int] = None
     _old_time_seconds: Optional[float] = field(default=None, init=False)
     _tag_ref: Optional[Tag] = field(default=None, init=False)
 
     def execute(self, state: ProjectState) -> None:
         tags = state.master(self.master_id).slaves[self.slave_id].tag_types[self.type_name].tags
-        if self.tag_index < 0 or self.tag_index >= len(tags):
-            raise IndexError(self.tag_index)
-        self._tag_ref = tags[self.tag_index]
+        resolved_index: Optional[int] = None
+        if self.tag_identity is not None:
+            for i, t in enumerate(tags):
+                if id(t) == self.tag_identity:
+                    resolved_index = i
+                    break
+            if resolved_index is None:
+                raise IndexError(
+                    f"tag_identity {self.tag_identity} not found in "
+                    f"{self.master_id}/{self.slave_id}/{self.type_name}"
+                )
+        else:
+            if self.tag_index < 0 or self.tag_index >= len(tags):
+                raise IndexError(self.tag_index)
+            resolved_index = self.tag_index
+        self._tag_ref = tags[resolved_index]
         self._old_time_seconds = self._tag_ref.time_seconds
         # state.update_tag repositions the tag via pop+bisect-
         # reinsert when time_seconds changes. The _tag_ref
         # identity is preserved across the reposition.
         state.update_tag(
             self.master_id, self.slave_id, self.type_name,
-            self.tag_index,
+            resolved_index,
             time_seconds=self.new_time_seconds,
         )
 

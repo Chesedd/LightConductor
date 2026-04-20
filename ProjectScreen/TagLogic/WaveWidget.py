@@ -48,6 +48,7 @@ class WaveWidget(pg.PlotWidget):
         self.chooseBox.stateChanged.connect(self.editTagTypeOnWave)
         self._renderer.init_ui()
         self._renderer.setupMouse()
+        self._tagController.install_rubber_band()
 
     def setAudioData(self, audioData, sr, audioPath):
         self._renderer.setAudioData(audioData, sr, audioPath)
