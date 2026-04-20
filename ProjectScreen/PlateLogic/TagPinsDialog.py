@@ -23,6 +23,7 @@ class TagPinsDialog(QDialog):
         topology,
         slave_grid_columns,
         current_colors,
+        led_cells=None,
         settings=None,
         on_presets_changed=None,
         parent=None,
@@ -32,6 +33,7 @@ class TagPinsDialog(QDialog):
         self.setModal(True)
         self._topology = list(topology)
         self._slave_cols = int(slave_grid_columns)
+        self._led_cells = frozenset(led_cells) if led_cells is not None else None
         self._settings = settings
         self._on_presets_changed = on_presets_changed
 
@@ -139,11 +141,23 @@ class TagPinsDialog(QDialog):
                 btn.setFixedSize(20, 20)
                 btn.setCheckable(True)
                 if pos == -1:
-                    btn.setEnabled(False)
-                    btn.setText("·")
-                    btn.setStyleSheet(
-                        "QPushButton { background-color: #4a2020; color: #888;}"
+                    cell_idx = (self._min_row + r) * self._slave_cols + (
+                        self._min_col + c
                     )
+                    is_no_led = (
+                        self._led_cells is not None and cell_idx not in self._led_cells
+                    )
+                    btn.setEnabled(False)
+                    if is_no_led:
+                        btn.setText("—")
+                        btn.setStyleSheet(
+                            "QPushButton { background-color: #ffffff; color: #333333;}"
+                        )
+                    else:
+                        btn.setText("·")
+                        btn.setStyleSheet(
+                            "QPushButton { background-color: #4a2020; color: #888;}"
+                        )
                 else:
                     btn.setColor(self.colors[pos])
                     self._button_group.addButton(btn)
