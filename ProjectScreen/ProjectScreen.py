@@ -17,6 +17,10 @@ from lightconductor.application.commands import (
 )
 from lightconductor.application.compiled_show import CompileShowsForMastersUseCase
 from lightconductor.application.project_search import compute_visibility
+from lightconductor.application.upload_plan import (
+    UploadPlan,
+    build_upload_plan,
+)
 from lightconductor.application.project_state import ProjectState, StateReplaced
 from lightconductor.application.score_export import (
     build_score_records, render_csv, render_json,
@@ -369,6 +373,56 @@ class ProjectWindow(QMainWindow):
         )
         return False
 
+    def _format_upload_preview(
+        self,
+        plan: UploadPlan,
+        warnings: list,
+    ) -> str:
+        """Compose the QMessageBox body text for the upload
+        confirmation dialog."""
+        lines = []
+        lines.append(
+            f"About to upload to "
+            f"{plan.total_hosts} host(s), "
+            f"{plan.total_slaves} slave(s), "
+            f"{plan.total_packets} packet(s) total.",
+        )
+        if plan.total_bytes > 0:
+            lines.append(
+                f"Total blob size: {plan.total_bytes} bytes.",
+            )
+        if plan.estimated_seconds > 0.0:
+            lines.append(
+                f"Estimated duration: "
+                f"~{plan.estimated_seconds:.2f}s "
+                f"(inter-packet delay only; "
+                f"network jitter not modeled).",
+            )
+        if plan.hosts:
+            lines.append("")
+            lines.append("Hosts:")
+            for host_plan in plan.hosts:
+                slave_summaries = ", ".join(
+                    f"slave {s.slave_id} ({s.blob_size}B, "
+                    f"{s.chunk_count} chunks)"
+                    for s in host_plan.slaves
+                ) or "no slaves"
+                lines.append(
+                    f"  • {host_plan.host}: {slave_summaries}",
+                )
+        if warnings:
+            lines.append("")
+            lines.append(
+                f"{len(warnings)} validation warning(s):",
+            )
+            for w in warnings:
+                lines.append(
+                    f"  • [{w.category}] {w.path} — {w.message}",
+                )
+        lines.append("")
+        lines.append("Proceed with upload?")
+        return "\n".join(lines)
+
     # создание аудио плеера
     def initAudioPlayer(self):
         if self.audio is not None:
@@ -586,16 +640,63 @@ class ProjectWindow(QMainWindow):
                     )
 
     def uploadShow(self):
+        domain_masters = self.state.masters()
+        issues = self.validation_service.validate(domain_masters)
+        if not self._report_validation_errors(issues, "Upload"):
+            return
+        # Separate warnings for the preview dialog
+        # (errors already blocked above).
+        warnings_only = [
+            i for i in issues if i.severity != SEVERITY_ERROR
+        ]
+        # Pre-compile for the preview. Compile is pure and cheap;
+        # the second compile inside upload_show is intentional and
+        # acceptable for MVP.
         try:
-            domain_masters = self.state.masters()
-            issues = self.validation_service.validate(domain_masters)
-            if not self._report_validation_errors(issues, "Upload"):
-                return
+            compiled_by_host = (
+                self.showController.compile_use_case.execute(
+                    domain_masters,
+                )
+            )
+        except Exception as exc:
+            logger.exception("Compile failed during upload preview")
+            QMessageBox.critical(
+                self, "Upload blocked",
+                f"Cannot compile the show:\n{exc}",
+            )
+            return
+        plan = build_upload_plan(
+            compiled_by_host=compiled_by_host,
+            chunk_size=self.settings.udp_chunk_size,
+            inter_packet_delay=(
+                self.showController.transport.inter_packet_delay
+            ),
+        )
+        body = self._format_upload_preview(plan, warnings_only)
+        reply = QMessageBox.question(
+            self, "Confirm upload",
+            body,
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            logger.info("Upload cancelled by user at preview dialog")
+            return
+        try:
             self.showController.upload_show(domain_masters)
-            logger.info("Compiled show uploaded")
-        except Exception as e:
+            logger.info(
+                "Compiled show uploaded "
+                "(%d hosts, %d slaves, %d packets)",
+                plan.total_hosts, plan.total_slaves,
+                plan.total_packets,
+            )
+        except Exception as exc:
             logger.exception("Failed to upload show")
-            QMessageBox.critical(self, "Ошибка загрузки шоу", str(e))
+            QMessageBox.critical(
+                self, "Upload failed",
+                f"{exc}",
+            )
 
     def exportScore(self):
         domain_masters = self.state.masters()
