@@ -30,6 +30,7 @@ class Slave:
     led_count: int = 0  # общее количество LED у этого slave
     grid_rows: int = 1
     grid_columns: int = 0
+    led_cells: List[int] = field(default_factory=list)
     tag_types: Dict[str, TagType] = field(default_factory=dict)
 
 
