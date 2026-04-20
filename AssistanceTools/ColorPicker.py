@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QSlider, QHBoxLayout,
     QLineEdit
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, QSignalBlocker, pyqtSignal
 
 class ColorPicker(QWidget):
     colorChanged = pyqtSignal(list)
@@ -84,3 +84,20 @@ class ColorPicker(QWidget):
             valueEdit.setText(str(slider.value()))
 
         self.colorChanged.emit(list(self.rgb))
+
+    def setColor(self, rgb):
+        """Programmatically set all three sliders. Emits colorChanged
+        exactly once (not three times) by blocking slider signals and
+        calling updateColor manually at the end.
+        """
+        if not isinstance(rgb, (list, tuple)) or len(rgb) != 3:
+            return
+        clamped = [max(0, min(255, int(c))) for c in rgb]
+        sliders = [row[0] for row in self.slidersLabels]
+        blockers = [QSignalBlocker(s) for s in sliders]
+        try:
+            for slider, value in zip(sliders, clamped):
+                slider.setValue(value)
+        finally:
+            del blockers
+        self.updateColor()

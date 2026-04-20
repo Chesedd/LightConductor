@@ -20,7 +20,7 @@ from lightconductor.application.validation_service import (
     ValidationIssue,
     ValidationService,
 )
-from lightconductor.config import AppSettings, load_settings
+from lightconductor.config import AppSettings, load_settings, save_settings
 from lightconductor.domain.models import Master as DomainMaster
 from lightconductor.infrastructure.audio_loader import LibrosaAudioLoader
 from lightconductor.infrastructure.master_udp_upload_transport import MasterUdpUploadTransport
@@ -410,6 +410,19 @@ class ProjectWindow(QMainWindow):
                 "colors": domain_tag.colors,
             }
             wave.addExistingTag(tag_dict, widget_type)
+
+    def update_color_presets(self, presets):
+        """Called by TagDialog when the user adds/removes a color
+        preset. Mutates self.settings and persists to settings.json.
+        Silent on IO errors (logged only).
+        """
+        self.settings.color_presets = [
+            list(p) for p in (presets or [])
+        ]
+        try:
+            save_settings(self.settings)
+        except Exception:
+            logger.exception("Failed to save color presets")
 
     def saveData(self):
         logger.info("Save requested")

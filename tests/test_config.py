@@ -34,6 +34,7 @@ class LoadSettingsTests(unittest.TestCase):
                 "udp_port",
                 "udp_chunk_size",
                 "autosave_interval_seconds",
+                "color_presets",
             },
         )
 
@@ -110,6 +111,72 @@ class LoadSettingsTests(unittest.TestCase):
         loaded = load_settings(self.settings_file)
         self.assertEqual(loaded.autosave_interval_seconds, 45)
         self.assertEqual(loaded, custom)
+
+    def _write_settings(self, color_presets_value):
+        payload = {
+            "default_master_ip": "10.0.0.1",
+            "udp_port": 55555,
+            "udp_chunk_size": 1024,
+            "autosave_interval_seconds": 30,
+            "color_presets": color_presets_value,
+        }
+        self.settings_file.write_text(
+            json.dumps(payload), encoding="utf-8",
+        )
+
+    def test_color_presets_defaults_to_empty_list(self):
+        self.assertEqual(AppSettings().color_presets, [])
+
+    def test_color_presets_valid_round_trip(self):
+        custom = AppSettings(
+            color_presets=[[255, 0, 0], [0, 255, 128]],
+        )
+        save_settings(custom, self.settings_file)
+        loaded = load_settings(self.settings_file)
+        self.assertEqual(
+            loaded.color_presets,
+            [[255, 0, 0], [0, 255, 128]],
+        )
+
+    def test_color_presets_wrong_outer_type_uses_default(self):
+        self._write_settings(42)
+        result = load_settings(self.settings_file)
+        self.assertEqual(result.color_presets, [])
+
+    def test_color_presets_wrong_inner_type_uses_default(self):
+        self._write_settings([[255, 0, 0], "not a triplet"])
+        result = load_settings(self.settings_file)
+        self.assertEqual(result.color_presets, [])
+
+    def test_color_presets_wrong_triplet_length_uses_default(self):
+        self._write_settings([[255, 0]])
+        result = load_settings(self.settings_file)
+        self.assertEqual(result.color_presets, [])
+
+    def test_color_presets_component_out_of_range_uses_default(self):
+        self._write_settings([[300, 0, 0]])
+        result = load_settings(self.settings_file)
+        self.assertEqual(result.color_presets, [])
+
+    def test_color_presets_component_negative_uses_default(self):
+        self._write_settings([[-1, 0, 0]])
+        result = load_settings(self.settings_file)
+        self.assertEqual(result.color_presets, [])
+
+    def test_color_presets_bool_component_rejected(self):
+        self._write_settings([[True, 0, 0]])
+        result = load_settings(self.settings_file)
+        self.assertEqual(result.color_presets, [])
+
+    def test_color_presets_non_int_component_uses_default(self):
+        self._write_settings([[1.5, 0, 0]])
+        result = load_settings(self.settings_file)
+        self.assertEqual(result.color_presets, [])
+
+    def test_color_presets_empty_list_accepted(self):
+        self._write_settings([])
+        result = load_settings(self.settings_file)
+        self.assertEqual(result.color_presets, [])
 
 
 if __name__ == "__main__":
