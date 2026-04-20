@@ -1,5 +1,8 @@
+import logging
+
 from PyQt6.QtWidgets import (QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QDialog,
-                             QLabel, QLineEdit, QToolButton, QButtonGroup, QMenu, QScrollArea, QComboBox)
+                             QLabel, QLineEdit, QToolButton, QButtonGroup, QMenu, QScrollArea, QComboBox,
+                             QCheckBox)
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QAction
 from ProjectScreen.TagLogic.TagType import TagType
@@ -10,7 +13,15 @@ from ProjectScreen.PlateLogic.DeleteDialog import DeleteDialog
 from AssistanceTools.FlowLayout import FlowLayout
 from AssistanceTools.SimpleDialog import SimpleDialog
 from lightconductor.application.range_allocator import available_starts
+from lightconductor.application.project_state import (
+    TagTypeAdded,
+    TagTypeRemoved,
+    TagTypeUpdated,
+)
 from lightconductor.domain.models import TagType as DomainTagType
+
+
+logger = logging.getLogger(__name__)
 
 class TagManager(QWidget):
     newTypeCreate = pyqtSignal(TagType)
@@ -36,6 +47,10 @@ class TagManager(QWidget):
         self._slave_id = slave_id
 
         self.initPanel()
+
+        self._unsubscribe = None
+        if self._state is not None:
+            self._unsubscribe = self._state.subscribe(self._on_state_event)
 
     def initPanel(self):
         self.mainWidget = QWidget()
@@ -73,6 +88,36 @@ class TagManager(QWidget):
         return ranges
 
     def addType(self, params):
+        # State-first for user actions: mutate ProjectState and let the
+        # TagTypeAdded listener build the widgets. Load-path and
+        # headless (no state) fall back to direct widget construction
+        # because state is either already populated by load_masters or
+        # unavailable entirely.
+        if self._state is None or self._project_window is None:
+            return self._build_widgets_for_type(params)
+        if self._project_window.is_loading():
+            return self._build_widgets_for_type(params)
+        slave = self._state.master(self._master_id).slaves[self._slave_id]
+        if params["name"] in slave.tag_types:
+            return self._build_widgets_for_type(params)
+        self._state.add_tag_type(
+            self._master_id,
+            self._slave_id,
+            DomainTagType(
+                name=params["name"],
+                pin=str(params["pin"]),
+                rows=int(params["row"]),
+                columns=int(params["table"]),
+                color=params["color"],
+                topology=list(params.get("topology") or []),
+                tags=[],
+            ),
+        )
+        return self.types.get(params["name"])
+
+    def _build_widgets_for_type(self, params):
+        """Build the widget-side TagType + TagButton, register in
+        chooseBox, and emit newTypeCreate. Pure widget layer, no state."""
         newType = TagType(
             params["color"],
             params["name"],
@@ -87,32 +132,123 @@ class TagManager(QWidget):
         button.clicked.connect(self.setNewType)
         self.buttons.addButton(button)
         self.innerArea.insertWidget(0, button)
-
         self.checkBox.addType(params["name"])
         self.newTypeCreate.emit(newType)
-        # Attach IDs on the widget TagType so TagObject.deleteTag can
-        # locate the tag in state without walking the ProjectWindow.
+        # IDs attached so TagObject.deleteTag can locate the domain tag.
         newType.master_id = self._master_id
         newType.slave_id = self._slave_id
-        if (
-            self._state is not None
-            and self._project_window is not None
-            and not self._project_window.is_loading()
-        ):
-            self._state.add_tag_type(
-                self._master_id,
-                self._slave_id,
-                DomainTagType(
-                    name=params["name"],
-                    pin=str(params["pin"]),
-                    rows=int(params["row"]),
-                    columns=int(params["table"]),
-                    color=params["color"],
-                    topology=list(params.get("topology") or []),
-                    tags=[],
-                ),
-            )
         return newType
+
+    def _on_state_event(self, event):
+        if self._master_id is None or self._slave_id is None:
+            return
+        if getattr(event, "master_id", None) != self._master_id:
+            return
+        if getattr(event, "slave_id", None) != self._slave_id:
+            return
+        if isinstance(event, TagTypeAdded):
+            self._handle_tag_type_added(event)
+        elif isinstance(event, TagTypeRemoved):
+            self._handle_tag_type_removed(event)
+        elif isinstance(event, TagTypeUpdated):
+            self._handle_tag_type_updated(event)
+
+    def _handle_tag_type_added(self, event):
+        if event.type_name in self.types:
+            return
+        try:
+            domain_tt = (
+                self._state.master(self._master_id)
+                .slaves[self._slave_id]
+                .tag_types[event.type_name]
+            )
+        except KeyError:
+            logger.warning(
+                "TagTypeAdded for missing domain type: %s", event.type_name,
+            )
+            return
+        params = {
+            "name": domain_tt.name,
+            "color": domain_tt.color,
+            "pin": domain_tt.pin,
+            "row": int(domain_tt.rows),
+            "table": int(domain_tt.columns),
+            "topology": list(domain_tt.topology),
+        }
+        self._build_widgets_for_type(params)
+
+    def _handle_tag_type_removed(self, event):
+        type_name = event.type_name
+        if type_name not in self.types:
+            logger.warning(
+                "TagTypeRemoved for unknown widget type: %s", type_name,
+            )
+            return
+        wave = self.box.wave if self.box is not None else None
+        controller = getattr(wave, "_tagController", None)
+        if controller is not None:
+            controller.remove_scene_tag_type(type_name)
+        for btn in list(self.buttons.buttons()):
+            if getattr(btn, "tagType", None) is not None and btn.tagType.name == type_name:
+                self.buttons.removeButton(btn)
+                btn.deleteLater()
+        # TagTypeChooseBox has no removeType yet; drop matching checkbox
+        # directly. TODO: consolidate into ChooseBox.removeType in 3.1b.3.
+        inner = getattr(self.checkBox, "innerLayout", None)
+        if inner is not None:
+            for i in range(inner.count()):
+                item = inner.itemAt(i)
+                w = item.widget() if item is not None else None
+                if isinstance(w, QCheckBox) and w.text() == type_name:
+                    w.deleteLater()
+                    break
+        if self.box is not None:
+            states = self.box.tagsLayout
+            for i in range(states.count()):
+                item = states.itemAt(i)
+                st = item.widget() if item is not None else None
+                if st is not None and getattr(st, "tagType", None) is not None \
+                        and st.tagType.name == type_name:
+                    st.deleteLater()
+        self.types.pop(type_name, None)
+        if self.curType is not None and self.curType.name == type_name:
+            self.curType = None
+
+    def _handle_tag_type_updated(self, event):
+        type_name = event.type_name
+        tt = self.types.get(type_name)
+        if tt is None:
+            logger.warning(
+                "TagTypeUpdated for unknown widget type: %s", type_name,
+            )
+            return
+        try:
+            domain_tt = (
+                self._state.master(self._master_id)
+                .slaves[self._slave_id]
+                .tag_types[type_name]
+            )
+        except KeyError:
+            logger.warning(
+                "TagTypeUpdated for missing domain type: %s", type_name,
+            )
+            return
+        tt.pin = domain_tt.pin
+        tt.color = domain_tt.color
+        for btn in self.buttons.buttons():
+            if getattr(btn, "tagType", None) is tt:
+                btn.editButton()
+                break
+        color = domain_tt.color
+        if isinstance(color, str):
+            r, g, b = map(int, color.split(','))
+        else:
+            r, g, b = color[:3]
+        wave = self.box.wave if self.box is not None else None
+        controller = getattr(wave, "_tagController", None)
+        if controller is not None:
+            for tag in controller.scene_tags_for(type_name):
+                tag.setPen(pg.mkPen(QColor(int(r), int(g), int(b)), width=1))
 
     def setNewType(self):
         self.curType = self.buttons.checkedButton().tagType
@@ -368,7 +504,36 @@ class TagButton(QToolButton):
         dialog.exec()
 
     def editType(self, params):
+        # Rename (name change) has no state equivalent (update_tag_type
+        # does not touch name); keep the pre-existing direct mutation.
+        # Dict key in manager.types becomes stale -- pre-existing bug,
+        # addressed separately.
         self.tagType.name = params["name"]
+        state = getattr(self.manager, "_state", None)
+        project_window = getattr(self.manager, "_project_window", None)
+        if (
+            state is not None
+            and project_window is not None
+            and not project_window.is_loading()
+            and self.manager._master_id is not None
+            and self.manager._slave_id is not None
+        ):
+            try:
+                state.update_tag_type(
+                    self.manager._master_id,
+                    self.manager._slave_id,
+                    self.tagType.name,
+                    pin=str(params["pin"]),
+                    color=params["color"],
+                )
+                return
+            except KeyError:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "state missing tag_type %s during edit",
+                    self.tagType.name,
+                )
+        # Headless / no-state fallback: mutate widget + scene directly.
         self.tagType.color = params["color"]
         self.tagType.pin = params["pin"]
         self.editButton()
@@ -395,31 +560,41 @@ class TagButton(QToolButton):
         dialog.exec()
 
     def deleteType(self):
-        wave = self.manager.box.wave if self.manager.box is not None else None
-        controller = getattr(wave, "_tagController", None)
-        if controller is not None:
-            controller.remove_scene_tag_type(self.tagType.name)
+        state = getattr(self.manager, "_state", None)
+        project_window = getattr(self.manager, "_project_window", None)
+        # State-first delete: mutating state fires TagTypeRemoved and the
+        # manager's listener tears down scene tags, TagButton, chooseBox
+        # entry, and TagState chip. If no state is wired, fall back to
+        # the legacy direct cleanup.
         if (
-            getattr(self.manager, "_state", None) is not None
-            and self.manager._project_window is not None
-            and not self.manager._project_window.is_loading()
+            state is not None
+            and project_window is not None
+            and not project_window.is_loading()
+            and self.manager._master_id is not None
+            and self.manager._slave_id is not None
         ):
             try:
-                self.manager._state.remove_tag_type(
+                state.remove_tag_type(
                     self.manager._master_id,
                     self.manager._slave_id,
                     self.tagType.name,
                 )
+                return
             except KeyError:
                 import logging
                 logging.getLogger(__name__).warning(
                     "state missing tag_type %s during delete",
                     self.tagType.name,
                 )
-        del self.manager.types[self.tagType.name]
-        states = self.manager.box.tagsLayout
-        for i in range(states.count()):
-            state = states.itemAt(i).widget()
-            if state.tagType.name == self.tagType.name:
-                state.deleteLater()
+        wave = self.manager.box.wave if self.manager.box is not None else None
+        controller = getattr(wave, "_tagController", None)
+        if controller is not None:
+            controller.remove_scene_tag_type(self.tagType.name)
+        self.manager.types.pop(self.tagType.name, None)
+        if self.manager.box is not None:
+            states = self.manager.box.tagsLayout
+            for i in range(states.count()):
+                st = states.itemAt(i).widget()
+                if st is not None and st.tagType.name == self.tagType.name:
+                    st.deleteLater()
         self.deleteLater()
