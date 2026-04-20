@@ -35,10 +35,10 @@ class FakeTransport:
         self.uploaded_payload = None
         self.started_hosts = None
 
-    def upload(self, compiled_by_host):
+    def upload(self, compiled_by_host, *, progress_callback=None):
         self.uploaded_payload = compiled_by_host
 
-    def start_show(self, hosts):
+    def start_show(self, hosts, *, progress_callback=None):
         self.started_hosts = list(hosts)
 
 

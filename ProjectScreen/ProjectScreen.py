@@ -2,7 +2,8 @@ import logging
 
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
                             QFileDialog, QMessageBox, QApplication, QLineEdit,
-                            QTextEdit, QPlainTextEdit, QAbstractSpinBox, QComboBox)
+                            QTextEdit, QPlainTextEdit, QAbstractSpinBox, QComboBox,
+                            QProgressDialog)
 from PyQt6.QtCore import pyqtSignal, Qt, QUrl, QTimer, QEvent
 from PyQt6.QtGui import QAction, QKeySequence
 from ProjectScreen.PlateLogic.MasterBox import MasterBox
@@ -33,7 +34,11 @@ from lightconductor.application.validation_service import (
 from lightconductor.config import AppSettings, load_settings, save_settings
 from lightconductor.domain.models import Master as DomainMaster
 from lightconductor.infrastructure.audio_loader import LibrosaAudioLoader
-from lightconductor.infrastructure.master_udp_upload_transport import MasterUdpUploadTransport
+from lightconductor.infrastructure.master_udp_upload_transport import (
+    MasterUdpUploadTransport,
+    UploadCancelledError,
+    UploadFailedError,
+)
 from lightconductor.infrastructure.project_session_storage import ProjectSessionStorage
 from lightconductor.infrastructure.ui_session_bridge import UiSessionBridge
 from lightconductor.presentation.project_controller import ProjectScreenController
@@ -423,6 +428,40 @@ class ProjectWindow(QMainWindow):
         lines.append("Proceed with upload?")
         return "\n".join(lines)
 
+    def _format_upload_failed_message(
+        self, exc: "UploadFailedError",
+    ) -> str:
+        """Build a human-readable body for the UploadFailedError dialog
+        — host, port, attempts, and likely causes.
+        """
+        lines = []
+        lines.append(
+            f"Could not reach master at {exc.host}:{exc.port}.",
+        )
+        lines.append(
+            f"Tried {exc.attempts} time(s), "
+            f"last error: {exc.original}",
+        )
+        lines.append("")
+        lines.append("Possible causes:")
+        lines.append(
+            "  • Master is powered off or disconnected",
+        )
+        lines.append(
+            "  • Wrong IP address in master settings",
+        )
+        lines.append(
+            f"  • Firewall blocks UDP port {exc.port}",
+        )
+        lines.append(
+            "  • Network interface down",
+        )
+        lines.append("")
+        lines.append(
+            "Please check the connection and try again.",
+        )
+        return "\n".join(lines)
+
     # создание аудио плеера
     def initAudioPlayer(self):
         if self.audio is not None:
@@ -683,15 +722,62 @@ class ProjectWindow(QMainWindow):
         if reply != QMessageBox.StandardButton.Yes:
             logger.info("Upload cancelled by user at preview dialog")
             return
+        progress = QProgressDialog(
+            "Uploading show: 0 / 0 packets",
+            "Cancel", 0, max(1, plan.total_packets), self,
+        )
+        progress.setWindowTitle("Upload in progress")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.setAutoClose(True)
+        progress.setAutoReset(True)
+        progress.setValue(0)
+
+        def _cb(sent: int, total: int) -> bool:
+            if progress.wasCanceled():
+                return False
+            progress.setLabelText(
+                f"Uploading show: {sent} / {total} packets",
+            )
+            progress.setMaximum(max(1, total))
+            progress.setValue(sent)
+            QApplication.processEvents()
+            return True
+
         try:
-            self.showController.upload_show(domain_masters)
+            self.showController.upload_show(
+                domain_masters,
+                progress_callback=_cb,
+            )
             logger.info(
                 "Compiled show uploaded "
                 "(%d hosts, %d slaves, %d packets)",
                 plan.total_hosts, plan.total_slaves,
                 plan.total_packets,
             )
+            progress.setValue(max(1, plan.total_packets))
+        except UploadCancelledError as exc:
+            progress.close()
+            logger.info(
+                "Upload cancelled by user after %d/%d packets",
+                exc.packets_sent, exc.total_packets,
+            )
+            QMessageBox.information(
+                self, "Upload cancelled",
+                f"Sent {exc.packets_sent} of "
+                f"{exc.total_packets} packet(s) before cancel.",
+            )
+        except UploadFailedError as exc:
+            progress.close()
+            logger.exception(
+                "Upload failed: %s", exc,
+            )
+            QMessageBox.critical(
+                self, "Upload failed",
+                self._format_upload_failed_message(exc),
+            )
         except Exception as exc:
+            progress.close()
             logger.exception("Failed to upload show")
             QMessageBox.critical(
                 self, "Upload failed",
