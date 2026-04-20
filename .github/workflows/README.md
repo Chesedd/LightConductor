@@ -31,14 +31,16 @@ Qt runs headless via QT_QPA_PLATFORM=offscreen.
 
 ## Linting
 
-`ruff check` and `ruff format --check` run on
-`src/lightconductor/` and `tests/` before pytest. UI
-directories (`ProjectScreen/`, `MainScreen/`,
-`AssistanceTools/`) will be brought under ruff in
-the next follow-up PR (roadmap 7.2c).
+`ruff check` and `ruff format --check` run against the
+entire repo before pytest.
 
 Configuration lives in `pyproject.toml` under
 `[tool.ruff]` — minimal selection: `E, F, I, B`. Line
-length 88. Tests have `E402` allowed per-file to keep
-the `sys.path.insert` pattern used for package
-discovery.
+length 88. Python target 3.12.
+
+Per-file exceptions (see `pyproject.toml`):
+- `tests/*` allows E402 for the `sys.path.insert`
+  pattern used to locate the package without install.
+- `main.py` allows E402 for the same reason (bootstrap).
+
+No badges yet.
