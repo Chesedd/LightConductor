@@ -18,6 +18,12 @@ from lightconductor.application.project_state import (
     TagUpdated,
 )
 
+MIN_CELL_PX = 4
+MAX_CELL_PX = 20
+TARGET_CELL_PX_2D = 10
+STRIP_ROW_HEIGHT_PX = 28
+BORDER_PX = 1
+
 
 class LedGridView(QWidget):
     def __init__(self, state=None, master_id=None, slave_id=None, parent=None):
@@ -27,8 +33,9 @@ class LedGridView(QWidget):
         self._slave_id = slave_id
         self._current_time = 0.0
         self._buffer = []
+        self._strip_mode = True
 
-        self.setFixedHeight(28)
+        self.setFixedHeight(STRIP_ROW_HEIGHT_PX)
         self.setMinimumWidth(100)
 
         self._unsubscribe = None
@@ -64,12 +71,33 @@ class LedGridView(QWidget):
         except KeyError:
             return None
 
+    def _apply_sizing_from_slave(self, slave):
+        """Update fixed height based on slave grid. Called from
+        _recompute after _resolve_slave."""
+        if slave is None:
+            self._strip_mode = True
+            self.setFixedHeight(STRIP_ROW_HEIGHT_PX)
+            return
+        rows = int(getattr(slave, "grid_rows", 1) or 1)
+        if rows <= 1:
+            self._strip_mode = True
+            self.setFixedHeight(STRIP_ROW_HEIGHT_PX)
+        else:
+            self._strip_mode = False
+            self.setFixedHeight(
+                rows * TARGET_CELL_PX_2D + 2 * BORDER_PX,
+            )
+
     def _recompute(self):
         slave = self._resolve_slave()
+        self._apply_sizing_from_slave(slave)
         if slave is None or _safe_int(getattr(slave, "led_count", 0)) <= 0:
             self._buffer = []
         else:
-            self._buffer = render_led_strip_at(slave, self._current_time)
+            self._buffer = render_led_strip_at(
+                slave,
+                self._current_time,
+            )
         self.update()
 
     def _on_state_event(self, event):
@@ -100,33 +128,79 @@ class LedGridView(QWidget):
         try:
             width = self.width()
             height = self.height()
-
             painter.fillRect(self.rect(), QColor("#1a1a1a"))
 
-            pen = QPen(QColor("#888"))
+            pen = QPen(QColor("#444"))
             pen.setWidth(1)
             painter.setPen(pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            border = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+            border = QRectF(self.rect()).adjusted(
+                0.5,
+                0.5,
+                -0.5,
+                -0.5,
+            )
             painter.drawRect(border)
 
             if not self._buffer:
                 return
 
-            n = len(self._buffer)
-            inside_w = max(0, width - 2)
-            inside_h = max(0, height - 2)
-            rect_w_f = inside_w / n if n > 0 else 0.0
+            slave = self._resolve_slave()
+            rows = 1
+            cols = len(self._buffer)
+            if slave is not None:
+                rows = max(1, int(getattr(slave, "grid_rows", 1) or 1))
+                cols = max(1, int(getattr(slave, "grid_columns", 0) or 0))
+            total_cells = min(len(self._buffer), rows * cols)
 
-            painter.setPen(Qt.PenStyle.NoPen)
-            for i, (r, g, b) in enumerate(self._buffer):
-                if (r, g, b) == (0, 0, 0):
-                    color = QColor("#2a2a2a")
-                else:
-                    color = QColor(r, g, b)
-                x = 1 + i * rect_w_f
-                w = max(1.0, rect_w_f - 0.5)
-                rect = QRectF(x, 1.0, w, float(inside_h))
-                painter.fillRect(rect, QBrush(color))
+            inside_w = max(0, width - 2 * BORDER_PX)
+            inside_h = max(0, height - 2 * BORDER_PX)
+
+            if self._strip_mode:
+                cell_w = inside_w / max(1, cols)
+                cell_h = inside_h
+                painter.setPen(Qt.PenStyle.NoPen)
+                for i in range(total_cells):
+                    (r, g, b) = self._buffer[i]
+                    color = (
+                        QColor("#2a2a2a") if (r, g, b) == (0, 0, 0) else QColor(r, g, b)
+                    )
+                    x = BORDER_PX + i * cell_w
+                    rect = QRectF(
+                        x,
+                        float(BORDER_PX),
+                        max(1.0, cell_w - 0.5),
+                        float(cell_h),
+                    )
+                    painter.fillRect(rect, QBrush(color))
+            else:
+                cell_size = min(
+                    inside_w / cols,
+                    inside_h / rows,
+                )
+                cell_size = max(
+                    float(MIN_CELL_PX),
+                    min(cell_size, float(MAX_CELL_PX)),
+                )
+                cell_pen = QPen(QColor("#0d0d0d"))
+                cell_pen.setWidth(1)
+                for idx in range(total_cells):
+                    r_idx = idx // cols
+                    c_idx = idx % cols
+                    (r, g, b) = self._buffer[idx]
+                    color = (
+                        QColor("#2a2a2a") if (r, g, b) == (0, 0, 0) else QColor(r, g, b)
+                    )
+                    x = BORDER_PX + c_idx * cell_size
+                    y = BORDER_PX + r_idx * cell_size
+                    rect = QRectF(
+                        x,
+                        y,
+                        cell_size,
+                        cell_size,
+                    )
+                    painter.fillRect(rect, QBrush(color))
+                    painter.setPen(cell_pen)
+                    painter.drawRect(rect)
         finally:
             painter.end()
