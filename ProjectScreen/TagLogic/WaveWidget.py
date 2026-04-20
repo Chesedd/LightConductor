@@ -8,6 +8,7 @@ from ProjectScreen.TagLogic.TagTimelineController import TagTimelineController
 
 class WaveWidget(pg.PlotWidget):
     positionUpdate = pyqtSignal(float, str)
+    waveActivated = pyqtSignal()
     def __init__(
         self,
         audioData,
@@ -19,11 +20,15 @@ class WaveWidget(pg.PlotWidget):
         project_window=None,
         master_id=None,
         slave_id=None,
+        commands=None,
     ):
         super().__init__()
         self.manager = manager
         self.chooseBox = chooseBox
         self.vb = self.getViewBox()
+        self.scene().sigMouseClicked.connect(
+            lambda ev: self.waveActivated.emit()
+        )
         self._renderer = WaveRenderer(
             plot_widget=self,
             audioData=audioData,
@@ -38,6 +43,7 @@ class WaveWidget(pg.PlotWidget):
             project_window=project_window,
             master_id=master_id,
             slave_id=slave_id,
+            commands=commands,
         )
         self.chooseBox.stateChanged.connect(self.editTagTypeOnWave)
         self._renderer.init_ui()
@@ -50,7 +56,8 @@ class WaveWidget(pg.PlotWidget):
         self._renderer.init_ui()
 
     def keyPressEvent(self, ev):
-        step = 0.1
+        modifiers = ev.modifiers()
+        step = 1.0 if modifiers & Qt.KeyboardModifier.ShiftModifier else 0.1
         if ev.key() == Qt.Key.Key_Right:
             self._renderer.audioPlayer.setPosition(
                 round((self._renderer.selectedLine.value() + step) * 1000))

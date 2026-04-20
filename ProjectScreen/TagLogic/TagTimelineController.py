@@ -8,12 +8,16 @@ from PyQt6.QtGui import QColor
 from typing import Dict, List
 
 from ProjectScreen.TagLogic.TagObject import Tag
+from lightconductor.application.commands import AddTagCommand, MoveTagCommand
 from lightconductor.application.project_state import (
     TagAdded,
     TagRemoved,
     TagUpdated,
 )
 from lightconductor.domain.models import Tag as DomainTag
+
+
+_SNAP_GRANULARITY_SECONDS = 0.1
 
 
 logger = logging.getLogger(__name__)
@@ -29,6 +33,7 @@ class TagTimelineController:
         project_window=None,
         master_id=None,
         slave_id=None,
+        commands=None,
     ):
         self._plot_widget = plot_widget
         self._manager = manager
@@ -37,6 +42,7 @@ class TagTimelineController:
         self._project_window = project_window
         self._master_id = master_id
         self._slave_id = slave_id
+        self._commands = commands
         self._scene_tags: Dict[str, List[Tag]] = {}
         # Identity map from domain Tag object (by id()) to the scene
         # Tag that represents it. Populated by _handle_tag_added and
@@ -117,6 +123,126 @@ class TagTimelineController:
         except KeyError:
             return None
 
+    def _parse_color(self, color):
+        if isinstance(color, str):
+            return tuple(int(c) for c in color.split(','))
+        return int(color[0]), int(color[1]), int(color[2])
+
+    def _drag_bounds(self):
+        dur = float(getattr(self._renderer, "duration", 0.0) or 0.0)
+        if dur <= 0.0:
+            return None
+        return (0.0, dur)
+
+    def _create_scene_tag(self, time_value, action, colors, widget_type):
+        r, g, b = self._parse_color(widget_type.color)
+        tag = Tag(
+            pos=QPointF(float(time_value), 0.0),
+            angle=90,
+            pen=pg.mkPen(QColor(r, g, b), width=3),
+            movable=True,
+            bounds=self._drag_bounds(),
+            action=action,
+            colors=colors,
+            type=widget_type,
+            manager=self._manager,
+        )
+        self._wire_drag_signals(tag)
+        return tag
+
+    def _wire_drag_signals(self, scene_tag):
+        scene_tag.sigPositionChanged.connect(
+            lambda _line, t=scene_tag: self._on_tag_position_changed(t)
+        )
+        scene_tag.sigPositionChangeFinished.connect(
+            lambda _line, t=scene_tag: self._on_tag_drag_finished(t)
+        )
+
+    def _on_tag_position_changed(self, scene_tag):
+        tag_info = getattr(self._manager, "tagScreen", None)
+        if tag_info is None:
+            return
+        if getattr(tag_info, "tag", None) is not scene_tag:
+            return
+        try:
+            new_x = float(scene_tag.value())
+        except (TypeError, ValueError):
+            return
+        scene_tag.time = new_x
+        if getattr(tag_info, "tagTimeText", None) is not None:
+            tag_info.tagTimeText.setText(f"{new_x:.3f}")
+
+    def _find_domain_id_for_scene_tag(self, scene_tag):
+        for did, st in self._scene_by_domain_id.items():
+            if st is scene_tag:
+                return did
+        return None
+
+    def _on_tag_drag_finished(self, scene_tag):
+        raw_time = max(0.0, float(scene_tag.value()))
+        snapped = round(raw_time / _SNAP_GRANULARITY_SECONDS) * _SNAP_GRANULARITY_SECONDS
+        snapped = round(snapped, 6)
+        dur = float(getattr(self._renderer, "duration", 0.0) or 0.0)
+        if dur > 0.0 and snapped > dur:
+            snapped = dur
+        type_ = getattr(scene_tag, "type", None)
+        type_name = type_.name if type_ is not None else None
+        if type_name is None:
+            return
+        domain_id = self._find_domain_id_for_scene_tag(scene_tag)
+        if self._state is None or self._master_id is None or self._slave_id is None:
+            scene_tag.setPos(snapped)
+            scene_tag.time = snapped
+            return
+        if domain_id is None:
+            logger.warning(
+                "drag-finish: scene tag missing from domain registry (type=%s)",
+                type_name,
+            )
+            return
+        tags = self._domain_tag_list(type_name)
+        if tags is None:
+            return
+        idx = None
+        for i, dt in enumerate(tags):
+            if id(dt) == domain_id:
+                idx = i
+                break
+        if idx is None:
+            return
+        old_time = float(tags[idx].time_seconds)
+        if abs(old_time - snapped) < 1e-6:
+            scene_tag.setPos(old_time)
+            scene_tag.time = old_time
+            return
+        if self._commands is not None:
+            try:
+                self._commands.push(
+                    MoveTagCommand(
+                        master_id=self._master_id,
+                        slave_id=self._slave_id,
+                        type_name=type_name,
+                        tag_index=idx,
+                        new_time_seconds=snapped,
+                    )
+                )
+            except (KeyError, IndexError):
+                logger.warning(
+                    "MoveTagCommand push failed: type=%s idx=%s",
+                    type_name, idx,
+                )
+                scene_tag.setPos(old_time)
+                scene_tag.time = old_time
+        else:
+            try:
+                self._state.update_tag(
+                    self._master_id, self._slave_id, type_name,
+                    idx, time_seconds=snapped,
+                )
+            except (KeyError, IndexError):
+                scene_tag.setPos(old_time)
+                scene_tag.time = old_time
+
     def _handle_tag_added(self, event):
         domain_tags = self._domain_tag_list(event.type_name)
         if domain_tags is None or event.tag_index >= len(domain_tags):
@@ -132,15 +258,11 @@ class TagTimelineController:
                 "TagAdded for unknown widget type: %s", event.type_name,
             )
             return
-        r, g, b = map(int, widget_type.color.split(','))
-        scene_tag = Tag(
-            pos=QPointF(float(domain_tag.time_seconds), 0.0),
-            angle=90,
-            pen=pg.mkPen(QColor(r, g, b), width=3),
+        scene_tag = self._create_scene_tag(
+            time_value=float(domain_tag.time_seconds),
             action=domain_tag.action,
             colors=list(domain_tag.colors) if domain_tag.colors else domain_tag.colors,
-            type=widget_type,
-            manager=self._manager,
+            widget_type=widget_type,
         )
         self._plot_widget.addItem(scene_tag)
         self._insert_sorted_scene_tag(event.type_name, scene_tag)
@@ -187,6 +309,18 @@ class TagTimelineController:
         # Identity is preserved across state-level reposition, but
         # the order in the scene registry may need refreshing.
         self.resort_scene_tags(event.type_name)
+        # Refresh TagInfoScreen labels when the selected tag is the
+        # one we just updated (drag, undo/redo, programmatic edits).
+        # The colors grid is rebuilt only via TagInfoScreen.setTag so
+        # we intentionally leave it alone here.
+        tag_info = getattr(self._manager, "tagScreen", None)
+        if tag_info is not None and getattr(tag_info, "tag", None) is scene_tag:
+            time_text = getattr(tag_info, "tagTimeText", None)
+            if time_text is not None:
+                time_text.setText(str(scene_tag.time))
+            action_text = getattr(tag_info, "tagActionText", None)
+            if action_text is not None:
+                action_text.setText("On" if scene_tag.action else "Off")
 
     def addTag(self, data):
         self.addTagAtTime(data, self._renderer.selectedLine.pos().x())
@@ -203,38 +337,47 @@ class TagTimelineController:
             # creation during loading would break the load invariant.
             return
         if self._state is not None:
-            self._state.add_tag(
-                self._master_id,
-                self._slave_id,
-                curType.name,
-                DomainTag(
-                    time_seconds=float(time),
-                    action=data["action"],
-                    colors=list(data["colors"]),
-                ),
+            domain_tag = DomainTag(
+                time_seconds=float(time),
+                action=data["action"],
+                colors=list(data["colors"]),
             )
+            if self._commands is not None:
+                self._commands.push(
+                    AddTagCommand(
+                        master_id=self._master_id,
+                        slave_id=self._slave_id,
+                        type_name=curType.name,
+                        tag=domain_tag,
+                    )
+                )
+            else:
+                self._state.add_tag(
+                    self._master_id,
+                    self._slave_id,
+                    curType.name,
+                    domain_tag,
+                )
             return
         # Headless / no-state path: build scene tag directly so callers
         # that instantiate the controller without ProjectState (tests,
         # legacy entrypoints) keep working.
-        color = curType.color
-        r, g, b = map(int, color.split(','))
-        tag = Tag(
-            pos=QPointF(time, 0.0),
-            angle=90,
-            pen=pg.mkPen(QColor(r, g, b), width=3),
+        tag = self._create_scene_tag(
+            time_value=time,
             action=data["action"],
             colors=data["colors"],
-            type=curType,
-            manager=self._manager,
+            widget_type=curType,
         )
         self._plot_widget.addItem(tag)
         self._insert_sorted_scene_tag(curType.name, tag)
 
     def addExistingTag(self, data, type):
-        color = type.color
-        r, g, b = map(int, color.split(','))
-        tag = Tag(pos=QPointF(data["time"], 0.0), angle=90, pen=pg.mkPen(QColor(r, g, b), width=3), action=data["action"], colors=data["colors"], type = type, manager = self._manager)
+        tag = self._create_scene_tag(
+            time_value=data["time"],
+            action=data["action"],
+            colors=data["colors"],
+            widget_type=type,
+        )
         self._plot_widget.addItem(tag)
         self._insert_sorted_scene_tag(type.name, tag)
         # Register the scene tag against its domain counterpart so

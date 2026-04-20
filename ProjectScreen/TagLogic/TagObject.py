@@ -1,6 +1,8 @@
 from pyqtgraph import  InfiniteLine
 from PyQt6 import QtWidgets, QtCore
 
+from lightconductor.application.commands import DeleteTagCommand
+
 class Tag(InfiniteLine):
     def __init__(self, action=None, colors=None, pos=None, angle=90, pen=None, movable=False, bounds=None,
                  hoverPen=None, type=None, manager = None):
@@ -46,6 +48,7 @@ class Tag(InfiniteLine):
         controller = getattr(wave, "_tagController", None)
         state = getattr(manager, "_state", None)
         project_window = getattr(manager, "_project_window", None)
+        commands = getattr(manager, "_commands", None)
         # State-first delete: resolve the tag's index via the scene
         # registry (kept in lockstep with state) and ask state to
         # remove. The TagRemoved listener on the controller then
@@ -67,12 +70,22 @@ class Tag(InfiniteLine):
                 idx = None
             if idx is not None:
                 try:
-                    state.remove_tag(
-                        type_.master_id,
-                        type_.slave_id,
-                        type_name,
-                        idx,
-                    )
+                    if commands is not None:
+                        commands.push(
+                            DeleteTagCommand(
+                                master_id=type_.master_id,
+                                slave_id=type_.slave_id,
+                                type_name=type_name,
+                                tag_index=idx,
+                            )
+                        )
+                    else:
+                        state.remove_tag(
+                            type_.master_id,
+                            type_.slave_id,
+                            type_name,
+                            idx,
+                        )
                     return
                 except (KeyError, IndexError):
                     import logging

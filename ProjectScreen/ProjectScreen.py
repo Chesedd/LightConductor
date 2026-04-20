@@ -1,12 +1,17 @@
 import logging
 
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
-                            QFileDialog, QMessageBox)
-from PyQt6.QtCore import pyqtSignal, Qt, QUrl
+                            QFileDialog, QMessageBox, QApplication, QLineEdit,
+                            QTextEdit, QPlainTextEdit, QAbstractSpinBox, QComboBox)
+from PyQt6.QtCore import pyqtSignal, Qt, QUrl, QTimer, QEvent
 from PyQt6.QtGui import QAction, QKeySequence
 from ProjectScreen.PlateLogic.MasterBox import MasterBox
 from AssistanceTools.SimpleDialog import SimpleDialog
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
+from lightconductor.application.commands import (
+    AddMasterCommand,
+    CommandStack,
+)
 from lightconductor.application.compiled_show import CompileShowsForMastersUseCase
 from lightconductor.application.project_state import (
     MasterAdded,
@@ -89,6 +94,20 @@ class ProjectWindow(QMainWindow):
         self._building_widgets_from_state = False
         self._unsubscribe_state = self.state.subscribe(self._on_state_event)
 
+        self._dirty: bool = False
+        self._base_window_title: str = ""
+        self._active_slave = None
+        self._tag_clipboard = None
+        self._unsubscribe_dirty = self.state.subscribe(
+            self._on_state_event_dirty,
+        )
+        self._autosave_timer = QTimer(self)
+        self._autosave_timer.setInterval(
+            max(1, int(self.settings.autosave_interval_seconds)) * 1000,
+        )
+        self._autosave_timer.timeout.connect(self._autosave_tick)
+        self._autosave_timer.start()
+
         self.initActions()
         self.init_ui()
         self.initExistingData()
@@ -103,6 +122,138 @@ class ProjectWindow(QMainWindow):
         saveAction.setShortcut(QKeySequence("Ctrl+S"))
         saveAction.triggered.connect(self.saveData)
         self.addAction(saveAction)
+
+        undoAction = QAction("Undo", self)
+        undoAction.setShortcut(QKeySequence("Ctrl+Z"))
+        undoAction.triggered.connect(self.commands.undo)
+        self.addAction(undoAction)
+
+        redoAction = QAction("Redo", self)
+        redoAction.setShortcut(QKeySequence("Ctrl+Shift+Z"))
+        redoAction.triggered.connect(self.commands.redo)
+        self.addAction(redoAction)
+
+        spaceAction = QAction("Play/Pause", self)
+        spaceAction.setShortcut(QKeySequence(Qt.Key.Key_Space))
+        spaceAction.triggered.connect(self._on_space)
+        self.addAction(spaceAction)
+
+        addTagAction = QAction("Add tag at cursor", self)
+        addTagAction.setShortcut(QKeySequence("Ctrl+T"))
+        addTagAction.triggered.connect(self._on_add_tag_at_cursor)
+        self.addAction(addTagAction)
+
+        deleteTagAction = QAction("Delete selected tag", self)
+        deleteTagAction.setShortcut(QKeySequence(Qt.Key.Key_Delete))
+        deleteTagAction.triggered.connect(self._on_delete_selected_tag)
+        self.addAction(deleteTagAction)
+
+        copyTagAction = QAction("Copy tag", self)
+        copyTagAction.setShortcut(QKeySequence("Ctrl+C"))
+        copyTagAction.triggered.connect(self._on_copy_tag)
+        self.addAction(copyTagAction)
+
+        pasteTagAction = QAction("Paste tag", self)
+        pasteTagAction.setShortcut(QKeySequence("Ctrl+V"))
+        pasteTagAction.triggered.connect(self._on_paste_tag)
+        self.addAction(pasteTagAction)
+
+    def set_active_slave(self, slave):
+        self._active_slave = slave
+
+    def _focus_in_text_input(self) -> bool:
+        fw = QApplication.focusWidget()
+        if fw is None:
+            return False
+        if isinstance(fw, (QLineEdit, QTextEdit, QPlainTextEdit,
+                           QAbstractSpinBox)):
+            return True
+        if isinstance(fw, QComboBox) and fw.isEditable():
+            return True
+        return False
+
+    def _on_space(self):
+        if self._focus_in_text_input():
+            return
+        slave = self._active_slave
+        if slave is None:
+            return
+        slave.playButton.click()
+
+    def _on_add_tag_at_cursor(self):
+        if self._focus_in_text_input():
+            return
+        slave = self._active_slave
+        if slave is None:
+            return
+        wave = slave.wave
+        cur_type = wave.manager.curType
+        if cur_type is None:
+            return
+        time_val = float(wave._renderer.selectedLine.value())
+        topology = list(getattr(
+            cur_type,
+            "topology",
+            [i for i in range(cur_type.row * cur_type.table)],
+        ))
+        colors = [[0, 0, 0] for _ in range(len(topology))]
+        wave.addTagAtTime({"action": False, "colors": colors}, time_val)
+
+    def _on_delete_selected_tag(self):
+        if self._focus_in_text_input():
+            return
+        slave = self._active_slave
+        if slave is None:
+            return
+        tag_info = slave.tagInfo
+        if tag_info is None or tag_info.tag is None:
+            return
+        tag_info.deleteTag()
+
+    def _on_copy_tag(self):
+        if self._focus_in_text_input():
+            return
+        slave = self._active_slave
+        if slave is None:
+            return
+        tag_info = slave.tagInfo
+        if tag_info is None or tag_info.tag is None:
+            return
+        tag = tag_info.tag
+        type_name = tag.type.name if tag.type is not None else None
+        if type_name is None:
+            return
+        self._tag_clipboard = {
+            "type_name": type_name,
+            "action": bool(tag.action),
+            "colors": [list(c) for c in (tag.colors or [])],
+        }
+
+    def _on_paste_tag(self):
+        if self._focus_in_text_input():
+            return
+        clip = self._tag_clipboard
+        if clip is None:
+            return
+        slave = self._active_slave
+        if slave is None:
+            return
+        wave = slave.wave
+        manager = wave.manager
+        type_name = clip["type_name"]
+        if type_name not in manager.types:
+            return
+        prev_cur_type = manager.curType
+        manager.curType = manager.types[type_name]
+        try:
+            time_val = float(wave._renderer.selectedLine.value())
+            wave.addTagAtTime(
+                {"action": clip["action"],
+                 "colors": [list(c) for c in clip["colors"]]},
+                time_val,
+            )
+        finally:
+            manager.curType = prev_cur_type
 
     def _report_validation_errors(
         self,
@@ -148,7 +299,8 @@ class ProjectWindow(QMainWindow):
             self.audioPlayer.setAudioOutput(self.audioOutput)
 
     def init_ui(self):
-        self.setWindowTitle(self.project_data['project_name'])
+        self._base_window_title = self.project_data['project_name']
+        self._refresh_window_title()
         self.setGeometry(100, 100, 1400, 800)
 
         central_widget = QWidget()
@@ -254,6 +406,7 @@ class ProjectWindow(QMainWindow):
         self.sessionController.save_session(
             self.audio, self.sr, domain_masters,
         )
+        self._set_dirty(False)
 
     def addTrack(self):
         filePath, _ = QFileDialog.getOpenFileName(
@@ -306,6 +459,12 @@ class ProjectWindow(QMainWindow):
                 slave.wave.setAudioData(self.audio, self.sr, self.audioPath)
                 slave.wave.clear()
                 slave.wave.init_ui()
+                if hasattr(slave, "miniMap") and slave.miniMap is not None:
+                    slave.miniMap.setData(
+                        audioData=self.audio,
+                        sr=self.sr,
+                        duration=slave.wave._renderer.duration,
+                    )
 
     def uploadShow(self):
         try:
@@ -335,3 +494,62 @@ class ProjectWindow(QMainWindow):
             return
 
         self.audioPlayer.play()
+
+    def _on_state_event_dirty(self, event):
+        if self._loading:
+            return
+        if isinstance(event, StateReplaced):
+            return
+        self._set_dirty(True)
+
+    def _set_dirty(self, value: bool):
+        if self._dirty == value:
+            return
+        self._dirty = value
+        self._refresh_window_title()
+
+    def _refresh_window_title(self):
+        title = self._base_window_title
+        if self._dirty:
+            title = f"{title} \u2022"
+        self.setWindowTitle(title)
+
+    def _autosave_tick(self):
+        if not self._dirty:
+            return
+        self._run_autosave()
+
+    def _run_autosave(self):
+        logger.info("Autosave triggered")
+        domain_masters = self.state.masters()
+        issues = self.validation_service.validate(domain_masters)
+        errors = [i for i in issues if i.severity == SEVERITY_ERROR]
+        if errors:
+            logger.warning(
+                "Autosave skipped: %d validation error(s)", len(errors),
+            )
+            return
+        try:
+            self.sessionController.save_session(
+                self.audio, self.sr, domain_masters,
+            )
+        except Exception:
+            logger.exception("Autosave failed")
+            return
+        logger.info("Autosave completed")
+        self._set_dirty(False)
+
+    def changeEvent(self, event):
+        if event.type() == QEvent.Type.WindowStateChange:
+            if self.windowState() & Qt.WindowState.WindowMinimized:
+                if self._dirty:
+                    self._run_autosave()
+        super().changeEvent(event)
+
+    def closeEvent(self, event):
+        self._autosave_timer.stop()
+        try:
+            self._unsubscribe_dirty()
+        except Exception:
+            pass
+        super().closeEvent(event)

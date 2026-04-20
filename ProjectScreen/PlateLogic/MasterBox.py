@@ -54,6 +54,7 @@ class MasterBox(DropBox):
         masterIp="192.168.0.129",
         state=None,
         project_window=None,
+        commands=None,
     ):
         super().__init__(parent)
 
@@ -65,6 +66,7 @@ class MasterBox(DropBox):
         self.audioPath = aydioPath
         self._state = state
         self._project_window = project_window
+        self._commands = commands
 
         self.slaves = {}
 
@@ -184,6 +186,8 @@ class MasterBox(DropBox):
             ledCount=slave_domain.led_count,
             state=self._state,
             master_id=self.boxID,
+            commands=self._commands,
+            project_window=self._project_window,
         )
         slave_widget.boxDeleted.connect(self.deleteSlavesData)
         self.slaves[slave_domain.id] = slave_widget

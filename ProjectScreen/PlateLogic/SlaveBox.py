@@ -13,6 +13,7 @@ from ProjectScreen.PlateLogic.TagDialog import TagDialog
 from ProjectScreen.PlateLogic.TagGroupPatternDialog import TagGroupPatternDialog
 from ProjectScreen.PlateLogic.RenameDialog import RenameDialog
 from ProjectScreen.PlateLogic.DeleteDialog import DeleteDialog
+from ProjectScreen.TagLogic.WaveMiniMap import WaveMiniMap
 
 
 class SlaveBox(DropBox):
@@ -26,6 +27,8 @@ class SlaveBox(DropBox):
         ledCount=0,
         state=None,
         master_id=None,
+        commands=None,
+        project_window=None,
     ):
         super().__init__(parent)
 
@@ -40,6 +43,8 @@ class SlaveBox(DropBox):
 
         self._state = state
         self._master_id = master_id
+        self._commands = commands
+        self._project_window = project_window
 
         self.toggleButton.setText(f"▼ {title} (pin: {slavePin}, leds: {ledCount})")
 
@@ -52,6 +57,18 @@ class SlaveBox(DropBox):
         waveWidget = QWidget()
         waveWidget.layout = QVBoxLayout(waveWidget)
         waveWidget.layout.addWidget(self.initWaveButtons())
+        self.miniMap = WaveMiniMap(
+            target_wave=self.wave,
+            audioData=self.wave._renderer.audioData,
+            sr=self.wave._renderer.sr,
+            duration=self.wave._renderer.duration,
+        )
+        self.miniMap.setData(
+            audioData=self.wave._renderer.audioData,
+            sr=self.wave._renderer.sr,
+            duration=self.wave._renderer.duration,
+        )
+        waveWidget.layout.addWidget(self.miniMap)
         waveWidget.layout.addWidget(self.wave)
 
         waveSpace = QWidget()
@@ -73,8 +90,10 @@ class SlaveBox(DropBox):
             master_id=self._master_id,
             slave_id=self.boxID,
             wave=self.wave,
+            commands=self._commands,
         )
         self.wave.manager.tagScreen = self.tagInfo
+        self.wave.waveActivated.connect(self._on_wave_activated)
 
         self.mainWidget = QWidget()
         self.mainLayout = QHBoxLayout(self.mainWidget)
@@ -110,6 +129,10 @@ class SlaveBox(DropBox):
         waveButtons.layout.addWidget(self.timeLabel)
 
         return waveButtons
+
+    def _on_wave_activated(self):
+        if self._project_window is not None:
+            self._project_window.set_active_slave(self)
 
     def playOrPause(self):
         state = self.playButton.text()
