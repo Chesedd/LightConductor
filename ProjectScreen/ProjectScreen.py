@@ -573,6 +573,8 @@ class ProjectWindow(QMainWindow):
             "name": slave.name,
             "pin": slave.pin,
             "led_count": slave.led_count,
+            "grid_rows": slave.grid_rows,
+            "grid_columns": slave.grid_columns,
         }
         master_widget.addSlave(slaveData, slave.id)
         manager = self.masters[master_id].slaves[slave.id].wave.manager

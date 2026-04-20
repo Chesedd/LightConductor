@@ -38,6 +38,8 @@ class SlaveBox(DropBox):
         wave=None,
         slavePin="",
         ledCount=0,
+        gridRows=1,
+        gridColumns=0,
         state=None,
         master_id=None,
         commands=None,
@@ -47,6 +49,8 @@ class SlaveBox(DropBox):
 
         self.slavePin = slavePin
         self.ledCount = ledCount
+        self._grid_rows = int(gridRows or 1)
+        self._grid_columns = int(gridColumns or 0)
 
         self.title = title
         self.boxID = boxID
