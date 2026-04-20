@@ -44,3 +44,31 @@ class RenameProjectUseCase:
 
     def execute(self, project_id: str, new_name: str) -> bool:
         return self.repository.rename_project(project_id, new_name)
+
+
+@dataclass(slots=True)
+class ExportProjectUseCase:
+    repository: ProjectRepositoryPort
+
+    def execute(
+        self,
+        project_id: str,
+        output_zip_path,
+    ) -> None:
+        self.repository.export_project_to_archive(
+            project_id, output_zip_path,
+        )
+
+
+@dataclass(slots=True)
+class ImportProjectUseCase:
+    repository: ProjectRepositoryPort
+
+    def execute(
+        self,
+        zip_path,
+        target_project_name: str,
+    ) -> Project:
+        return self.repository.import_project_from_archive(
+            zip_path, target_project_name,
+        )

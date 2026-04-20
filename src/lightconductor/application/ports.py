@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Dict, Iterable, Protocol
 
 from lightconductor.domain.models import Project
@@ -16,6 +17,20 @@ class ProjectRepositoryPort(Protocol):
         ...
 
     def rename_project(self, project_id: str, new_name: str) -> bool:
+        ...
+
+    def export_project_to_archive(
+        self,
+        project_id: str,
+        output_zip_path: Path | str,
+    ) -> None:
+        ...
+
+    def import_project_from_archive(
+        self,
+        zip_path: Path | str,
+        target_project_name: str,
+    ) -> Project:
         ...
 
 

@@ -18,6 +18,8 @@ from .patterns import (
 from .project_use_cases import (
     CreateProjectUseCase,
     DeleteProjectUseCase,
+    ExportProjectUseCase,
+    ImportProjectUseCase,
     ListProjectsUseCase,
     RenameProjectUseCase,
 )
@@ -35,6 +37,8 @@ __all__ = [
     "BuildShowPayloadUseCase",
     "CreateProjectUseCase",
     "DeleteProjectUseCase",
+    "ExportProjectUseCase",
+    "ImportProjectUseCase",
     "ListProjectsUseCase",
     "RenameProjectUseCase",
     "LoadProjectSessionUseCase",

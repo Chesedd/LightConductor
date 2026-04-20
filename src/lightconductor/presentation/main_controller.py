@@ -7,6 +7,8 @@ from typing import List, Optional
 from lightconductor.application import (
     CreateProjectUseCase,
     DeleteProjectUseCase,
+    ExportProjectUseCase,
+    ImportProjectUseCase,
     ListProjectsUseCase,
     RenameProjectUseCase,
 )
@@ -30,6 +32,8 @@ class MainScreenController:
     delete_project_use_case: DeleteProjectUseCase = field(init=False)
     rename_project_use_case: RenameProjectUseCase = field(init=False)
     list_with_metadata_use_case: ListProjectsWithMetadataUseCase = field(init=False)
+    export_project_use_case: ExportProjectUseCase = field(init=False)
+    import_project_use_case: ImportProjectUseCase = field(init=False)
 
     def __post_init__(self) -> None:
         self.list_projects_use_case = ListProjectsUseCase(self.repository)
@@ -39,6 +43,8 @@ class MainScreenController:
         self.list_with_metadata_use_case = (
             ListProjectsWithMetadataUseCase(self.repository)
         )
+        self.export_project_use_case = ExportProjectUseCase(self.repository)
+        self.import_project_use_case = ImportProjectUseCase(self.repository)
 
     def list_projects(self) -> List[dict]:
         return [
@@ -88,6 +94,30 @@ class MainScreenController:
         return self.rename_project_use_case.execute(
             project_id, new_name,
         )
+
+    def export_project(
+        self,
+        project_id: str,
+        output_zip_path,
+    ) -> None:
+        self.export_project_use_case.execute(
+            project_id, output_zip_path,
+        )
+
+    def import_project(
+        self,
+        zip_path,
+        target_project_name: str,
+    ) -> dict:
+        """Returns dict with the same shape as create_project."""
+        project = self.import_project_use_case.execute(
+            zip_path, target_project_name,
+        )
+        return {
+            "id": project.id,
+            "project_name": project.name,
+            "song_name": project.song_name,
+        }
 
     def mark_project_opened(self, project_id: str) -> None:
         """Move project_id to the front of recent_project_ids,
