@@ -20,6 +20,7 @@ from lightconductor.application.commands import (
     EditRangeCommand,
     EditTagCommand,
     MoveTagCommand,
+    TopologyCollisionError,
 )
 from lightconductor.application.project_state import (
     MasterAdded,
@@ -604,6 +605,53 @@ def test_add_tag_type_execute_emits_tag_type_added_event(state):
     tt_added = [ev for ev in events if isinstance(ev, TagTypeAdded)]
     assert len(tt_added) == 1
     assert tt_added[0].type_name == "tt2"
+
+
+def test_add_tag_type_collision_raises(state):
+    existing = state.master("m1").slaves["s1"].tag_types["tt1"]
+    existing.topology = [0, 1, 2]
+    new_tt = TagType(name="tt2", pin="4", rows=1, columns=2)
+    new_tt.topology = [2, 3]
+    cmd = AddTagTypeCommand("m1", "s1", new_tt)
+
+    with pytest.raises(TopologyCollisionError) as excinfo:
+        cmd.execute(state)
+
+    assert excinfo.value.colliding_cells == frozenset({2})
+    assert excinfo.value.master_id == "m1"
+    assert excinfo.value.slave_id == "s1"
+    assert excinfo.value.type_name == "tt2"
+    assert "tt2" not in state.master("m1").slaves["s1"].tag_types
+
+
+def test_add_tag_type_no_collision_succeeds(state):
+    existing = state.master("m1").slaves["s1"].tag_types["tt1"]
+    existing.topology = [0, 1]
+    new_tt = TagType(name="tt2", pin="4", rows=1, columns=2)
+    new_tt.topology = [2, 3]
+    cmd = AddTagTypeCommand("m1", "s1", new_tt)
+
+    cmd.execute(state)
+
+    tag_types = state.master("m1").slaves["s1"].tag_types
+    assert "tt1" in tag_types
+    assert "tt2" in tag_types
+    assert tag_types["tt2"] is new_tt
+
+
+def test_add_tag_type_same_name_not_self_collision(state):
+    # When the new TagType has the same name as an existing one,
+    # the collision check must skip self-comparison. The add then
+    # fails with ValueError from ProjectState.add_tag_type (which
+    # rejects duplicate names), NOT with TopologyCollisionError.
+    existing = state.master("m1").slaves["s1"].tag_types["tt1"]
+    existing.topology = [0, 1]
+    same_name = TagType(name="tt1", pin="9", rows=1, columns=2)
+    same_name.topology = [0, 1]
+    cmd = AddTagTypeCommand("m1", "s1", same_name)
+
+    with pytest.raises(ValueError):
+        cmd.execute(state)
 
 
 # ---------------------------------------------------------------------------
