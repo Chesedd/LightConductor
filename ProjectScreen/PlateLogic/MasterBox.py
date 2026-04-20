@@ -120,6 +120,7 @@ class MasterBox(DropBox):
             state=self._state,
             master_id=self.boxID,
             commands=self._commands,
+            project_window=self._project_window,
         )
         slave.boxDeleted.connect(self.deleteSlavesData)
 

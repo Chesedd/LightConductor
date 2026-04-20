@@ -1,7 +1,8 @@
 import logging
 
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
-                            QFileDialog, QMessageBox)
+                            QFileDialog, QMessageBox, QApplication, QLineEdit,
+                            QTextEdit, QPlainTextEdit, QAbstractSpinBox, QComboBox)
 from PyQt6.QtCore import pyqtSignal, Qt, QUrl, QTimer, QEvent
 from PyQt6.QtGui import QAction, QKeySequence
 from ProjectScreen.PlateLogic.MasterBox import MasterBox
@@ -90,6 +91,8 @@ class ProjectWindow(QMainWindow):
 
         self._dirty: bool = False
         self._base_window_title: str = ""
+        self._active_slave = None
+        self._tag_clipboard = None
         self._unsubscribe_dirty = self.state.subscribe(
             self._on_state_event_dirty,
         )
@@ -124,6 +127,128 @@ class ProjectWindow(QMainWindow):
         redoAction.setShortcut(QKeySequence("Ctrl+Shift+Z"))
         redoAction.triggered.connect(self.commands.redo)
         self.addAction(redoAction)
+
+        spaceAction = QAction("Play/Pause", self)
+        spaceAction.setShortcut(QKeySequence(Qt.Key.Key_Space))
+        spaceAction.triggered.connect(self._on_space)
+        self.addAction(spaceAction)
+
+        addTagAction = QAction("Add tag at cursor", self)
+        addTagAction.setShortcut(QKeySequence("Ctrl+T"))
+        addTagAction.triggered.connect(self._on_add_tag_at_cursor)
+        self.addAction(addTagAction)
+
+        deleteTagAction = QAction("Delete selected tag", self)
+        deleteTagAction.setShortcut(QKeySequence(Qt.Key.Key_Delete))
+        deleteTagAction.triggered.connect(self._on_delete_selected_tag)
+        self.addAction(deleteTagAction)
+
+        copyTagAction = QAction("Copy tag", self)
+        copyTagAction.setShortcut(QKeySequence("Ctrl+C"))
+        copyTagAction.triggered.connect(self._on_copy_tag)
+        self.addAction(copyTagAction)
+
+        pasteTagAction = QAction("Paste tag", self)
+        pasteTagAction.setShortcut(QKeySequence("Ctrl+V"))
+        pasteTagAction.triggered.connect(self._on_paste_tag)
+        self.addAction(pasteTagAction)
+
+    def set_active_slave(self, slave):
+        self._active_slave = slave
+
+    def _focus_in_text_input(self) -> bool:
+        fw = QApplication.focusWidget()
+        if fw is None:
+            return False
+        if isinstance(fw, (QLineEdit, QTextEdit, QPlainTextEdit,
+                           QAbstractSpinBox)):
+            return True
+        if isinstance(fw, QComboBox) and fw.isEditable():
+            return True
+        return False
+
+    def _on_space(self):
+        if self._focus_in_text_input():
+            return
+        slave = self._active_slave
+        if slave is None:
+            return
+        slave.playButton.click()
+
+    def _on_add_tag_at_cursor(self):
+        if self._focus_in_text_input():
+            return
+        slave = self._active_slave
+        if slave is None:
+            return
+        wave = slave.wave
+        cur_type = wave.manager.curType
+        if cur_type is None:
+            return
+        time_val = float(wave._renderer.selectedLine.value())
+        topology = list(getattr(
+            cur_type,
+            "topology",
+            [i for i in range(cur_type.row * cur_type.table)],
+        ))
+        colors = [[0, 0, 0] for _ in range(len(topology))]
+        wave.addTagAtTime({"action": False, "colors": colors}, time_val)
+
+    def _on_delete_selected_tag(self):
+        if self._focus_in_text_input():
+            return
+        slave = self._active_slave
+        if slave is None:
+            return
+        tag_info = slave.tagInfo
+        if tag_info is None or tag_info.tag is None:
+            return
+        tag_info.deleteTag()
+
+    def _on_copy_tag(self):
+        if self._focus_in_text_input():
+            return
+        slave = self._active_slave
+        if slave is None:
+            return
+        tag_info = slave.tagInfo
+        if tag_info is None or tag_info.tag is None:
+            return
+        tag = tag_info.tag
+        type_name = tag.type.name if tag.type is not None else None
+        if type_name is None:
+            return
+        self._tag_clipboard = {
+            "type_name": type_name,
+            "action": bool(tag.action),
+            "colors": [list(c) for c in (tag.colors or [])],
+        }
+
+    def _on_paste_tag(self):
+        if self._focus_in_text_input():
+            return
+        clip = self._tag_clipboard
+        if clip is None:
+            return
+        slave = self._active_slave
+        if slave is None:
+            return
+        wave = slave.wave
+        manager = wave.manager
+        type_name = clip["type_name"]
+        if type_name not in manager.types:
+            return
+        prev_cur_type = manager.curType
+        manager.curType = manager.types[type_name]
+        try:
+            time_val = float(wave._renderer.selectedLine.value())
+            wave.addTagAtTime(
+                {"action": clip["action"],
+                 "colors": [list(c) for c in clip["colors"]]},
+                time_val,
+            )
+        finally:
+            manager.curType = prev_cur_type
 
     def _report_validation_errors(
         self,
