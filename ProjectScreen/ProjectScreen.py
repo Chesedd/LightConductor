@@ -17,6 +17,9 @@ from lightconductor.application.commands import (
 )
 from lightconductor.application.compiled_show import CompileShowsForMastersUseCase
 from lightconductor.application.project_state import ProjectState, StateReplaced
+from lightconductor.application.score_export import (
+    build_score_records, render_csv, render_json,
+)
 from lightconductor.application.validation_service import (
     SEVERITY_ERROR,
     ValidationIssue,
@@ -403,6 +406,10 @@ class ProjectWindow(QMainWindow):
         uploadButton.clicked.connect(self.uploadShow)
         controlsLayout.addWidget(uploadButton)
 
+        exportButton = QPushButton("Export score")
+        exportButton.clicked.connect(self.exportScore)
+        controlsLayout.addWidget(exportButton)
+
         showButton = QPushButton("Start show")
         showButton.clicked.connect(self.startShow)
         showButton.setStyleSheet(
@@ -571,6 +578,57 @@ class ProjectWindow(QMainWindow):
         except Exception as e:
             logger.exception("Failed to upload show")
             QMessageBox.critical(self, "Ошибка загрузки шоу", str(e))
+
+    def exportScore(self):
+        domain_masters = self.state.masters()
+        if not domain_masters:
+            QMessageBox.information(
+                self, "Nothing to export",
+                "The project has no masters or tags to export.",
+            )
+            return
+        file_path, chosen_filter = QFileDialog.getSaveFileName(
+            self,
+            "Export score",
+            f"{self.project_data.get('project_name', 'score')}.csv",
+            "CSV (*.csv);;JSON (*.json)",
+        )
+        if not file_path:
+            return
+        ext = file_path.rsplit(".", 1)[-1].lower() if "." in file_path else ""
+        if ext not in ("csv", "json"):
+            if "JSON" in (chosen_filter or "").upper():
+                ext = "json"
+                file_path = file_path + ".json"
+            else:
+                ext = "csv"
+                file_path = file_path + ".csv"
+        try:
+            records = build_score_records(domain_masters)
+            if ext == "csv":
+                payload = render_csv(records)
+            else:
+                payload = render_json(records)
+            with open(file_path, "w", encoding="utf-8", newline="") as f:
+                f.write(payload)
+        except OSError as exc:
+            logger.exception("Failed to write score export")
+            QMessageBox.critical(
+                self, "Export failed",
+                f"Could not write {file_path}:\n{exc}",
+            )
+            return
+        except Exception as exc:
+            logger.exception("Unexpected error during score export")
+            QMessageBox.critical(
+                self, "Export failed",
+                f"Unexpected error:\n{exc}",
+            )
+            return
+        logger.info(
+            "Exported %d score records to %s",
+            len(records), file_path,
+        )
 
     def startShow(self):
         if not hasattr(self, "audioPlayer"):
