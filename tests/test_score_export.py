@@ -29,11 +29,14 @@ def make_master(**kwargs):
 
 
 def make_slave(**kwargs):
+    led_count = kwargs.get("led_count", 4)
+    led_cells = kwargs.get("led_cells", list(range(led_count)))
     return Slave(
         id=kwargs.get("id", "s1"),
         name=kwargs.get("name", "S"),
         pin=kwargs.get("pin", "1"),
-        led_count=kwargs.get("led_count", 4),
+        led_count=led_count,
+        led_cells=led_cells,
         tag_types=kwargs.get("tag_types", {}),
     )
 
@@ -228,6 +231,61 @@ class BuildScoreRecordsTests(unittest.TestCase):
             (255, 0, 128), (records[0]["r"], records[0]["g"], records[0]["b"])
         )
 
+    def test_wire_index_matches_led_cells(self):
+        tag = Tag(
+            time_seconds=0.0,
+            action=True,
+            colors=[[1, 1, 1], [2, 2, 2], [3, 3, 3]],
+        )
+        tag_type = make_type(topology=[0, 1, 2], tags=[tag])
+        slave = make_slave(
+            led_count=3,
+            led_cells=[2, 0, 1],
+            tag_types={"alpha": tag_type},
+        )
+        master = make_master(slaves={"s1": slave})
+
+        records = build_score_records({"m1": master})
+        self.assertEqual(3, len(records))
+        for rec in records:
+            cell = rec["led_physical_index"]
+            # led_cells = [2, 0, 1]: cell 0 → wire 1, cell 1 → wire 2,
+            # cell 2 → wire 0.
+            self.assertEqual([2, 0, 1].index(cell), rec["wire_index"])
+
+    def test_wire_index_migrated_equals_led_physical_index(self):
+        tag = Tag(
+            time_seconds=0.0,
+            action=True,
+            colors=[[10, 20, 30], [40, 50, 60]],
+        )
+        tag_type = make_type(topology=[0, 1], tags=[tag])
+        slave = make_slave(
+            led_count=2,
+            led_cells=[0, 1],
+            tag_types={"alpha": tag_type},
+        )
+        master = make_master(slaves={"s1": slave})
+
+        records = build_score_records({"m1": master})
+        for rec in records:
+            self.assertEqual(rec["led_physical_index"], rec["wire_index"])
+
+    def test_wire_index_null_for_non_led_cell(self):
+        tag = Tag(time_seconds=0.0, action=True, colors=[[1, 2, 3]])
+        tag_type = make_type(topology=[2], tags=[tag])
+        # Cell 2 is not in led_cells.
+        slave = make_slave(
+            led_count=2,
+            led_cells=[0, 1],
+            tag_types={"alpha": tag_type},
+        )
+        master = make_master(slaves={"s1": slave})
+
+        records = build_score_records({"m1": master})
+        self.assertEqual(1, len(records))
+        self.assertIsNone(records[0]["wire_index"])
+
 
 class RenderCsvTests(unittest.TestCase):
     def test_csv_has_header_row(self):
@@ -249,6 +307,7 @@ class RenderCsvTests(unittest.TestCase):
                 "type_name": "alpha",
                 "type_pin": 1,
                 "led_physical_index": 0,
+                "wire_index": 0,
                 "action": True,
                 "r": 10,
                 "g": 20,
@@ -265,6 +324,7 @@ class RenderCsvTests(unittest.TestCase):
                 "type_name": "alpha",
                 "type_pin": 1,
                 "led_physical_index": 0,
+                "wire_index": 0,
                 "action": False,
                 "r": 0,
                 "g": 0,
@@ -277,6 +337,31 @@ class RenderCsvTests(unittest.TestCase):
         action_idx = FIELD_ORDER.index("action")
         self.assertEqual("On", rows[1][action_idx])
         self.assertEqual("Off", rows[2][action_idx])
+
+    def test_csv_wire_index_none_renders_empty(self):
+        records = [
+            {
+                "time_seconds": 0.0,
+                "master_id": "m1",
+                "master_name": "M",
+                "master_ip": "ip",
+                "slave_id": "s1",
+                "slave_name": "S",
+                "slave_pin": "1",
+                "type_name": "alpha",
+                "type_pin": 1,
+                "led_physical_index": 2,
+                "wire_index": None,
+                "action": True,
+                "r": 1,
+                "g": 2,
+                "b": 3,
+            },
+        ]
+        output = render_csv(records)
+        rows = list(csv.reader(io.StringIO(output)))
+        wire_idx_col = FIELD_ORDER.index("wire_index")
+        self.assertEqual("", rows[1][wire_idx_col])
 
 
 class RenderJsonTests(unittest.TestCase):
@@ -293,6 +378,7 @@ class RenderJsonTests(unittest.TestCase):
                 "type_name": "alpha",
                 "type_pin": 1,
                 "led_physical_index": 0,
+                "wire_index": 0,
                 "action": True,
                 "r": 10,
                 "g": 20,
@@ -309,6 +395,7 @@ class RenderJsonTests(unittest.TestCase):
                 "type_name": "alpha",
                 "type_pin": 1,
                 "led_physical_index": 0,
+                "wire_index": 0,
                 "action": False,
                 "r": 0,
                 "g": 0,
