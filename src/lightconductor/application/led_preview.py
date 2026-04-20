@@ -1,6 +1,6 @@
 """Pure LED-strip preview renderer. Given a domain Slave and a time
 in seconds, computes the RGB buffer the physical strip would display.
-No Qt, no widget dependencies, no I/O. Consumed by LedStripView (UI)
+No Qt, no widget dependencies, no I/O. Consumed by LedGridView (UI)
 and later by 4.1 live preview."""
 
 from __future__ import annotations
