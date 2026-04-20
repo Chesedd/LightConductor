@@ -157,7 +157,30 @@ class SlaveBox(DropBox):
         curType = self.wave.manager.curType
         if curType is None:
             return
-        dialog = TagDialog(curType.row, curType.table, curType.topology, self)
+        slave = None
+        if self._state is not None and self._master_id is not None:
+            try:
+                slave = (
+                    self._state.master(self._master_id)
+                    .slaves[self.boxID]
+                )
+            except KeyError:
+                slave = None
+        current_time = 0.0
+        try:
+            current_time = float(
+                self.wave._renderer.selectedLine.value()
+            )
+        except Exception:
+            current_time = 0.0
+        led_count = int(getattr(slave, "led_count", 0) or 0) if slave else 0
+        dialog = TagDialog(
+            curType.row, curType.table, curType.topology, self,
+            slave=slave,
+            type_name=curType.name,
+            current_time=current_time,
+            led_count=led_count,
+        )
         dialog.tagCreated.connect(self.wave.addTag)
         dialog.exec()
 

@@ -48,6 +48,13 @@ class LedStripView(QWidget):
         self._current_time = max(0.0, float(time_seconds))
         self._recompute()
 
+    def set_buffer(self, buffer):
+        """Preview path: caller supplies a precomputed RGB buffer
+        (list of (r,g,b) tuples). Bypasses _recompute and state
+        resolution. Triggers repaint."""
+        self._buffer = list(buffer or [])
+        self.update()
+
     def _resolve_slave(self):
         try:
             if self._state is None or self._master_id is None or self._slave_id is None:
