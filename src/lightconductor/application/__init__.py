@@ -15,7 +15,12 @@ from .patterns import (
     sequential_fill_frames,
     solid_fill,
 )
-from .project_use_cases import CreateProjectUseCase, DeleteProjectUseCase, ListProjectsUseCase
+from .project_use_cases import (
+    CreateProjectUseCase,
+    DeleteProjectUseCase,
+    ListProjectsUseCase,
+    RenameProjectUseCase,
+)
 from .project_session_use_cases import (
     LoadProjectSessionUseCase,
     ProjectSessionSnapshot,
@@ -31,6 +36,7 @@ __all__ = [
     "CreateProjectUseCase",
     "DeleteProjectUseCase",
     "ListProjectsUseCase",
+    "RenameProjectUseCase",
     "LoadProjectSessionUseCase",
     "ProjectSessionSnapshot",
     "SaveProjectSessionUseCase",

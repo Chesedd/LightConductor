@@ -15,6 +15,9 @@ class ProjectRepositoryPort(Protocol):
     def delete_project(self, project_id: str) -> bool:
         ...
 
+    def rename_project(self, project_id: str, new_name: str) -> bool:
+        ...
+
 
 class ShowTransportPort(Protocol):
     def send_payload(self, pins: Dict[str, Dict[str, int]], payload: Dict[str, Dict[int, Dict[str, dict]]]) -> None:
