@@ -17,7 +17,7 @@ CMD_UPLOAD_CHUNK = 0x11
 CMD_UPLOAD_END = 0x12
 CMD_START_SHOW = 0x20
 
-BEGIN_STRUCT = struct.Struct("<4sBBII")   # magic, cmd, slave_id, total_size, crc32
+BEGIN_STRUCT = struct.Struct("<4sBBII")  # magic, cmd, slave_id, total_size, crc32
 CHUNK_HEAD_STRUCT = struct.Struct("<4sBBIH")  # magic, cmd, slave_id, offset, chunk_len
 END_STRUCT = struct.Struct("<4sBB")
 START_STRUCT = struct.Struct("<4sB")
@@ -43,8 +43,7 @@ class UploadFailedError(Exception):
         self.attempts = attempts
         self.original = original
         super().__init__(
-            f"UDP send to {host}:{port} failed after "
-            f"{attempts} attempt(s): {original}"
+            f"UDP send to {host}:{port} failed after {attempts} attempt(s): {original}"
         )
 
 
@@ -59,8 +58,7 @@ class UploadCancelledError(Exception):
         self.packets_sent = packets_sent
         self.total_packets = total_packets
         super().__init__(
-            f"upload cancelled after {packets_sent} of "
-            f"{total_packets} packet(s)"
+            f"upload cancelled after {packets_sent} of {total_packets} packet(s)"
         )
 
 
@@ -102,7 +100,7 @@ def compute_backoff_delays(
         return [0.0] * n
     delays: List[float] = []
     for i in range(n):
-        d = base * (2 ** i)
+        d = base * (2**i)
         if cap > 0.0 and d > cap:
             d = cap
         delays.append(d)
@@ -161,9 +159,9 @@ class MasterUdpUploadTransport:
                     break
                 delay = self._retry_delays[retry_index]
                 logger.warning(
-                    "UDP send to %s:%s failed on attempt %d/%d: %s; "
-                    "retrying in %.3fs",
-                    addr[0], addr[1],
+                    "UDP send to %s:%s failed on attempt %d/%d: %s; retrying in %.3fs",
+                    addr[0],
+                    addr[1],
                     attempts,
                     1 + len(self._retry_delays),
                     exc,
@@ -173,7 +171,9 @@ class MasterUdpUploadTransport:
                     time.sleep(delay)
         logger.error(
             "UDP send to %s:%s exhausted retries after %d attempt(s)",
-            addr[0], addr[1], attempts,
+            addr[0],
+            addr[1],
+            attempts,
         )
         raise UploadFailedError(
             host=addr[0],
@@ -186,12 +186,11 @@ class MasterUdpUploadTransport:
         self,
         compiled_by_host: Dict[str, List[CompiledSlaveShow]],
         *,
-        progress_callback: Optional[
-            Callable[[int, int], bool]
-        ] = None,
+        progress_callback: Optional[Callable[[int, int], bool]] = None,
     ) -> None:
         total = count_upload_packets(
-            compiled_by_host, self.chunk_size,
+            compiled_by_host,
+            self.chunk_size,
         )
         sent = 0
 
@@ -211,8 +210,10 @@ class MasterUdpUploadTransport:
                     self._send_with_retry(
                         sock,
                         BEGIN_STRUCT.pack(
-                            APP_MAGIC, CMD_UPLOAD_BEGIN,
-                            show.slave_id, len(show.blob),
+                            APP_MAGIC,
+                            CMD_UPLOAD_BEGIN,
+                            show.slave_id,
+                            len(show.blob),
                             show.crc32,
                         ),
                         addr,
@@ -223,13 +224,16 @@ class MasterUdpUploadTransport:
                     offset = 0
                     while offset < len(show.blob):
                         chunk = show.blob[offset : offset + self.chunk_size]
-                        packet = CHUNK_HEAD_STRUCT.pack(
-                            APP_MAGIC,
-                            CMD_UPLOAD_CHUNK,
-                            show.slave_id,
-                            offset,
-                            len(chunk),
-                        ) + chunk
+                        packet = (
+                            CHUNK_HEAD_STRUCT.pack(
+                                APP_MAGIC,
+                                CMD_UPLOAD_CHUNK,
+                                show.slave_id,
+                                offset,
+                                len(chunk),
+                            )
+                            + chunk
+                        )
                         self._send_with_retry(sock, packet, addr)
                         _after_send()
                         offset += len(chunk)
@@ -249,9 +253,7 @@ class MasterUdpUploadTransport:
         self,
         hosts: Iterable[str],
         *,
-        progress_callback: Optional[
-            Callable[[int, int], bool]
-        ] = None,
+        progress_callback: Optional[Callable[[int, int], bool]] = None,
     ) -> None:
         unique_hosts = sorted({host for host in hosts if host})
         total = len(unique_hosts)

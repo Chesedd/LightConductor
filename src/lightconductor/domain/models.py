@@ -26,8 +26,8 @@ class TagType:
 class Slave:
     id: str
     name: str
-    pin: str                 # номер slave на общей UART-шине
-    led_count: int = 0       # общее количество LED у этого slave
+    pin: str  # номер slave на общей UART-шине
+    led_count: int = 0  # общее количество LED у этого slave
     tag_types: Dict[str, TagType] = field(default_factory=dict)
 
 

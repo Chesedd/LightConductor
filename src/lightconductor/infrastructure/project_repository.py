@@ -9,6 +9,7 @@ which versioning targets only data.json).
 This module is intentionally unused in production during PR 2.1b.
 UI wiring happens in PR 2.2.
 """
+
 from __future__ import annotations
 
 import json
@@ -21,9 +22,12 @@ from typing import Any, Dict, List
 
 from lightconductor.domain.models import Project
 from lightconductor.infrastructure.project_archive import (
-    ArchiveError,
     export_project as _archive_export,
+)
+from lightconductor.infrastructure.project_archive import (
     extract_archive as _archive_extract,
+)
+from lightconductor.infrastructure.project_archive import (
     inspect_archive as _archive_inspect,
 )
 
@@ -66,22 +70,20 @@ class ProjectRepository:
         if not self.projects_json_path.exists():
             return {}
         try:
-            with self.projects_json_path.open(
-                "r", encoding="utf-8"
-            ) as f:
+            with self.projects_json_path.open("r", encoding="utf-8") as f:
                 data = json.load(f)
         except (OSError, json.JSONDecodeError) as exc:
             logger.warning(
-                "projects.json at %s failed to load: %s; "
-                "returning empty registry",
-                self.projects_json_path, exc,
+                "projects.json at %s failed to load: %s; returning empty registry",
+                self.projects_json_path,
+                exc,
             )
             return {}
         if not isinstance(data, dict):
             logger.warning(
-                "projects.json at %s is not a dict (got %s); "
-                "returning empty registry",
-                self.projects_json_path, type(data).__name__,
+                "projects.json at %s is not a dict (got %s); returning empty registry",
+                self.projects_json_path,
+                type(data).__name__,
             )
             return {}
         return data
@@ -93,9 +95,7 @@ class ProjectRepository:
         roadmap backups apply to data.json only. Partial writes are
         avoided via tmp file + fsync + os.replace.
         """
-        self.projects_json_path.parent.mkdir(
-            parents=True, exist_ok=True
-        )
+        self.projects_json_path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.projects_json_path.with_suffix(
             self.projects_json_path.suffix + ".tmp"
         )
@@ -116,9 +116,7 @@ class ProjectRepository:
     def _project_dir(self, project_name: str) -> Path:
         return self.projects_root / project_name
 
-    def _payload_to_project(
-        self, project_id: str, payload: Dict[str, Any]
-    ) -> Project:
+    def _payload_to_project(self, project_id: str, payload: Dict[str, Any]) -> Project:
         return Project(
             id=project_id,
             name=payload.get("project_name", ""),
@@ -138,9 +136,9 @@ class ProjectRepository:
         for project_id, payload in registry.items():
             if not isinstance(payload, dict):
                 logger.warning(
-                    "projects.json entry %s is not a dict (got %s); "
-                    "skipping",
-                    project_id, type(payload).__name__,
+                    "projects.json entry %s is not a dict (got %s); skipping",
+                    project_id,
+                    type(payload).__name__,
                 )
                 continue
             name = payload.get("project_name")
@@ -162,15 +160,12 @@ class ProjectRepository:
         - Adds / updates registry entry. `created_at` is set on
           first insert and preserved across updates.
         """
-        self._project_dir(project.name).mkdir(
-            parents=True, exist_ok=True
-        )
+        self._project_dir(project.name).mkdir(parents=True, exist_ok=True)
         registry = self._read_registry()
         existing = registry.get(project.id, {})
         if not isinstance(existing, dict):
             existing = {}
-        created_at = existing.get("created_at") or \
-            datetime.now().isoformat()
+        created_at = existing.get("created_at") or datetime.now().isoformat()
         registry[project.id] = {
             "id": project.id,
             "project_name": project.name,
@@ -192,13 +187,10 @@ class ProjectRepository:
         payload = registry.get(project_id)
         if payload is None:
             return False
-        name = payload.get("project_name") \
-            if isinstance(payload, dict) else None
+        name = payload.get("project_name") if isinstance(payload, dict) else None
         del registry[project_id]
         if name:
-            shutil.rmtree(
-                self._project_dir(name), ignore_errors=True
-            )
+            shutil.rmtree(self._project_dir(name), ignore_errors=True)
         self._write_registry(registry)
         return True
 
@@ -240,9 +232,9 @@ class ProjectRepository:
                 old_dir.rename(new_dir)
             except OSError:
                 logger.exception(
-                    "rename_project: failed to rename directory "
-                    "%s -> %s",
-                    old_dir, new_dir,
+                    "rename_project: failed to rename directory %s -> %s",
+                    old_dir,
+                    new_dir,
                 )
                 raise
         registry[project_id] = {
@@ -259,7 +251,8 @@ class ProjectRepository:
                     logger.exception(
                         "rename_project: registry write failed "
                         "AND rollback rename failed for %s -> %s",
-                        new_dir, old_dir,
+                        new_dir,
+                        old_dir,
                     )
             raise
         return True
@@ -283,19 +276,13 @@ class ProjectRepository:
         registry = self._read_registry()
         payload = registry.get(project_id)
         if not isinstance(payload, dict):
-            raise ProjectNotFound(
-                f"unknown project id: {project_id}"
-            )
+            raise ProjectNotFound(f"unknown project id: {project_id}")
         project_name = payload.get("project_name")
         if not isinstance(project_name, str) or not project_name:
-            raise ProjectNotFound(
-                f"project {project_id} has no project_name"
-            )
+            raise ProjectNotFound(f"project {project_id} has no project_name")
         project_dir = self._project_dir(project_name)
         if not project_dir.exists():
-            raise FileNotFoundError(
-                f"project directory missing: {project_dir}"
-            )
+            raise FileNotFoundError(f"project directory missing: {project_dir}")
         song_name = payload.get("song_name") or ""
         created_at = payload.get("created_at") or ""
         _archive_export(
@@ -327,37 +314,23 @@ class ProjectRepository:
         """
         target_name = (target_project_name or "").strip()
         if not target_name:
-            raise ValueError(
-                "target_project_name cannot be empty"
-            )
+            raise ValueError("target_project_name cannot be empty")
         if any(sep in target_name for sep in ("/", "\\")):
-            raise ValueError(
-                "target_project_name cannot contain path separators"
-            )
+            raise ValueError("target_project_name cannot contain path separators")
         registry = self._read_registry()
         for payload in registry.values():
-            if (
-                isinstance(payload, dict)
-                and payload.get("project_name") == target_name
-            ):
+            if isinstance(payload, dict) and payload.get("project_name") == target_name:
                 raise ProjectNameCollision(
-                    f"project name already in registry: "
-                    f"{target_name}"
+                    f"project name already in registry: {target_name}"
                 )
         inspection = _archive_inspect(Path(zip_path))
         target_dir = self._project_dir(target_name)
         if target_dir.exists():
-            raise ProjectNameCollision(
-                f"target directory already exists: {target_dir}"
-            )
+            raise ProjectNameCollision(f"target directory already exists: {target_dir}")
         _archive_extract(inspection, target_dir)
         new_id = datetime.now().strftime("%Y%m%d%H%M%S%f")
         source_created = inspection.source_created_at
-        created_at = (
-            source_created
-            if source_created
-            else datetime.now().isoformat()
-        )
+        created_at = source_created if source_created else datetime.now().isoformat()
         song_name = inspection.song_name
         registry[new_id] = {
             "id": new_id,

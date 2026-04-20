@@ -65,7 +65,10 @@ def _render_buffer(
         key=lambda tt: _safe_int(getattr(tt, "pin", 0)),
     )
     for tag_type in tag_types:
-        if skip_type_name is not None and getattr(tag_type, "name", None) == skip_type_name:
+        if (
+            skip_type_name is not None
+            and getattr(tag_type, "name", None) == skip_type_name
+        ):
             continue
         tags = getattr(tag_type, "tags", None) or []
         if not tags:
@@ -88,7 +91,8 @@ def _render_buffer(
 
 
 def render_led_strip_at(
-    slave: Slave, time_seconds: float,
+    slave: Slave,
+    time_seconds: float,
 ) -> List[Tuple[int, int, int]]:
     """Compute RGB buffer of length slave.led_count at the given time.
     Returns an empty list when led_count <= 0. Tag types are processed

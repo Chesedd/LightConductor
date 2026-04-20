@@ -4,6 +4,7 @@ Implements ProjectSessionStoragePort with the no-argument method
 shape the UI layer expects. Holds `project_name` from construction;
 delegates to `ProjectSessionStorage`.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, Tuple
@@ -30,7 +31,9 @@ class UiSessionBridge:
 
     def save_audio(self, audio: Any, sample_rate: int | None) -> None:
         self._storage.save_audio(
-            self._project_name, audio, sample_rate,
+            self._project_name,
+            audio,
+            sample_rate,
         )
 
     def load_domain_masters(self) -> Dict[str, Master]:

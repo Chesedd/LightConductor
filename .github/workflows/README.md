@@ -28,3 +28,15 @@ Qt runs headless via QT_QPA_PLATFORM=offscreen.
 - 7.3: mypy --strict on src/lightconductor (follow-up PR).
 - 7.4: coverage gate ≥ 70%; Linux/Windows/macOS matrix
   (follow-up PR).
+
+## Linting
+
+`ruff check` and `ruff format --check` run on
+`src/lightconductor/` before pytest. Tests and UI
+directories (`tests/`, `ProjectScreen/`, `MainScreen/`,
+`AssistanceTools/`) will be brought under ruff in
+follow-up PRs (roadmap 7.2b and 7.2c).
+
+Configuration lives in `pyproject.toml` under
+`[tool.ruff]` — minimal selection: `E, F, I, B`. Line
+length 88.

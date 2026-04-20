@@ -3,7 +3,9 @@ from __future__ import annotations
 from typing import Iterable, List, Tuple
 
 
-def available_starts(led_count: int, occupied_ranges: Iterable[Tuple[int, int]], length: int) -> List[int]:
+def available_starts(
+    led_count: int, occupied_ranges: Iterable[Tuple[int, int]], length: int
+) -> List[int]:
     if led_count <= 0 or length <= 0 or length > led_count:
         return []
 

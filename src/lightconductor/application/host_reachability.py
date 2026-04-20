@@ -1,6 +1,7 @@
 """Pure UDP reachability probe. Returns a PingStatus enum without
 touching Qt. Consumed by MasterPingWorker on the Qt side; unit-tested
 by monkey-patching socket.socket."""
+
 from __future__ import annotations
 
 import socket
@@ -10,6 +11,7 @@ from enum import Enum
 class PingStatus(str, Enum):
     """str-subclass so values serialize clean in logs and compare with
     "==" against strings in tests."""
+
     UNKNOWN = "unknown"
     ONLINE = "online"
     OFFLINE = "offline"

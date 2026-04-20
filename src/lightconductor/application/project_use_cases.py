@@ -56,7 +56,8 @@ class ExportProjectUseCase:
         output_zip_path,
     ) -> None:
         self.repository.export_project_to_archive(
-            project_id, output_zip_path,
+            project_id,
+            output_zip_path,
         )
 
 
@@ -70,5 +71,6 @@ class ImportProjectUseCase:
         target_project_name: str,
     ) -> Project:
         return self.repository.import_project_from_archive(
-            zip_path, target_project_name,
+            zip_path,
+            target_project_name,
         )

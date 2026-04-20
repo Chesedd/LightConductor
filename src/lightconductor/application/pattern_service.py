@@ -5,6 +5,7 @@ Provides a single injection point for UI consumers and an
 event-based API (`PatternEvent`) that complements the legacy
 frame-based API for future timeline-centric refactors.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -27,6 +28,7 @@ class PatternEvent:
     `color` is a 3-element RGB list. The event is atomic:
     at `time_seconds`, LED `led_index` becomes `color`.
     """
+
     led_index: int
     color: List[int]
     time_seconds: float
@@ -50,9 +52,7 @@ class PatternService:
     ) -> List[List[int]]:
         return apply_fill_range(colors, start, end, rgb)
 
-    def sequential_fill(
-        self, led_count: int, rgb: List[int]
-    ) -> List[List[List[int]]]:
+    def sequential_fill(self, led_count: int, rgb: List[int]) -> List[List[List[int]]]:
         return sequential_fill_frames(led_count, rgb)
 
     def moving_window(
@@ -72,9 +72,7 @@ class PatternService:
         end_time: float,
         step: float,
     ) -> List[dict]:
-        return build_timed_pattern_tags(
-            frames, start_time, end_time, step
-        )
+        return build_timed_pattern_tags(frames, start_time, end_time, step)
 
     def build_events(
         self,
@@ -93,9 +91,11 @@ class PatternService:
         for frame_index, frame in enumerate(frames):
             t = round(start_time + frame_index * step, 3)
             for led_index, color in enumerate(frame):
-                events.append(PatternEvent(
-                    led_index=led_index,
-                    color=list(color),
-                    time_seconds=t,
-                ))
+                events.append(
+                    PatternEvent(
+                        led_index=led_index,
+                        color=list(color),
+                        time_seconds=t,
+                    )
+                )
         return events

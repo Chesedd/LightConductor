@@ -8,7 +8,9 @@ from lightconductor.application import (
     ProjectSessionSnapshot,
     SaveProjectSessionUseCase,
 )
-from lightconductor.application.project_session_use_cases import ProjectSessionStoragePort
+from lightconductor.application.project_session_use_cases import (
+    ProjectSessionStoragePort,
+)
 from lightconductor.domain.models import Master
 
 

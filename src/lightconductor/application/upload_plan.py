@@ -3,6 +3,7 @@ computes per-host and per-slave packet / byte counts, plus an estimated
 transfer duration. Consumed by the pre-upload confirmation dialog. No
 Qt, no I/O.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -89,12 +90,14 @@ def build_upload_plan(
             blob_size = len(show.blob or b"")
             chunk_count = _ceil_div(blob_size, chunk_size)
             packet_count = 2 + chunk_count
-            slave_plans.append(SlavePlan(
-                slave_id=show.slave_id,
-                blob_size=blob_size,
-                chunk_count=chunk_count,
-                packet_count=packet_count,
-            ))
+            slave_plans.append(
+                SlavePlan(
+                    slave_id=show.slave_id,
+                    blob_size=blob_size,
+                    chunk_count=chunk_count,
+                    packet_count=packet_count,
+                )
+            )
         hosts.append(HostPlan(host=host, slaves=slave_plans))
     total_packets = sum(h.total_packets for h in hosts)
     estimated_seconds = total_packets * delay

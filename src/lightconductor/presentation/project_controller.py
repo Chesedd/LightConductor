@@ -5,12 +5,13 @@ from typing import Any, Dict, Protocol, Tuple
 
 from lightconductor.application.compiled_show import CompileShowsForMastersUseCase
 from lightconductor.domain.models import Master
-from lightconductor.infrastructure.master_udp_upload_transport import MasterUdpUploadTransport
+from lightconductor.infrastructure.master_udp_upload_transport import (
+    MasterUdpUploadTransport,
+)
 
 
 class AudioLoaderPort(Protocol):
-    def load(self, file_path: str) -> Tuple[Any, int, str]:
-        ...
+    def load(self, file_path: str) -> Tuple[Any, int, str]: ...
 
 
 @dataclass(slots=True)

@@ -19,7 +19,6 @@ from lightconductor.infrastructure.json_mapper import (
     unpack_slave,
 )
 
-
 TEMPLATE_CURRENT_VERSION = 1
 
 
@@ -80,8 +79,7 @@ def slave_from_template(
     for type_name, tt in slave_config.get("tagTypes", {}).items():
         if not isinstance(tt, dict):
             raise ValueError(
-                f"template.slave_config.tagTypes.{type_name}: "
-                "expected dict",
+                f"template.slave_config.tagTypes.{type_name}: expected dict",
             )
         tt_copy = dict(tt)
         tt_copy["tags"] = {}
@@ -103,7 +101,9 @@ def build_apply_template_composite(
          empty tags).
     No AddTagCommand children — templates carry no tags."""
     full = slave_from_template(
-        template, new_slave_id, new_slave_name,
+        template,
+        new_slave_id,
+        new_slave_name,
     )
     tag_types_in_order = list(full.tag_types.items())
     slave_shell = Slave(
@@ -113,11 +113,13 @@ def build_apply_template_composite(
         led_count=full.led_count,
         tag_types={},
     )
-    children = [AddSlaveCommand(
-        master_id=target_master_id,
-        slave=slave_shell,
-    )]
-    for type_name, tag_type in tag_types_in_order:
+    children = [
+        AddSlaveCommand(
+            master_id=target_master_id,
+            slave=slave_shell,
+        )
+    ]
+    for _type_name, tag_type in tag_types_in_order:
         tag_type_shell = TagType(
             name=tag_type.name,
             pin=tag_type.pin,
@@ -127,9 +129,11 @@ def build_apply_template_composite(
             topology=list(tag_type.topology),
             tags=[],
         )
-        children.append(AddTagTypeCommand(
-            master_id=target_master_id,
-            slave_id=full.id,
-            tag_type=tag_type_shell,
-        ))
+        children.append(
+            AddTagTypeCommand(
+                master_id=target_master_id,
+                slave_id=full.id,
+                tag_type=tag_type_shell,
+            )
+        )
     return CompositeCommand(children=children)

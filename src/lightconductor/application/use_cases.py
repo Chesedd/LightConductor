@@ -10,7 +10,9 @@ from lightconductor.domain.models import Master
 class BuildShowPayloadUseCase:
     """Build transport payload independent from UI framework and sockets."""
 
-    def execute(self, masters: Dict[str, Master]) -> tuple[Dict[str, Dict[str, int]], Dict[str, Dict[int, Dict[str, dict]]]]:
+    def execute(
+        self, masters: Dict[str, Master]
+    ) -> tuple[Dict[str, Dict[str, int]], Dict[str, Dict[int, Dict[str, dict]]]]:
         payload: Dict[str, Dict[int, Dict[str, dict]]] = {}
         pins: Dict[str, Dict[str, int]] = {}
 
@@ -20,7 +22,9 @@ class BuildShowPayloadUseCase:
                 pins.setdefault(slave.pin, {})
 
                 for tag_type in slave.tag_types.values():
-                    segment_size = len(getattr(tag_type, "topology", [])) or (tag_type.rows * tag_type.columns)
+                    segment_size = len(getattr(tag_type, "topology", [])) or (
+                        tag_type.rows * tag_type.columns
+                    )
                     try:
                         segment_start = int(tag_type.pin)
                     except (TypeError, ValueError):

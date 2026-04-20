@@ -5,6 +5,7 @@ and per-project file probes. Intentionally separate from
 ProjectSessionStoragePort to keep the preview use case
 independent of audio/masters loading semantics.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, Protocol

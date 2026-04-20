@@ -97,11 +97,7 @@ def _coerce_device_templates(value) -> list | None:
         if not isinstance(entry, dict):
             return None
         version = entry.get("template_version")
-        if (
-            not isinstance(version, int)
-            or isinstance(version, bool)
-            or version != 1
-        ):
+        if not isinstance(version, int) or isinstance(version, bool) or version != 1:
             return None
         tid = entry.get("template_id")
         if not isinstance(tid, str) or not tid:
@@ -169,7 +165,9 @@ def _from_dict(data: object) -> AppSettings:
             )
             continue
         if expected_type is int and isinstance(value, bool):
-            logger.warning("settings field %r is bool, expected int; using default", name)
+            logger.warning(
+                "settings field %r is bool, expected int; using default", name
+            )
             continue
         if name == "autosave_interval_seconds" and value <= 0:
             logger.warning(
