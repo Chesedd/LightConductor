@@ -8,6 +8,7 @@ from PyQt6.QtGui import QColor
 from typing import Dict, List
 
 from ProjectScreen.TagLogic.TagObject import Tag
+from lightconductor.application.commands import AddTagCommand
 from lightconductor.application.project_state import (
     TagAdded,
     TagRemoved,
@@ -29,6 +30,7 @@ class TagTimelineController:
         project_window=None,
         master_id=None,
         slave_id=None,
+        commands=None,
     ):
         self._plot_widget = plot_widget
         self._manager = manager
@@ -37,6 +39,7 @@ class TagTimelineController:
         self._project_window = project_window
         self._master_id = master_id
         self._slave_id = slave_id
+        self._commands = commands
         self._scene_tags: Dict[str, List[Tag]] = {}
         # Identity map from domain Tag object (by id()) to the scene
         # Tag that represents it. Populated by _handle_tag_added and
@@ -203,16 +206,27 @@ class TagTimelineController:
             # creation during loading would break the load invariant.
             return
         if self._state is not None:
-            self._state.add_tag(
-                self._master_id,
-                self._slave_id,
-                curType.name,
-                DomainTag(
-                    time_seconds=float(time),
-                    action=data["action"],
-                    colors=list(data["colors"]),
-                ),
+            domain_tag = DomainTag(
+                time_seconds=float(time),
+                action=data["action"],
+                colors=list(data["colors"]),
             )
+            if self._commands is not None:
+                self._commands.push(
+                    AddTagCommand(
+                        master_id=self._master_id,
+                        slave_id=self._slave_id,
+                        type_name=curType.name,
+                        tag=domain_tag,
+                    )
+                )
+            else:
+                self._state.add_tag(
+                    self._master_id,
+                    self._slave_id,
+                    curType.name,
+                    domain_tag,
+                )
             return
         # Headless / no-state path: build scene tag directly so callers
         # that instantiate the controller without ProjectState (tests,

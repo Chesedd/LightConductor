@@ -7,6 +7,10 @@ from PyQt6.QtGui import QAction, QKeySequence
 from ProjectScreen.PlateLogic.MasterBox import MasterBox
 from AssistanceTools.SimpleDialog import SimpleDialog
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
+from lightconductor.application.commands import (
+    AddMasterCommand,
+    CommandStack,
+)
 from lightconductor.application.compiled_show import CompileShowsForMastersUseCase
 from lightconductor.application.project_state import ProjectState
 from lightconductor.application.validation_service import (
@@ -81,6 +85,7 @@ class ProjectWindow(QMainWindow):
         )
         self.validation_service = ValidationService()
         self.state = ProjectState()
+        self.commands = CommandStack(self.state)
         self._loading = False
 
         self.initActions()
@@ -97,6 +102,16 @@ class ProjectWindow(QMainWindow):
         saveAction.setShortcut(QKeySequence("Ctrl+S"))
         saveAction.triggered.connect(self.saveData)
         self.addAction(saveAction)
+
+        undoAction = QAction("Undo", self)
+        undoAction.setShortcut(QKeySequence("Ctrl+Z"))
+        undoAction.triggered.connect(self.commands.undo)
+        self.addAction(undoAction)
+
+        redoAction = QAction("Redo", self)
+        redoAction.setShortcut(QKeySequence("Ctrl+Shift+Z"))
+        redoAction.triggered.connect(self.commands.redo)
+        self.addAction(redoAction)
 
     def _report_validation_errors(
         self,
@@ -196,6 +211,7 @@ class ProjectWindow(QMainWindow):
             self.sr = snapshot.sample_rate
             self.audioPath = snapshot.audio_path
             self.state.load_masters(snapshot.masters)
+            self.commands.clear()
             for master_id, master in snapshot.masters.items():
                 self.addMaster(master.name, master_id, master.ip)
                 master_widget = self.masters[master_id]
@@ -289,12 +305,17 @@ class ProjectWindow(QMainWindow):
             masterIp=masterIp,
             state=self.state,
             project_window=self,
+            commands=self.commands,
         )
         self.masters[boxID] = master
         self.layout.addWidget(master)
         if not self._loading:
-            self.state.add_master(
-                DomainMaster(id=boxID, name=masterName, ip=masterIp)
+            self.commands.push(
+                AddMasterCommand(
+                    master=DomainMaster(
+                        id=boxID, name=masterName, ip=masterIp,
+                    ),
+                )
             )
 
     def updateSlavesAudio(self):

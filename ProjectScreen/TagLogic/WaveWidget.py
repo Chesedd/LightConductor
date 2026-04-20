@@ -19,6 +19,7 @@ class WaveWidget(pg.PlotWidget):
         project_window=None,
         master_id=None,
         slave_id=None,
+        commands=None,
     ):
         super().__init__()
         self.manager = manager
@@ -38,6 +39,7 @@ class WaveWidget(pg.PlotWidget):
             project_window=project_window,
             master_id=master_id,
             slave_id=slave_id,
+            commands=commands,
         )
         self.chooseBox.stateChanged.connect(self.editTagTypeOnWave)
         self._renderer.init_ui()

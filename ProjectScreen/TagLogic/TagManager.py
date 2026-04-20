@@ -12,6 +12,11 @@ from PyQt6.QtGui import QColor
 from ProjectScreen.PlateLogic.DeleteDialog import DeleteDialog
 from AssistanceTools.FlowLayout import FlowLayout
 from AssistanceTools.SimpleDialog import SimpleDialog
+from lightconductor.application.commands import (
+    AddTagTypeCommand,
+    DeleteTagTypeCommand,
+    EditRangeCommand,
+)
 from lightconductor.application.range_allocator import available_starts
 from lightconductor.application.project_state import (
     TagTypeAdded,
@@ -32,6 +37,7 @@ class TagManager(QWidget):
         project_window=None,
         master_id=None,
         slave_id=None,
+        commands=None,
     ):
         super().__init__()
         self.checkBox = checkBox
@@ -45,6 +51,7 @@ class TagManager(QWidget):
         self._project_window = project_window
         self._master_id = master_id
         self._slave_id = slave_id
+        self._commands = commands
 
         self.initPanel()
 
@@ -100,19 +107,29 @@ class TagManager(QWidget):
         slave = self._state.master(self._master_id).slaves[self._slave_id]
         if params["name"] in slave.tag_types:
             return self._build_widgets_for_type(params)
-        self._state.add_tag_type(
-            self._master_id,
-            self._slave_id,
-            DomainTagType(
-                name=params["name"],
-                pin=str(params["pin"]),
-                rows=int(params["row"]),
-                columns=int(params["table"]),
-                color=params["color"],
-                topology=list(params.get("topology") or []),
-                tags=[],
-            ),
+        domain_tt = DomainTagType(
+            name=params["name"],
+            pin=str(params["pin"]),
+            rows=int(params["row"]),
+            columns=int(params["table"]),
+            color=params["color"],
+            topology=list(params.get("topology") or []),
+            tags=[],
         )
+        if self._commands is not None:
+            self._commands.push(
+                AddTagTypeCommand(
+                    master_id=self._master_id,
+                    slave_id=self._slave_id,
+                    tag_type=domain_tt,
+                )
+            )
+        else:
+            self._state.add_tag_type(
+                self._master_id,
+                self._slave_id,
+                domain_tt,
+            )
         return self.types.get(params["name"])
 
     def _build_widgets_for_type(self, params):
@@ -511,6 +528,7 @@ class TagButton(QToolButton):
         self.tagType.name = params["name"]
         state = getattr(self.manager, "_state", None)
         project_window = getattr(self.manager, "_project_window", None)
+        commands = getattr(self.manager, "_commands", None)
         if (
             state is not None
             and project_window is not None
@@ -519,13 +537,24 @@ class TagButton(QToolButton):
             and self.manager._slave_id is not None
         ):
             try:
-                state.update_tag_type(
-                    self.manager._master_id,
-                    self.manager._slave_id,
-                    self.tagType.name,
-                    pin=str(params["pin"]),
-                    color=params["color"],
-                )
+                if commands is not None:
+                    commands.push(
+                        EditRangeCommand(
+                            master_id=self.manager._master_id,
+                            slave_id=self.manager._slave_id,
+                            type_name=self.tagType.name,
+                            new_pin=str(params["pin"]),
+                            new_color=params["color"],
+                        )
+                    )
+                else:
+                    state.update_tag_type(
+                        self.manager._master_id,
+                        self.manager._slave_id,
+                        self.tagType.name,
+                        pin=str(params["pin"]),
+                        color=params["color"],
+                    )
                 return
             except KeyError:
                 import logging
@@ -562,6 +591,7 @@ class TagButton(QToolButton):
     def deleteType(self):
         state = getattr(self.manager, "_state", None)
         project_window = getattr(self.manager, "_project_window", None)
+        commands = getattr(self.manager, "_commands", None)
         # State-first delete: mutating state fires TagTypeRemoved and the
         # manager's listener tears down scene tags, TagButton, chooseBox
         # entry, and TagState chip. If no state is wired, fall back to
@@ -574,11 +604,20 @@ class TagButton(QToolButton):
             and self.manager._slave_id is not None
         ):
             try:
-                state.remove_tag_type(
-                    self.manager._master_id,
-                    self.manager._slave_id,
-                    self.tagType.name,
-                )
+                if commands is not None:
+                    commands.push(
+                        DeleteTagTypeCommand(
+                            master_id=self.manager._master_id,
+                            slave_id=self.manager._slave_id,
+                            type_name=self.tagType.name,
+                        )
+                    )
+                else:
+                    state.remove_tag_type(
+                        self.manager._master_id,
+                        self.manager._slave_id,
+                        self.tagType.name,
+                    )
                 return
             except KeyError:
                 import logging

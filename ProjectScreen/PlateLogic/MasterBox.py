@@ -9,6 +9,10 @@ from AssistanceTools.ChooseBox import  TagTypeChooseBox
 from AssistanceTools.SimpleDialog import SimpleDialog
 from ProjectScreen.TagLogic.WaveWidget import WaveWidget
 from AssistanceTools.DropBox import DropBox
+from lightconductor.application.commands import (
+    AddSlaveCommand,
+    DeleteSlaveCommand,
+)
 from lightconductor.domain.models import Slave as DomainSlave
 
 logger = logging.getLogger(__name__)
@@ -53,6 +57,7 @@ class MasterBox(DropBox):
         masterIp="192.168.0.129",
         state=None,
         project_window=None,
+        commands=None,
     ):
         super().__init__(parent)
 
@@ -64,6 +69,7 @@ class MasterBox(DropBox):
         self.audioPath = aydioPath
         self._state = state
         self._project_window = project_window
+        self._commands = commands
 
         self.slaves = {}
 
@@ -91,6 +97,7 @@ class MasterBox(DropBox):
             project_window=self._project_window,
             master_id=self.boxID,
             slave_id=boxID,
+            commands=self._commands,
         )
         wave = WaveWidget(
             self.audio,
@@ -102,6 +109,7 @@ class MasterBox(DropBox):
             project_window=self._project_window,
             master_id=self.boxID,
             slave_id=boxID,
+            commands=self._commands,
         )
         slave = SlaveBox(
             title=slaveData["name"],
@@ -111,6 +119,7 @@ class MasterBox(DropBox):
             ledCount=slaveData.get("led_count", 0),
             state=self._state,
             master_id=self.boxID,
+            commands=self._commands,
         )
         slave.boxDeleted.connect(self.deleteSlavesData)
 
@@ -121,15 +130,21 @@ class MasterBox(DropBox):
             and self._project_window is not None
             and not self._project_window.is_loading()
         ):
-            self._state.add_slave(
-                self.boxID,
-                DomainSlave(
-                    id=boxID,
-                    name=slaveData["name"],
-                    pin=str(slaveData["pin"]),
-                    led_count=int(slaveData.get("led_count", 0) or 0),
-                ),
+            domain_slave = DomainSlave(
+                id=boxID,
+                name=slaveData["name"],
+                pin=str(slaveData["pin"]),
+                led_count=int(slaveData.get("led_count", 0) or 0),
             )
+            if self._commands is not None:
+                self._commands.push(
+                    AddSlaveCommand(
+                        master_id=self.boxID,
+                        slave=domain_slave,
+                    )
+                )
+            else:
+                self._state.add_slave(self.boxID, domain_slave)
 
     def deleteSlavesData(self, boxID):
         logger.debug("Deleting slave boxID=%s, current slaves=%s", boxID, list(self.slaves.keys()))
@@ -140,12 +155,26 @@ class MasterBox(DropBox):
                 and self._project_window is not None
                 and not self._project_window.is_loading()
             ):
-                try:
-                    self._state.remove_slave(self.boxID, boxID)
-                except KeyError:
-                    logger.warning(
-                        "state missing slave %s on master %s during delete",
-                        boxID, self.boxID,
-                    )
+                if self._commands is not None:
+                    try:
+                        self._commands.push(
+                            DeleteSlaveCommand(
+                                master_id=self.boxID,
+                                slave_id=boxID,
+                            )
+                        )
+                    except KeyError:
+                        logger.warning(
+                            "state missing slave %s on master %s during delete",
+                            boxID, self.boxID,
+                        )
+                else:
+                    try:
+                        self._state.remove_slave(self.boxID, boxID)
+                    except KeyError:
+                        logger.warning(
+                            "state missing slave %s on master %s during delete",
+                            boxID, self.boxID,
+                        )
             return True
         return False

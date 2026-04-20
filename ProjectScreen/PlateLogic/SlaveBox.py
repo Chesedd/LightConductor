@@ -26,6 +26,7 @@ class SlaveBox(DropBox):
         ledCount=0,
         state=None,
         master_id=None,
+        commands=None,
     ):
         super().__init__(parent)
 
@@ -40,6 +41,7 @@ class SlaveBox(DropBox):
 
         self._state = state
         self._master_id = master_id
+        self._commands = commands
 
         self.toggleButton.setText(f"▼ {title} (pin: {slavePin}, leds: {ledCount})")
 
@@ -73,6 +75,7 @@ class SlaveBox(DropBox):
             master_id=self._master_id,
             slave_id=self.boxID,
             wave=self.wave,
+            commands=self._commands,
         )
         self.wave.manager.tagScreen = self.tagInfo
 
