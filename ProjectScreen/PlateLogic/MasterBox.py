@@ -57,20 +57,56 @@ class newSlaveDialog(SimpleDialog):
 
         self.slaveNameBar = self.LabelAndLine("Slave's name")
         self.pinBar = self.LabelAndLine("Slave pin")
-        self.ledCountBar = self.LabelAndLine("LED count")
-        self.ledCountBar.setText("60")
+        self.gridRowsBar = self.LabelAndLine("Grid rows")
+        self.gridRowsBar.setText("1")
+        self.gridColumnsBar = self.LabelAndLine("Grid columns")
+        self.gridColumnsBar.setText("60")
+
+        ledCountWidget = QWidget()
+        ledCountLayout = QHBoxLayout(ledCountWidget)
+        ledCountLayout.setContentsMargins(0, 0, 0, 0)
+        ledCountLayout.addWidget(QLabel("LED count:"))
+        self.ledCountLabel = QLabel("60")
+        ledCountLayout.addWidget(self.ledCountLabel)
+        ledCountLayout.addStretch(1)
+        self.layout().addWidget(ledCountWidget)
+
+        self.gridRowsBar.textChanged.connect(self._recompute_led_count)
+        self.gridColumnsBar.textChanged.connect(self._recompute_led_count)
 
         okButton = self.OkAndCancel()
         okButton.clicked.connect(self.onOkClicked)
+
+    def _recompute_led_count(self, _text=None):
+        rows = self._parse_positive_int(self.gridRowsBar.text(), default=1)
+        cols = self._parse_non_negative_int(self.gridColumnsBar.text(), default=0)
+        self.ledCountLabel.setText(str(rows * cols))
+
+    @staticmethod
+    def _parse_positive_int(text: str, default: int) -> int:
+        try:
+            value = int(text)
+        except (TypeError, ValueError):
+            return default
+        return max(1, value)
+
+    @staticmethod
+    def _parse_non_negative_int(text: str, default: int) -> int:
+        try:
+            value = int(text)
+        except (TypeError, ValueError):
+            return default
+        return max(0, value)
 
     def onOkClicked(self):
         data = {}
         data["name"] = self.slaveNameBar.text()
         data["pin"] = self.pinBar.text()
-        try:
-            data["led_count"] = int(self.ledCountBar.text())
-        except ValueError:
-            data["led_count"] = 60
+        rows = self._parse_positive_int(self.gridRowsBar.text(), default=1)
+        cols = self._parse_non_negative_int(self.gridColumnsBar.text(), default=0)
+        data["grid_rows"] = rows
+        data["grid_columns"] = cols
+        data["led_count"] = rows * cols
         self.slaveCreated.emit(data)
         self.accept()
 
@@ -220,6 +256,8 @@ class MasterBox(DropBox):
             wave=wave,
             slavePin=slaveData["pin"],
             ledCount=slaveData.get("led_count", 0),
+            gridRows=slaveData.get("grid_rows", 1),
+            gridColumns=slaveData.get("grid_columns", 0),
             state=self._state,
             master_id=self.boxID,
             commands=self._commands,
@@ -239,6 +277,8 @@ class MasterBox(DropBox):
                 name=slaveData["name"],
                 pin=str(slaveData["pin"]),
                 led_count=int(slaveData.get("led_count", 0) or 0),
+                grid_rows=int(slaveData.get("grid_rows", 1) or 1),
+                grid_columns=int(slaveData.get("grid_columns", 0) or 0),
             )
             if self._commands is not None:
                 self._commands.push(

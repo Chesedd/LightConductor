@@ -28,12 +28,29 @@ def _tag_type(name, pin, topology=None, rows=1, columns=1):
     )
 
 
-def _slave(slave_id="s1", name="Slave", pin="0", led_count=0, tag_types=None):
+def _slave(
+    slave_id="s1",
+    name="Slave",
+    pin="0",
+    led_count=0,
+    tag_types=None,
+    grid_rows=None,
+    grid_columns=None,
+):
+    if grid_rows is None and grid_columns is None:
+        grid_rows = 1
+        grid_columns = led_count
+    elif grid_rows is None:
+        grid_rows = 1
+    elif grid_columns is None:
+        grid_columns = 0
     return Slave(
         id=slave_id,
         name=name,
         pin=str(pin),
         led_count=led_count,
+        grid_rows=grid_rows,
+        grid_columns=grid_columns,
         tag_types=dict(tag_types or {}),
     )
 
@@ -280,6 +297,65 @@ class ValidationIssueShapeTests(unittest.TestCase):
             self.assertIsInstance(issue.category, str)
             self.assertTrue(issue.path.startswith("masters."))
             self.assertIsInstance(issue.message, str)
+
+
+class ValidationServiceGridLedMismatchTests(unittest.TestCase):
+    def setUp(self):
+        self.service = ValidationService()
+
+    def test_slave_grid_matches_led_count_passes(self):
+        slave = _slave(
+            pin="0",
+            led_count=60,
+            grid_rows=6,
+            grid_columns=10,
+        )
+        master = _master(slaves={"s1": slave})
+        issues = self.service.validate({"m1": master})
+        mismatches = [i for i in issues if i.category == "grid_led_mismatch"]
+        self.assertEqual([], mismatches)
+
+    def test_slave_grid_mismatch_raises_error_issue(self):
+        slave = _slave(
+            pin="0",
+            led_count=60,
+            grid_rows=6,
+            grid_columns=11,
+        )
+        master = _master(slaves={"s1": slave})
+        issues = self.service.validate({"m1": master})
+        mismatches = [i for i in issues if i.category == "grid_led_mismatch"]
+        self.assertEqual(1, len(mismatches))
+        issue = mismatches[0]
+        self.assertEqual(SEVERITY_ERROR, issue.severity)
+        self.assertEqual("masters.m1.slaves.s1", issue.path)
+        self.assertIn("6", issue.message)
+        self.assertIn("11", issue.message)
+        self.assertIn("60", issue.message)
+
+    def test_slave_zero_grid_zero_led_passes(self):
+        slave = _slave(
+            pin="0",
+            led_count=0,
+            grid_rows=0,
+            grid_columns=0,
+        )
+        master = _master(slaves={"s1": slave})
+        issues = self.service.validate({"m1": master})
+        mismatches = [i for i in issues if i.category == "grid_led_mismatch"]
+        self.assertEqual([], mismatches)
+
+    def test_slave_grid_one_by_n_matches_linear_strip(self):
+        slave = _slave(
+            pin="0",
+            led_count=60,
+            grid_rows=1,
+            grid_columns=60,
+        )
+        master = _master(slaves={"s1": slave})
+        issues = self.service.validate({"m1": master})
+        mismatches = [i for i in issues if i.category == "grid_led_mismatch"]
+        self.assertEqual([], mismatches)
 
 
 if __name__ == "__main__":

@@ -29,7 +29,8 @@ class ValidationIssue:
                    "overlap", "out_of_bounds",
                    "duplicate_segment_start",
                    "duplicate_slave_pin", "invalid_ip",
-                   "unused_leds", "gap".
+                   "unused_leds", "gap",
+                   "grid_led_mismatch".
         path:      Dotted path pointing to the offending element,
                    e.g. "masters.m1.slaves.s1.tag_types.front".
                    Used for UI highlighting / grouping.
@@ -56,6 +57,7 @@ class ValidationService:
             issues.extend(self._check_duplicate_slave_pins(master, master_path))
             for slave_id, slave in master.slaves.items():
                 slave_path = f"{master_path}.slaves.{slave_id}"
+                issues.extend(self._check_slave_grid(slave, slave_path))
                 issues.extend(self._check_slave_segments(slave, slave_path))
         return issues
 
@@ -98,6 +100,30 @@ class ValidationService:
                     )
                 )
         return issues
+
+    def _check_slave_grid(
+        self,
+        slave: Slave,
+        path: str,
+    ) -> List[ValidationIssue]:
+        rows = max(0, self._safe_int(getattr(slave, "grid_rows", 0)))
+        cols = max(0, self._safe_int(getattr(slave, "grid_columns", 0)))
+        led_count = max(0, self._safe_int(getattr(slave, "led_count", 0)))
+        if rows * cols != led_count:
+            return [
+                ValidationIssue(
+                    severity=SEVERITY_ERROR,
+                    category="grid_led_mismatch",
+                    path=path,
+                    message=(
+                        f"Slave grid_rows*grid_columns mismatch: "
+                        f"grid is {rows}x{cols} but "
+                        f"led_count={led_count} "
+                        f"(expected {rows * cols})"
+                    ),
+                )
+            ]
+        return []
 
     def _check_slave_segments(
         self,
