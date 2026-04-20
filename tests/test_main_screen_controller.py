@@ -7,21 +7,56 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from lightconductor import presentation
+from lightconductor.config import AppSettings
 from lightconductor.presentation import MainScreenController
 
 
 class FakeRepo:
     def __init__(self):
         self.projects = {}
+        self.registry = {}  # project_id -> payload dict
 
     def list_projects(self):
         return self.projects.values()
 
     def save_project(self, project):
         self.projects[project.id] = project
+        self.registry[project.id] = {
+            "id": project.id,
+            "project_name": project.name,
+            "song_name": project.song_name,
+            "created_at": "2024-01-01T00:00:00",
+        }
 
     def delete_project(self, project_id):
+        self.registry.pop(project_id, None)
         return self.projects.pop(project_id, None) is not None
+
+    def rename_project(self, project_id, new_name):
+        # Not exercised by these tests but present for
+        # protocol compliance.
+        p = self.projects.get(project_id)
+        if p is None:
+            return False
+        p.name = new_name
+        if project_id in self.registry:
+            self.registry[project_id]["project_name"] = new_name
+        return True
+
+    def read_registry(self):
+        return dict(self.registry)
+
+    def data_json_path(self, project_name):
+        return f"/fake/{project_name}/data.json"
+
+    def audio_exists(self, project_name):
+        return False
+
+    def project_dir_exists(self, project_name):
+        return project_name in {
+            p.name for p in self.projects.values()
+        }
 
 
 class MainScreenControllerTests(unittest.TestCase):
@@ -39,6 +74,86 @@ class MainScreenControllerTests(unittest.TestCase):
         deleted = controller.delete_project(created["id"])
         self.assertTrue(deleted)
         self.assertEqual([], controller.list_projects())
+
+
+class RecentProjectsTests(unittest.TestCase):
+    def setUp(self):
+        self._orig_save = presentation.main_controller.save_settings
+        presentation.main_controller.save_settings = (
+            lambda *_a, **_kw: None
+        )
+
+    def tearDown(self):
+        presentation.main_controller.save_settings = self._orig_save
+
+    def test_mark_project_opened_with_no_settings_is_noop(self):
+        repo = FakeRepo()
+        controller = MainScreenController(repo)
+        controller.mark_project_opened("pX")
+        self.assertIsNone(controller.settings)
+
+    def test_mark_project_opened_moves_id_to_front(self):
+        repo = FakeRepo()
+        settings = AppSettings(recent_project_ids=["p2", "p3"])
+        controller = MainScreenController(repo, settings=settings)
+        controller.mark_project_opened("p1")
+        self.assertEqual(
+            settings.recent_project_ids, ["p1", "p2", "p3"],
+        )
+
+    def test_mark_project_opened_dedupes_existing_id(self):
+        repo = FakeRepo()
+        settings = AppSettings(
+            recent_project_ids=["p1", "p2", "p3"],
+        )
+        controller = MainScreenController(repo, settings=settings)
+        controller.mark_project_opened("p2")
+        self.assertEqual(
+            settings.recent_project_ids, ["p2", "p1", "p3"],
+        )
+
+    def test_mark_project_opened_truncates_to_limit(self):
+        repo = FakeRepo()
+        settings = AppSettings(
+            recent_project_ids=["p1", "p2", "p3", "p4", "p5"],
+        )
+        controller = MainScreenController(repo, settings=settings)
+        controller.mark_project_opened("p6")
+        self.assertEqual(len(settings.recent_project_ids), 5)
+        self.assertEqual(settings.recent_project_ids[0], "p6")
+        self.assertNotIn("p5", settings.recent_project_ids)
+
+    def test_delete_project_prunes_recent(self):
+        repo = FakeRepo()
+        settings = AppSettings()
+        controller = MainScreenController(repo, settings=settings)
+        created = controller.create_project("Demo", "Song")
+        controller.mark_project_opened(created["id"])
+        self.assertIn(created["id"], settings.recent_project_ids)
+        deleted = controller.delete_project(created["id"])
+        self.assertTrue(deleted)
+        self.assertNotIn(
+            created["id"], settings.recent_project_ids,
+        )
+
+    def test_get_recent_projects_filters_stale_ids(self):
+        repo = FakeRepo()
+        settings = AppSettings(
+            recent_project_ids=["ghost", "p1"],
+        )
+        controller = MainScreenController(repo, settings=settings)
+        created = controller.create_project("RealProj", "Song")
+        # Replace the recent list to include the ghost and the
+        # real id (in that order).
+        settings.recent_project_ids = ["ghost", created["id"]]
+        result = controller.get_recent_projects()
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["id"], created["id"])
+        # get does NOT mutate persistence.
+        self.assertEqual(
+            settings.recent_project_ids,
+            ["ghost", created["id"]],
+        )
 
 
 if __name__ == "__main__":

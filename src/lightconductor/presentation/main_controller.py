@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 from lightconductor.application import (
     CreateProjectUseCase,
@@ -13,11 +14,17 @@ from lightconductor.application.ports import ProjectRepositoryPort
 from lightconductor.application.project_metadata_use_case import (
     ListProjectsWithMetadataUseCase,
 )
+from lightconductor.config import AppSettings, save_settings
+
+logger = logging.getLogger(__name__)
+
+RECENT_LIMIT = 5
 
 
 @dataclass(slots=True)
 class MainScreenController:
     repository: ProjectRepositoryPort
+    settings: Optional[AppSettings] = None
     list_projects_use_case: ListProjectsUseCase = field(init=False)
     create_project_use_case: CreateProjectUseCase = field(init=False)
     delete_project_use_case: DeleteProjectUseCase = field(init=False)
@@ -67,9 +74,67 @@ class MainScreenController:
         }
 
     def delete_project(self, project_id: str) -> bool:
-        return self.delete_project_use_case.execute(project_id)
+        result = self.delete_project_use_case.execute(project_id)
+        if result and self.settings is not None:
+            ids = self.settings.recent_project_ids or []
+            if project_id in ids:
+                self.settings.recent_project_ids = [
+                    i for i in ids if i != project_id
+                ]
+                self._persist_settings()
+        return result
 
     def rename_project(self, project_id: str, new_name: str) -> bool:
         return self.rename_project_use_case.execute(
             project_id, new_name,
         )
+
+    def mark_project_opened(self, project_id: str) -> None:
+        """Move project_id to the front of recent_project_ids,
+        truncate to RECENT_LIMIT, and persist. No-op when
+        settings is None or project_id is falsy."""
+        if self.settings is None or not project_id:
+            return
+        current = list(self.settings.recent_project_ids or [])
+        current = [i for i in current if i != project_id]
+        current.insert(0, project_id)
+        if len(current) > RECENT_LIMIT:
+            current = current[:RECENT_LIMIT]
+        self.settings.recent_project_ids = current
+        self._persist_settings()
+
+    def get_recent_projects(self) -> list[dict]:
+        """Return metadata dicts for surviving recent
+        projects, in most-recent-first order. Filters out
+        ids not present in the repository. Returns [] when
+        settings is None."""
+        if self.settings is None:
+            return []
+        recent_ids = self.settings.recent_project_ids or []
+        if not recent_ids:
+            return []
+        all_meta = {
+            m["id"]: m
+            for m in self.list_projects_with_metadata()
+        }
+        return [
+            all_meta[rid] for rid in recent_ids if rid in all_meta
+        ]
+
+    def clear_recent_projects(self) -> None:
+        """Empty recent_project_ids and persist. No-op when
+        settings is None."""
+        if self.settings is None:
+            return
+        if not self.settings.recent_project_ids:
+            return
+        self.settings.recent_project_ids = []
+        self._persist_settings()
+
+    def _persist_settings(self) -> None:
+        try:
+            save_settings(self.settings)
+        except Exception:
+            logger.exception(
+                "failed to persist settings with recent projects",
+            )

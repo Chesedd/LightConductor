@@ -1,11 +1,13 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QPushButton, QVBoxLayout,
     QHBoxLayout, QWidget, QLabel, QMessageBox,
-    QDialog, QLineEdit)
+    QDialog, QLineEdit, QFrame,
+)
 from PyQt6.QtCore import pyqtSignal
 from ProjectScreen.ProjectScreen import ProjectWindow
 from AssistanceTools.SimpleDialog import SimpleDialog
 from MainScreen.ProjectCard import ProjectCard
+from lightconductor.config import load_settings
 from lightconductor.infrastructure.project_repository import ProjectRepository
 from lightconductor.presentation.main_controller import MainScreenController
 
@@ -73,7 +75,10 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
 
-        self.controller = MainScreenController(ProjectRepository())
+        self.settings = load_settings()
+        self.controller = MainScreenController(
+            ProjectRepository(), settings=self.settings,
+        )
         self.projectWidgets = {} # айди проекта -> бокс с кнопками
 
         self.initUI()
@@ -94,6 +99,7 @@ class MainWindow(QMainWindow):
         title.setStyleSheet("font-size: 20px; font-weight: 600;")
         self.layout.addWidget(title)
 
+        self._init_recent_section()
         self.createUIButtons()
         self.layout.addStretch(1)
 
@@ -228,9 +234,84 @@ class MainWindow(QMainWindow):
             widget.setParent(None)
             widget.deleteLater()
             del self.projectWidgets[projectId]
+            self._refresh_recent_section()
 
     #открытие проекта
     def openProject(self, project_data):
+        self.controller.mark_project_opened(
+            project_data.get("id", ""),
+        )
+        self._refresh_recent_section()
         self.project = ProjectWindow(project_data)
         self.project.show()
         self.hide()
+
+    def _init_recent_section(self) -> None:
+        """Build the Recent section. Hidden until populated."""
+        self._recentFrame = QFrame()
+        self._recentFrame.setFrameShape(QFrame.Shape.StyledPanel)
+        self._recentFrame.setStyleSheet(
+            "QFrame { border: 1px solid #2e353d; border-radius: 10px; }"
+        )
+        outer = QVBoxLayout(self._recentFrame)
+        outer.setContentsMargins(12, 8, 12, 8)
+        outer.setSpacing(6)
+
+        header_row = QHBoxLayout()
+        header_row.setContentsMargins(0, 0, 0, 0)
+        header = QLabel("Recent")
+        header.setStyleSheet(
+            "QLabel { font-size: 13px; font-weight: 600; "
+            "color: #c8cfd6; border: none; }"
+        )
+        header_row.addWidget(header)
+        header_row.addStretch(1)
+        self._recentClearBtn = QPushButton("Clear")
+        self._recentClearBtn.setFixedHeight(24)
+        self._recentClearBtn.clicked.connect(
+            self._on_clear_recent,
+        )
+        header_row.addWidget(self._recentClearBtn)
+        outer.addLayout(header_row)
+
+        self._recentListLayout = QVBoxLayout()
+        self._recentListLayout.setContentsMargins(0, 0, 0, 0)
+        self._recentListLayout.setSpacing(4)
+        outer.addLayout(self._recentListLayout)
+
+        self.layout.addWidget(self._recentFrame)
+        self._refresh_recent_section()
+
+    def _refresh_recent_section(self) -> None:
+        while self._recentListLayout.count():
+            item = self._recentListLayout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+                w.deleteLater()
+        recent = self.controller.get_recent_projects()
+        if not recent:
+            self._recentFrame.setVisible(False)
+            return
+        self._recentFrame.setVisible(True)
+        for meta in recent:
+            pid = meta.get("id", "")
+            pname = meta.get("project_name", "")
+            btn = QPushButton(f"\u25b6 {pname}")
+            btn.setFixedHeight(30)
+            btn.setStyleSheet(
+                "QPushButton { text-align: left; padding-left: 10px; "
+                "border: 1px solid transparent; }"
+            )
+            btn.clicked.connect(
+                lambda _checked=False, data=dict(meta):
+                    self._on_recent_clicked(data),
+            )
+            self._recentListLayout.addWidget(btn)
+
+    def _on_recent_clicked(self, project_data: dict) -> None:
+        self.openProject(project_data)
+
+    def _on_clear_recent(self) -> None:
+        self.controller.clear_recent_projects()
+        self._refresh_recent_section()
