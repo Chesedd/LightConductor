@@ -95,6 +95,8 @@ class TagManager(QWidget):
         grid_columns = (
             int(getattr(self.box, "_grid_columns", 0) or 0) if self.box else 0
         )
+        led_cells_raw = getattr(self.box, "_led_cells", None) if self.box else None
+        led_cells = frozenset(int(c) for c in led_cells_raw) if led_cells_raw else None
         occupied_cells: set[int] = set()
         for tag_type in self.types.values():
             for cell in getattr(tag_type, "topology", None) or []:
@@ -109,6 +111,7 @@ class TagManager(QWidget):
             slave_grid_rows=grid_rows,
             slave_grid_columns=grid_columns,
             occupied_cells=occupied_cells,
+            led_cells=led_cells,
         )
         dialog.newType.connect(self.addType)
         dialog.exec()
@@ -357,6 +360,7 @@ class newTypeDialog(SimpleDialog):
         slave_grid_rows=1,
         slave_grid_columns=0,
         occupied_cells=None,
+        led_cells=None,
     ):
         super().__init__(parent=parent)
         self.setWindowTitle("New range")
@@ -367,6 +371,7 @@ class newTypeDialog(SimpleDialog):
         self._occupied_cells = (
             frozenset(occupied_cells) if occupied_cells else frozenset()
         )
+        self._led_cells = frozenset(led_cells) if led_cells is not None else None
         self.mainLayout = QVBoxLayout(self)
         self.initParams()
 
@@ -441,6 +446,7 @@ class newTypeDialog(SimpleDialog):
             slave_grid_columns=self._slave_grid_columns,
             max_selection=max(1, length),
             occupied_cells=self._occupied_cells,
+            led_cells=self._led_cells,
             order=self.topology,
             parent=self,
         )
@@ -455,6 +461,7 @@ class TopologyDialog(QDialog):
         slave_grid_columns,
         max_selection,
         occupied_cells=None,
+        led_cells=None,
         order=None,
         parent=None,
     ):
@@ -464,11 +471,14 @@ class TopologyDialog(QDialog):
         self.cols = max(1, int(slave_grid_columns or 1))
         self.max_selection = max(0, int(max_selection or 0))
         self.occupied = frozenset(occupied_cells) if occupied_cells else frozenset()
+        self.led_cells = frozenset(led_cells) if led_cells is not None else None
         self.order = list(order) if order else []
         self.order = [
             c
             for c in self.order
-            if 0 <= c < self.rows * self.cols and c not in self.occupied
+            if 0 <= c < self.rows * self.cols
+            and c not in self.occupied
+            and (self.led_cells is None or c in self.led_cells)
         ]
         if len(self.order) > self.max_selection:
             self.order = self.order[: self.max_selection]
@@ -487,11 +497,18 @@ class TopologyDialog(QDialog):
                 btn = QPushButton("")
                 btn.setCheckable(True)
                 btn.setFixedSize(36, 36)
+                has_no_led = self.led_cells is not None and index not in self.led_cells
                 if index in self.occupied:
                     btn.setEnabled(False)
                     btn.setText("·")
                     btn.setStyleSheet(
                         "QPushButton { background-color: #4a2020; color: #888;}"
+                    )
+                elif has_no_led:
+                    btn.setEnabled(False)
+                    btn.setText("—")
+                    btn.setStyleSheet(
+                        "QPushButton { background-color: #ffffff; color: #333333;}"
                     )
                 else:
                     btn.clicked.connect(lambda checked, i=index: self.toggleCell(i))
@@ -510,6 +527,8 @@ class TopologyDialog(QDialog):
     def toggleCell(self, index):
         if index in self.occupied:
             return
+        if self.led_cells is not None and index not in self.led_cells:
+            return
         if index in self.order:
             self.order.remove(index)
         else:
@@ -521,6 +540,8 @@ class TopologyDialog(QDialog):
     def syncButtons(self):
         for index, btn in self.buttons.items():
             if index in self.occupied:
+                continue
+            if self.led_cells is not None and index not in self.led_cells:
                 continue
             if index in self.order:
                 position = self.order.index(index)
