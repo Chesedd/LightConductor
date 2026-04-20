@@ -206,5 +206,143 @@ class DeleteProjectTests(_RepoTestBase):
         self.assertTrue((self.projects_root / "B").exists())
 
 
+class RenameProjectTests(_RepoTestBase):
+    def test_rename_success_renames_dir_and_registry(self):
+        self._write_registry_json({
+            "p1": {
+                "id": "p1",
+                "project_name": "Old",
+                "song_name": "s",
+                "created_at": "2024-01-01T00:00:00",
+            },
+        })
+        self._ensure_project_dir("Old")
+
+        self.assertTrue(self.repo.rename_project("p1", "New"))
+
+        self.assertFalse((self.projects_root / "Old").exists())
+        self.assertTrue((self.projects_root / "New").exists())
+        data = json.loads(
+            self.registry_path.read_text(encoding="utf-8")
+        )
+        self.assertEqual(data["p1"]["project_name"], "New")
+        self.assertEqual(
+            data["p1"]["created_at"], "2024-01-01T00:00:00",
+        )
+
+    def test_rename_to_same_name_is_noop_success(self):
+        self._write_registry_json({
+            "p1": {
+                "id": "p1",
+                "project_name": "Same",
+                "song_name": "s",
+                "created_at": "2024-01-01T00:00:00",
+            },
+        })
+        self._ensure_project_dir("Same")
+        before_bytes = self.registry_path.read_bytes()
+
+        self.assertTrue(self.repo.rename_project("p1", "Same"))
+
+        self.assertEqual(self.registry_path.read_bytes(), before_bytes)
+        self.assertTrue((self.projects_root / "Same").exists())
+
+    def test_rename_empty_name_returns_false(self):
+        self._write_registry_json({
+            "p1": {
+                "id": "p1",
+                "project_name": "Old",
+                "song_name": "s",
+                "created_at": "2024-01-01T00:00:00",
+            },
+        })
+        self._ensure_project_dir("Old")
+        before_bytes = self.registry_path.read_bytes()
+
+        self.assertFalse(self.repo.rename_project("p1", "   "))
+
+        self.assertEqual(self.registry_path.read_bytes(), before_bytes)
+        self.assertTrue((self.projects_root / "Old").exists())
+
+    def test_rename_path_separator_rejected(self):
+        self._write_registry_json({
+            "p1": {
+                "id": "p1",
+                "project_name": "Old",
+                "song_name": "s",
+                "created_at": "2024-01-01T00:00:00",
+            },
+        })
+        self._ensure_project_dir("Old")
+        before_bytes = self.registry_path.read_bytes()
+
+        self.assertFalse(self.repo.rename_project("p1", "a/b"))
+        self.assertFalse(self.repo.rename_project("p1", "a\\b"))
+
+        self.assertEqual(self.registry_path.read_bytes(), before_bytes)
+        self.assertTrue((self.projects_root / "Old").exists())
+
+    def test_rename_collision_with_other_project_returns_false(self):
+        self._write_registry_json({
+            "p1": {
+                "id": "p1",
+                "project_name": "Alpha",
+                "song_name": "sA",
+                "created_at": "2024-01-01T00:00:00",
+            },
+            "p2": {
+                "id": "p2",
+                "project_name": "Beta",
+                "song_name": "sB",
+                "created_at": "2024-01-02T00:00:00",
+            },
+        })
+        self._ensure_project_dir("Alpha")
+        self._ensure_project_dir("Beta")
+        before_bytes = self.registry_path.read_bytes()
+
+        self.assertFalse(self.repo.rename_project("p1", "Beta"))
+
+        self.assertEqual(self.registry_path.read_bytes(), before_bytes)
+        self.assertTrue((self.projects_root / "Alpha").exists())
+        self.assertTrue((self.projects_root / "Beta").exists())
+
+    def test_rename_unknown_id_returns_false(self):
+        self._write_registry_json({
+            "p1": {
+                "id": "p1",
+                "project_name": "Alpha",
+                "song_name": "sA",
+                "created_at": "2024-01-01T00:00:00",
+            },
+        })
+        self._ensure_project_dir("Alpha")
+        before_bytes = self.registry_path.read_bytes()
+
+        self.assertFalse(self.repo.rename_project("nope", "Gamma"))
+
+        self.assertEqual(self.registry_path.read_bytes(), before_bytes)
+
+    def test_rename_refuses_when_target_dir_exists_without_registry_entry(self):
+        self._write_registry_json({
+            "p1": {
+                "id": "p1",
+                "project_name": "Alpha",
+                "song_name": "sA",
+                "created_at": "2024-01-01T00:00:00",
+            },
+        })
+        self._ensure_project_dir("Alpha")
+        # Squatter directory without any registry entry.
+        self._ensure_project_dir("Gamma")
+        before_bytes = self.registry_path.read_bytes()
+
+        self.assertFalse(self.repo.rename_project("p1", "Gamma"))
+
+        self.assertEqual(self.registry_path.read_bytes(), before_bytes)
+        self.assertTrue((self.projects_root / "Alpha").exists())
+        self.assertTrue((self.projects_root / "Gamma").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

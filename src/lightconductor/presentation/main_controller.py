@@ -3,7 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List
 
-from lightconductor.application import CreateProjectUseCase, DeleteProjectUseCase, ListProjectsUseCase
+from lightconductor.application import (
+    CreateProjectUseCase,
+    DeleteProjectUseCase,
+    ListProjectsUseCase,
+    RenameProjectUseCase,
+)
 from lightconductor.application.ports import ProjectRepositoryPort
 from lightconductor.application.project_metadata_use_case import (
     ListProjectsWithMetadataUseCase,
@@ -16,12 +21,14 @@ class MainScreenController:
     list_projects_use_case: ListProjectsUseCase = field(init=False)
     create_project_use_case: CreateProjectUseCase = field(init=False)
     delete_project_use_case: DeleteProjectUseCase = field(init=False)
+    rename_project_use_case: RenameProjectUseCase = field(init=False)
     list_with_metadata_use_case: ListProjectsWithMetadataUseCase = field(init=False)
 
     def __post_init__(self) -> None:
         self.list_projects_use_case = ListProjectsUseCase(self.repository)
         self.create_project_use_case = CreateProjectUseCase(self.repository)
         self.delete_project_use_case = DeleteProjectUseCase(self.repository)
+        self.rename_project_use_case = RenameProjectUseCase(self.repository)
         self.list_with_metadata_use_case = (
             ListProjectsWithMetadataUseCase(self.repository)
         )
@@ -61,3 +68,8 @@ class MainScreenController:
 
     def delete_project(self, project_id: str) -> bool:
         return self.delete_project_use_case.execute(project_id)
+
+    def rename_project(self, project_id: str, new_name: str) -> bool:
+        return self.rename_project_use_case.execute(
+            project_id, new_name,
+        )

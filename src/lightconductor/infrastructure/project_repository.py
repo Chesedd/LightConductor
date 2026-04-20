@@ -188,6 +188,68 @@ class ProjectRepository:
         self._write_registry(registry)
         return True
 
+    def rename_project(self, project_id: str, new_name: str) -> bool:
+        """Rename a project: mv the directory and update the
+        registry entry. Returns True on success, False on
+        validation failure (unknown id, invalid new name,
+        collision with another project). Raises OSError only
+        if a filesystem operation fails mid-flight; callers
+        should treat that as a rename failure."""
+        new_name = (new_name or "").strip()
+        if not new_name:
+            return False
+        if any(sep in new_name for sep in ("/", "\\")):
+            return False
+        registry = self._read_registry()
+        payload = registry.get(project_id)
+        if not isinstance(payload, dict):
+            return False
+        old_name = payload.get("project_name")
+        if not isinstance(old_name, str) or not old_name:
+            return False
+        if new_name == old_name:
+            return True  # no-op success; registry unchanged
+        for other_id, other_payload in registry.items():
+            if other_id == project_id:
+                continue
+            if (
+                isinstance(other_payload, dict)
+                and other_payload.get("project_name") == new_name
+            ):
+                return False
+        old_dir = self._project_dir(old_name)
+        new_dir = self._project_dir(new_name)
+        if new_dir.exists():
+            return False
+        if old_dir.exists():
+            try:
+                old_dir.rename(new_dir)
+            except OSError:
+                logger.exception(
+                    "rename_project: failed to rename directory "
+                    "%s -> %s",
+                    old_dir, new_dir,
+                )
+                raise
+        registry[project_id] = {
+            **payload,
+            "project_name": new_name,
+        }
+        try:
+            self._write_registry(registry)
+        except Exception:
+            if new_dir.exists() and not old_dir.exists():
+                try:
+                    new_dir.rename(old_dir)
+                except OSError:
+                    logger.exception(
+                        "rename_project: registry write failed "
+                        "AND rollback rename failed for %s -> %s",
+                        new_dir, old_dir,
+                    )
+            raise
+        return True
+
     def read_registry(self) -> Dict[str, Dict[str, Any]]:
         """Public facade over the internal _read_registry
         (satisfies ProjectPreviewPort)."""

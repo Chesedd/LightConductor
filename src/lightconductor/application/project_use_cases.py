@@ -36,3 +36,11 @@ class DeleteProjectUseCase:
 
     def execute(self, project_id: str) -> bool:
         return self.repository.delete_project(project_id)
+
+
+@dataclass(slots=True)
+class RenameProjectUseCase:
+    repository: ProjectRepositoryPort
+
+    def execute(self, project_id: str, new_name: str) -> bool:
+        return self.repository.rename_project(project_id, new_name)
