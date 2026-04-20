@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Iterable
 
 from lightconductor.application.ports import ProjectRepositoryPort
@@ -53,7 +54,7 @@ class ExportProjectUseCase:
     def execute(
         self,
         project_id: str,
-        output_zip_path,
+        output_zip_path: Path | str,
     ) -> None:
         self.repository.export_project_to_archive(
             project_id,
@@ -67,7 +68,7 @@ class ImportProjectUseCase:
 
     def execute(
         self,
-        zip_path,
+        zip_path: Path | str,
         target_project_name: str,
     ) -> Project:
         return self.repository.import_project_from_archive(

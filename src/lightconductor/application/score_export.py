@@ -33,14 +33,14 @@ FIELD_ORDER: Tuple[str, ...] = (
 )
 
 
-def _safe_int(value) -> int:
+def _safe_int(value: Any) -> int:
     try:
         return int(value)
     except (TypeError, ValueError):
         return 0
 
 
-def _action_is_on(action) -> bool:
+def _action_is_on(action: Any) -> bool:
     if isinstance(action, bool):
         return action
     if isinstance(action, str):
@@ -48,7 +48,7 @@ def _action_is_on(action) -> bool:
     return bool(action)
 
 
-def _normalize_color(color_like) -> Tuple[int, int, int]:
+def _normalize_color(color_like: Any) -> Tuple[int, int, int]:
     if isinstance(color_like, str):
         parts = [p.strip() for p in color_like.split(",")]
         if len(parts) == 3:

@@ -14,7 +14,7 @@ execute/undo) is a later phase.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Protocol
+from typing import List, Optional, Protocol, Union
 
 from lightconductor.application.project_state import ProjectState
 from lightconductor.domain.models import Master, Slave, Tag, TagType
@@ -187,9 +187,9 @@ class EditRangeCommand:
     slave_id: str
     type_name: str
     new_pin: Optional[str] = None
-    new_color: Optional[object] = None  # List[int] | str per domain
+    new_color: Union[List[int], str, None] = None  # per domain Model
     _old_pin: Optional[str] = field(default=None, init=False)
-    _old_color: Optional[object] = field(default=None, init=False)
+    _old_color: Union[List[int], str, None] = field(default=None, init=False)
     _captured: bool = field(default=False, init=False)
 
     def execute(self, state: ProjectState) -> None:
@@ -316,7 +316,7 @@ class EditTagCommand:
     new_colors: Optional[List[List[int]]] = None
     _tag_ref: Optional[Tag] = field(default=None, init=False)
     _old_time_seconds: Optional[float] = field(default=None, init=False)
-    _old_action: Optional[bool] = field(default=None, init=False)
+    _old_action: Optional[bool | str] = field(default=None, init=False)
     _old_colors: Optional[List[List[int]]] = field(default=None, init=False)
     _captured: bool = field(default=False, init=False)
 

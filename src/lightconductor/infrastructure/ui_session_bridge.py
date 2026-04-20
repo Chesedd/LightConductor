@@ -33,7 +33,7 @@ class UiSessionBridge:
         self._storage.save_audio(
             self._project_name,
             audio,
-            sample_rate,
+            sample_rate,  # type: ignore[arg-type]
         )
 
     def load_domain_masters(self) -> Dict[str, Master]:

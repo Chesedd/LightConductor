@@ -6,11 +6,12 @@ slave configurations. Consumed by ProjectWindow (save), MasterBox
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Callable, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from lightconductor.application.commands import (
     AddSlaveCommand,
     AddTagTypeCommand,
+    Command,
     CompositeCommand,
 )
 from lightconductor.domain.models import Slave, TagType
@@ -30,7 +31,7 @@ def template_from_slave(
     slave: Slave,
     template_name: str,
     template_id_factory: Optional[Callable[[], str]] = None,
-) -> dict:
+) -> Dict[str, Any]:
     """Build a template dict from a domain Slave. Strips all tags
     (template_version=1). Pure; does not mutate the source slave."""
     make_id = template_id_factory or _default_template_id_factory
@@ -56,7 +57,7 @@ def template_from_slave(
 
 
 def slave_from_template(
-    template: dict,
+    template: Dict[str, Any],
     new_slave_id: str,
     new_slave_name: Optional[str] = None,
 ) -> Slave:
@@ -89,7 +90,7 @@ def slave_from_template(
 
 
 def build_apply_template_composite(
-    template: dict,
+    template: Dict[str, Any],
     target_master_id: str,
     new_slave_id: str,
     new_slave_name: Optional[str] = None,
@@ -113,7 +114,7 @@ def build_apply_template_composite(
         led_count=full.led_count,
         tag_types={},
     )
-    children = [
+    children: List[Command] = [
         AddSlaveCommand(
             master_id=target_master_id,
             slave=slave_shell,

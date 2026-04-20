@@ -6,19 +6,19 @@ and later by 4.1 live preview."""
 from __future__ import annotations
 
 import bisect
-from typing import List, Tuple
+from typing import Any, List, Tuple
 
 from lightconductor.domain.models import Slave
 
 
-def _safe_int(value) -> int:
+def _safe_int(value: Any) -> int:
     try:
         return int(value)
     except (TypeError, ValueError):
         return 0
 
 
-def _action_is_on(action) -> bool:
+def _action_is_on(action: Any) -> bool:
     # Mirrors CompileShowsForMastersUseCase._action_is_on semantics.
     # Keep in sync if that changes.
     if isinstance(action, bool):
@@ -28,13 +28,13 @@ def _action_is_on(action) -> bool:
     return bool(action)
 
 
-def _normalize_color(color_like) -> Tuple[int, int, int]:
+def _normalize_color(color_like: Any) -> Tuple[int, int, int]:
     # Mirrors CompileShowsForMastersUseCase._normalize_color.
     if isinstance(color_like, str):
         parts = [p.strip() for p in color_like.split(",")]
         if len(parts) == 3:
             try:
-                return tuple(max(0, min(255, int(p))) for p in parts)
+                return tuple(max(0, min(255, int(p))) for p in parts)  # type: ignore[return-value]
             except ValueError:
                 pass
         return (0, 0, 0)
@@ -103,11 +103,11 @@ def render_led_strip_at(
 
 
 def render_led_strip_with_overlay(
-    slave,
+    slave: Slave,
     time_seconds: float,
     overlay_type_name: str,
-    overlay_colors,
-    overlay_action,
+    overlay_colors: Any,
+    overlay_action: Any,
 ) -> List[Tuple[int, int, int]]:
     """Render slave state at time_seconds, then overlay a hypothetical
     tag of type `overlay_type_name` whose (colors, action) the caller

@@ -10,13 +10,14 @@ are shared between source and duplicate.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Callable, Iterable, Optional
+from typing import Callable, Iterable, List, Optional
 
 from lightconductor.application.commands import (
     AddMasterCommand,
     AddSlaveCommand,
     AddTagCommand,
     AddTagTypeCommand,
+    Command,
     CompositeCommand,
 )
 from lightconductor.domain.models import Master, Slave, TagType
@@ -104,7 +105,7 @@ def build_duplicate_master_composite(
     slaves_in_order = list(dup_master.slaves.values())
     dup_master.slaves = {}
 
-    children: list = [AddMasterCommand(master=dup_master)]
+    children: List[Command] = [AddMasterCommand(master=dup_master)]
 
     seen_slave_names: set[str] = set()
     for src_slave in slaves_in_order:
@@ -183,7 +184,7 @@ def build_duplicate_slave_composite(
     tag_types_copy = list(dup_slave.tag_types.items())
     dup_slave.tag_types = {}
 
-    children: list = [
+    children: List[Command] = [
         AddSlaveCommand(
             master_id=target_master_id,
             slave=dup_slave,

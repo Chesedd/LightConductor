@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Protocol
+from typing import Any, Dict, Protocol, Tuple
 
 from lightconductor.domain.models import Master
 
@@ -15,7 +15,7 @@ class ProjectSessionSnapshot:
 
 
 class ProjectSessionStoragePort(Protocol):
-    def load_audio(self): ...
+    def load_audio(self) -> Tuple[Any, int | None, str]: ...
 
     def save_audio(self, audio: Any, sample_rate: int | None) -> None: ...
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from .compiled_show import (
     OP_FILL_RANGE,
     OP_FRAME_RLE,

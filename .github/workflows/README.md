@@ -44,3 +44,24 @@ Per-file exceptions (see `pyproject.toml`):
 - `main.py` allows E402 for the same reason (bootstrap).
 
 No badges yet.
+
+## Type checking
+
+`mypy src/lightconductor/` runs before pytest.
+
+Configuration lives in `pyproject.toml` under
+`[tool.mypy]`. Strategy is gradual strictness:
+
+- Baseline (conservative checks) across
+  `src/lightconductor/`.
+- Strict mode on `lightconductor.domain.*` and
+  `lightconductor.application.*` (roadmap 7.3a).
+- `lightconductor.infrastructure.*` moves to strict
+  in roadmap 7.3b (follow-up).
+- `lightconductor.presentation.*` moves to strict in
+  roadmap 7.3c (follow-up).
+
+Third-party modules without stubs (librosa, pyqtgraph,
+numpy, etc.) are marked `ignore_missing_imports`.
+
+No badges yet.

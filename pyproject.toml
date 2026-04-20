@@ -13,3 +13,60 @@ select = ["E", "F", "I", "B"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["lightconductor"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src/lightconductor"]
+# Baseline: conservative, catches clear mistakes without
+# forcing wholesale retyping. Strict-mode packages are
+# layered via overrides below.
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_reexport = false
+
+# Per-package strict mode.
+# Note: `strict = true` in per-module overrides has a known mypy
+# gotcha (python/mypy#11401) where certain flags leak globally and
+# affect non-strict modules. To keep strict scoped to exactly these
+# packages, we expand strict into its component flags here.
+[[tool.mypy.overrides]]
+module = "lightconductor.domain.*"
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+warn_return_any = true
+no_implicit_reexport = true
+strict_equality = true
+extra_checks = true
+
+[[tool.mypy.overrides]]
+module = "lightconductor.application.*"
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+warn_return_any = true
+no_implicit_reexport = true
+strict_equality = true
+extra_checks = true
+
+# Third-party modules without stubs on PyPI.
+[[tool.mypy.overrides]]
+module = [
+    "librosa.*",
+    "numpy.*",
+    "pyqtgraph.*",
+    "soundfile",
+    "audioread.*",
+    "pyqt6.*",
+    "PyQt6.*",
+]
+ignore_missing_imports = true
