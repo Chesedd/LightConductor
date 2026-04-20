@@ -3,7 +3,7 @@ from __future__ import annotations
 import struct
 import zlib
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 from lightconductor.domain.models import Master, Slave, Tag
 
@@ -154,7 +154,7 @@ class CompileShowsForMastersUseCase:
         return defs
 
     @staticmethod
-    def _segment_size(tag_type) -> int:
+    def _segment_size(tag_type: Any) -> int:
         topology = list(getattr(tag_type, "topology", []) or [])
         if topology:
             return len(topology)
@@ -168,7 +168,7 @@ class CompileShowsForMastersUseCase:
         return slave_id
 
     @staticmethod
-    def _safe_int(value) -> int:
+    def _safe_int(value: Any) -> int:
         try:
             return int(value)
         except (TypeError, ValueError):
@@ -190,7 +190,7 @@ class CompileShowsForMastersUseCase:
         return bytes(out)
 
     @staticmethod
-    def _normalize_color(color_like) -> Tuple[int, int, int]:
+    def _normalize_color(color_like: Any) -> Tuple[int, int, int]:
         if isinstance(color_like, str):
             parts = [part.strip() for part in color_like.split(",")]
             if len(parts) == 3:
@@ -218,7 +218,7 @@ class CompileShowsForMastersUseCase:
         return normalized
 
     @staticmethod
-    def _action_is_on(action) -> bool:
+    def _action_is_on(action: Any) -> bool:
         if isinstance(action, bool):
             return action
         if isinstance(action, str):

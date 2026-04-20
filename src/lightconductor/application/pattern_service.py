@@ -9,7 +9,7 @@ frame-based API for future timeline-centric refactors.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List
+from typing import Any, Dict, List
 
 from lightconductor.application.patterns import (
     apply_fill_range,
@@ -71,7 +71,7 @@ class PatternService:
         start_time: float,
         end_time: float,
         step: float,
-    ) -> List[dict]:
+    ) -> List[Dict[str, Any]]:
         return build_timed_pattern_tags(frames, start_time, end_time, step)
 
     def build_events(

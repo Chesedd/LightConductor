@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Iterable, Protocol
+from typing import Any, Dict, Iterable, Protocol
 
 from lightconductor.domain.models import Project
 
@@ -32,7 +32,7 @@ class ShowTransportPort(Protocol):
     def send_payload(
         self,
         pins: Dict[str, Dict[str, int]],
-        payload: Dict[str, Dict[int, Dict[str, dict]]],
+        payload: Dict[str, Dict[int, Dict[str, Dict[str, Any]]]],
     ) -> None: ...
 
     def send_start(self) -> None: ...

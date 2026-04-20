@@ -41,7 +41,7 @@ class MainScreenController:
         self.delete_project_use_case = DeleteProjectUseCase(self.repository)
         self.rename_project_use_case = RenameProjectUseCase(self.repository)
         self.list_with_metadata_use_case = ListProjectsWithMetadataUseCase(
-            self.repository
+            self.repository  # type: ignore[arg-type]
         )
         self.export_project_use_case = ExportProjectUseCase(self.repository)
         self.import_project_use_case = ImportProjectUseCase(self.repository)
@@ -182,7 +182,7 @@ class MainScreenController:
 
     def _persist_settings(self) -> None:
         try:
-            save_settings(self.settings)
+            save_settings(self.settings)  # type: ignore[arg-type]
         except Exception:
             logger.exception(
                 "failed to persist settings with recent projects",

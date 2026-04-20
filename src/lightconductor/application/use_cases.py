@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict
+from typing import Any, Dict
 
 from lightconductor.domain.models import Master
 
@@ -12,8 +12,11 @@ class BuildShowPayloadUseCase:
 
     def execute(
         self, masters: Dict[str, Master]
-    ) -> tuple[Dict[str, Dict[str, int]], Dict[str, Dict[int, Dict[str, dict]]]]:
-        payload: Dict[str, Dict[int, Dict[str, dict]]] = {}
+    ) -> tuple[
+        Dict[str, Dict[str, int]],
+        Dict[str, Dict[int, Dict[str, Dict[str, Any]]]],
+    ]:
+        payload: Dict[str, Dict[int, Dict[str, Dict[str, Any]]]] = {}
         pins: Dict[str, Dict[str, int]] = {}
 
         for master in masters.values():

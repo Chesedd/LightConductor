@@ -225,7 +225,7 @@ class ProjectState:
         type_name: str,
         *,
         pin: Optional[str] = None,
-        color: object = None,
+        color: Union[List[int], str, None] = None,
     ) -> None:
         """Update display metadata on a TagType. Fields left as
         None are unchanged. Always emits TagTypeUpdated, even if
@@ -299,7 +299,7 @@ class ProjectState:
         tag_index: int,
         *,
         time_seconds: float | None = None,
-        action: bool | None = None,
+        action: bool | str | None = None,
         colors: List[List[int]] | None = None,
     ) -> None:
         """Update provided fields. If time_seconds changes, the tag is

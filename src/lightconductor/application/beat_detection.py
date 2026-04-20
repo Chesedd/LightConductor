@@ -2,11 +2,15 @@
 Consumed by WaveRenderer (storage) and later by TagTimelineController (snap).
 """
 
+from __future__ import annotations
+
+from typing import Any
+
 import librosa
 import numpy as np
 
 
-def detect_beats(audio, sr):
+def detect_beats(audio: Any, sr: Any) -> Any:
     """Return a 1-D numpy float array of beat onset times in seconds.
 
     Returns np.empty(0, dtype=float) when audio is None, empty, or sr falsy.
@@ -27,7 +31,9 @@ def detect_beats(audio, sr):
     return np.asarray(beats, dtype=float)
 
 
-def snap_to_nearest_beat(time_seconds, beat_times, fallback_granularity):
+def snap_to_nearest_beat(
+    time_seconds: float, beat_times: Any, fallback_granularity: float
+) -> float:
     """Snap time_seconds to the nearest element of beat_times.
 
     If beat_times is empty or None, fall back to

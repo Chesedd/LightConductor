@@ -157,7 +157,7 @@ def _from_dict(data: object) -> AppSettings:
                 continue
             kwargs[name] = coerced
             continue
-        if not isinstance(value, expected_type):
+        if not isinstance(value, expected_type):  # type: ignore[arg-type]
             logger.warning(
                 "settings field %r has wrong type %s; using default",
                 name,
@@ -176,7 +176,7 @@ def _from_dict(data: object) -> AppSettings:
             )
             continue
         kwargs[name] = value
-    return AppSettings(**kwargs)
+    return AppSettings(**kwargs)  # type: ignore[arg-type]
 
 
 def load_settings(path: Path | None = None) -> AppSettings:

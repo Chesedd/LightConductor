@@ -11,7 +11,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List
+from typing import Any, List, Tuple
 
 from lightconductor.application.project_metadata import (
     ProjectMetadata,
@@ -77,7 +77,9 @@ class ListProjectsWithMetadataUseCase:
             )
         return results
 
-    def _read_data_json_metadata(self, project_name: str):
+    def _read_data_json_metadata(
+        self, project_name: str
+    ) -> Tuple[int, int, str | None]:
         """Return (masters_count, slaves_count, modified_at)
         from the project's data.json. Any failure yields
         (0, 0, None)."""
@@ -114,7 +116,7 @@ class ListProjectsWithMetadataUseCase:
         return masters_count, slaves_count, mtime
 
     @staticmethod
-    def _count_from_envelope(data) -> tuple[int, int]:
+    def _count_from_envelope(data: Any) -> tuple[int, int]:
         """Count masters and slaves in a v1 envelope or a
         legacy pre-envelope dict. Non-dict payloads return
         (0, 0). Unknown shapes return (0, 0) without raising."""

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List
+from typing import Any, Dict, List
 
 
 def solid_fill(led_count: int, rgb: List[int]) -> List[List[int]]:
@@ -82,10 +82,10 @@ def build_timed_pattern_tags(
     start_time: float,
     end_time: float,
     step: float,
-) -> List[dict]:
+) -> List[Dict[str, Any]]:
     if not frames or step <= 0 or end_time < start_time:
         return []
-    tags: List[dict] = []
+    tags: List[Dict[str, Any]] = []
     t = start_time
     frame_index = 0
     while t <= end_time + 1e-9:
