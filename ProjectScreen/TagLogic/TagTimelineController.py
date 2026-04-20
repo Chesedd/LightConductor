@@ -6,7 +6,7 @@ import pyqtgraph as pg
 from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QApplication
-from typing import Dict, List
+from typing import Dict, List, Set, Tuple
 
 from ProjectScreen.TagLogic.TagObject import Tag
 from lightconductor.application.beat_detection import snap_to_nearest_beat
@@ -51,6 +51,7 @@ class TagTimelineController:
         # consulted by _handle_tag_updated to locate the scene tag
         # regardless of its current position in the time-sorted list.
         self._scene_by_domain_id: Dict[int, Tag] = {}
+        self._selected_tags: Set[Tag] = set()
         self._unsubscribe = None
         if self._state is not None:
             self._unsubscribe = self._state.subscribe(self._on_state_event)
@@ -79,6 +80,7 @@ class TagTimelineController:
                 for did, st in self._scene_by_domain_id.items()
                 if st is not tag
             }
+        self._selected_tags -= set(self._scene_tags.get(type_name, []))
         self._scene_tags.pop(type_name, None)
 
     def remove_scene_tag(self, type_name, tag_item):
@@ -88,6 +90,7 @@ class TagTimelineController:
                 lst.remove(tag_item)
             except ValueError:
                 pass
+        self._selected_tags.discard(tag_item)
         scene = tag_item.scene()
         if scene is not None:
             scene.removeItem(tag_item)
@@ -95,6 +98,53 @@ class TagTimelineController:
             if st is tag_item:
                 del self._scene_by_domain_id[did]
                 break
+
+    def selected_scene_tags(self) -> List[Tag]:
+        """Return selected scene tags as a list (stable,
+        deterministic ordering by (type_name, scene-index))."""
+        result: List[Tuple[str, int, Tag]] = []
+        for type_name, lst in self._scene_tags.items():
+            for idx, t in enumerate(lst):
+                if t in self._selected_tags:
+                    result.append((type_name, idx, t))
+        result.sort(key=lambda e: (e[0], e[1]))
+        return [t for _, _, t in result]
+
+    def is_selected(self, scene_tag: Tag) -> bool:
+        return scene_tag in self._selected_tags
+
+    def clear_selection(self) -> None:
+        for t in list(self._selected_tags):
+            self._apply_selection_visual(t, selected=False)
+        self._selected_tags.clear()
+
+    def select_only(self, scene_tag: Tag) -> None:
+        """Replace selection with a single tag (plain-click
+        semantics)."""
+        self.clear_selection()
+        self._selected_tags.add(scene_tag)
+        self._apply_selection_visual(scene_tag, selected=True)
+
+    def toggle_selection(self, scene_tag: Tag) -> None:
+        """Toggle membership (Ctrl/Shift-click semantics)."""
+        if scene_tag in self._selected_tags:
+            self._selected_tags.discard(scene_tag)
+            self._apply_selection_visual(scene_tag, selected=False)
+        else:
+            self._selected_tags.add(scene_tag)
+            self._apply_selection_visual(scene_tag, selected=True)
+
+    def _apply_selection_visual(
+        self, scene_tag: Tag, selected: bool,
+    ) -> None:
+        type_ = getattr(scene_tag, "type", None)
+        if type_ is None:
+            return
+        r, g, b = self._parse_color(type_.color)
+        width = 5 if selected else 3
+        scene_tag.setPen(
+            pg.mkPen(QColor(r, g, b), width=width),
+        )
 
     def _on_state_event(self, event):
         # Filter events that don't target this (master, slave). Events
@@ -291,6 +341,7 @@ class TagTimelineController:
         if scene is not None:
             scene.removeItem(scene_tag)
         del lst[event.tag_index]
+        self._selected_tags.discard(scene_tag)
         for did, st in list(self._scene_by_domain_id.items()):
             if st is scene_tag:
                 del self._scene_by_domain_id[did]

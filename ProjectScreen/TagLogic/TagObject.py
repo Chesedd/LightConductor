@@ -19,7 +19,36 @@ class Tag(InfiniteLine):
 
 
     def mousePressEvent(self, event):
-        self.manager.tagScreen.setTag(self)
+        from PyQt6.QtWidgets import QApplication
+        from PyQt6.QtCore import Qt as QtEnum
+        # Find the controller via manager.box.wave._tagController.
+        # Same resolution pattern used by deleteTag below.
+        controller = None
+        manager = getattr(self, "manager", None)
+        if manager is not None:
+            box = getattr(manager, "box", None)
+            if box is not None:
+                wave = getattr(box, "wave", None)
+                if wave is not None:
+                    controller = getattr(wave, "_tagController", None)
+        mods = QApplication.keyboardModifiers()
+        is_extend = bool(
+            mods & (
+                QtEnum.KeyboardModifier.ControlModifier
+                | QtEnum.KeyboardModifier.ShiftModifier
+            )
+        )
+        if controller is not None:
+            if is_extend:
+                controller.toggle_selection(self)
+            else:
+                controller.select_only(self)
+        # Preserve the existing single-tag info-panel behavior
+        # for plain clicks. On extend-clicks, still set the
+        # TagInfoScreen to this tag — user's last-clicked tag
+        # is the panel subject.
+        if self.manager is not None and self.manager.tagScreen is not None:
+            self.manager.tagScreen.setTag(self)
         super().mousePressEvent(event)
     def hoverEnterEvent(self, event):
         if self.movable:
