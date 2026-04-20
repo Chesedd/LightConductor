@@ -69,9 +69,9 @@ class TagDialog(QDialog):
             and self._preview_type_name is not None
             and self._preview_led_count > 0
         ):
-            from ProjectScreen.TagLogic.LedStripView import LedStripView
+            from ProjectScreen.TagLogic.LedGridView import LedGridView
 
-            self.ledPreview = LedStripView(
+            self.ledPreview = LedGridView(
                 state=None,
                 master_id=None,
                 slave_id=None,
