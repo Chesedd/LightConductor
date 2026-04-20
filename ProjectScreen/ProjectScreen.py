@@ -467,6 +467,12 @@ class ProjectWindow(QMainWindow):
                 slave.wave.setAudioData(self.audio, self.sr, self.audioPath)
                 slave.wave.clear()
                 slave.wave.init_ui()
+                if hasattr(slave, "miniMap") and slave.miniMap is not None:
+                    slave.miniMap.setData(
+                        audioData=self.audio,
+                        sr=self.sr,
+                        duration=slave.wave._renderer.duration,
+                    )
 
     def uploadShow(self):
         try:

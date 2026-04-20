@@ -13,6 +13,7 @@ from ProjectScreen.PlateLogic.TagDialog import TagDialog
 from ProjectScreen.PlateLogic.TagGroupPatternDialog import TagGroupPatternDialog
 from ProjectScreen.PlateLogic.RenameDialog import RenameDialog
 from ProjectScreen.PlateLogic.DeleteDialog import DeleteDialog
+from ProjectScreen.TagLogic.WaveMiniMap import WaveMiniMap
 
 
 class SlaveBox(DropBox):
@@ -56,6 +57,18 @@ class SlaveBox(DropBox):
         waveWidget = QWidget()
         waveWidget.layout = QVBoxLayout(waveWidget)
         waveWidget.layout.addWidget(self.initWaveButtons())
+        self.miniMap = WaveMiniMap(
+            target_wave=self.wave,
+            audioData=self.wave._renderer.audioData,
+            sr=self.wave._renderer.sr,
+            duration=self.wave._renderer.duration,
+        )
+        self.miniMap.setData(
+            audioData=self.wave._renderer.audioData,
+            sr=self.wave._renderer.sr,
+            duration=self.wave._renderer.duration,
+        )
+        waveWidget.layout.addWidget(self.miniMap)
         waveWidget.layout.addWidget(self.wave)
 
         waveSpace = QWidget()
