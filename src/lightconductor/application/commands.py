@@ -312,6 +312,48 @@ class EditTagCommand:
         self._old_colors = None
 
 
+@dataclass(slots=True)
+class CompositeCommand:
+    """Composite of child commands. Executes children in
+    order; undoes them in reverse. Atomic on failure:
+    if a child's execute() raises, prior children are
+    undone in reverse and the exception is re-raised.
+
+    Intended for bulk user actions (bulk-delete,
+    bulk-move) where one Ctrl+Z should revert the whole
+    group in one step.
+    """
+    children: List[Command] = field(default_factory=list)
+    _last_executed: int = field(default=-1, init=False)
+
+    def execute(self, state: ProjectState) -> None:
+        for i, child in enumerate(self.children):
+            try:
+                child.execute(state)
+            except Exception:
+                # Roll back everything we already applied.
+                for j in range(i - 1, -1, -1):
+                    try:
+                        self.children[j].undo(state)
+                    except Exception:
+                        # Best-effort rollback; swallow to
+                        # avoid masking the original error.
+                        pass
+                self._last_executed = -1
+                raise
+        self._last_executed = len(self.children) - 1
+
+    def undo(self, state: ProjectState) -> None:
+        if self._last_executed < 0:
+            # No successful execute has happened; either the
+            # command was never executed or the last execute
+            # failed and rolled back. Either way: no-op.
+            return
+        for i in range(self._last_executed, -1, -1):
+            self.children[i].undo(state)
+        self._last_executed = -1
+
+
 class CommandStack:
     """Undo/redo stack. Unbounded history."""
 

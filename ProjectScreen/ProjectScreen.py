@@ -12,6 +12,8 @@ from lightconductor.application.beat_detection import snap_to_nearest_beat
 from lightconductor.application.commands import (
     AddMasterCommand,
     CommandStack,
+    CompositeCommand,
+    DeleteTagCommand,
 )
 from lightconductor.application.compiled_show import CompileShowsForMastersUseCase
 from lightconductor.application.project_state import ProjectState, StateReplaced
@@ -220,10 +222,61 @@ class ProjectWindow(QMainWindow):
         slave = self._active_slave
         if slave is None:
             return
-        tag_info = slave.tagInfo
-        if tag_info is None or tag_info.tag is None:
+        wave = slave.wave
+        controller = getattr(wave, "_tagController", None)
+        selected = (
+            list(controller.selected_scene_tags())
+            if controller is not None else []
+        )
+        if not selected:
+            # Fall back to existing single-tag path via TagInfoScreen.
+            tag_info = slave.tagInfo
+            if tag_info is None or tag_info.tag is None:
+                return
+            tag_info.deleteTag()
             return
-        tag_info.deleteTag()
+        master_id = controller._master_id
+        slave_id = controller._slave_id
+        by_type = {}
+        for scene_tag in selected:
+            type_ = getattr(scene_tag, "type", None)
+            type_name = type_.name if type_ is not None else None
+            if type_name is None:
+                continue
+            domain_tags = controller._domain_tag_list(type_name)
+            if domain_tags is None:
+                continue
+            domain_id = controller._find_domain_id_for_scene_tag(scene_tag)
+            if domain_id is None:
+                continue
+            idx = None
+            for i, dt in enumerate(domain_tags):
+                if id(dt) == domain_id:
+                    idx = i
+                    break
+            if idx is None:
+                continue
+            by_type.setdefault(type_name, []).append(idx)
+        children = []
+        for type_name in sorted(by_type.keys()):
+            for idx in sorted(by_type[type_name], reverse=True):
+                children.append(
+                    DeleteTagCommand(
+                        master_id=master_id,
+                        slave_id=slave_id,
+                        type_name=type_name,
+                        tag_index=idx,
+                    )
+                )
+        if not children:
+            return
+        # Pre-clear selection — the TagRemoved listener on the
+        # controller will remove scene tags and drop them from
+        # the selection set too, but doing this upfront is a
+        # belt-and-suspenders safety net against dangling
+        # visuals during the composite's execute.
+        controller.clear_selection()
+        self.commands.push(CompositeCommand(children=children))
 
     def _on_copy_tag(self):
         if self._focus_in_text_input():
