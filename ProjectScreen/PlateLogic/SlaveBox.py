@@ -27,6 +27,7 @@ class SlaveBox(DropBox):
         state=None,
         master_id=None,
         commands=None,
+        project_window=None,
     ):
         super().__init__(parent)
 
@@ -42,6 +43,7 @@ class SlaveBox(DropBox):
         self._state = state
         self._master_id = master_id
         self._commands = commands
+        self._project_window = project_window
 
         self.toggleButton.setText(f"▼ {title} (pin: {slavePin}, leds: {ledCount})")
 
@@ -78,6 +80,7 @@ class SlaveBox(DropBox):
             commands=self._commands,
         )
         self.wave.manager.tagScreen = self.tagInfo
+        self.wave.waveActivated.connect(self._on_wave_activated)
 
         self.mainWidget = QWidget()
         self.mainLayout = QHBoxLayout(self.mainWidget)
@@ -113,6 +116,10 @@ class SlaveBox(DropBox):
         waveButtons.layout.addWidget(self.timeLabel)
 
         return waveButtons
+
+    def _on_wave_activated(self):
+        if self._project_window is not None:
+            self._project_window.set_active_slave(self)
 
     def playOrPause(self):
         state = self.playButton.text()
