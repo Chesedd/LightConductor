@@ -201,3 +201,69 @@ def start_packet_count(packets: List[bytes]) -> int:
 
 def crc32_of(blob: bytes) -> int:
     return zlib.crc32(blob) & 0xFFFFFFFF
+
+
+# --- Failure-injection helpers for retry tests --------------------------
+
+
+class FailingSocket:
+    """Test double for socket.socket(SOCK_DGRAM) used by _send_with_retry
+    tests. Records all sendto attempts.
+
+    Configure via:
+        failures: a list/iterable of OSError-or-None per sendto call.
+            None = success. OSError = raise. When the iterable is
+            exhausted, subsequent sendto calls succeed silently.
+        record: list of (data, addr) tuples appended on every sendto
+            attempt (including failed ones).
+
+    Methods used by transport:
+        sendto(data, addr) -> int (bytes sent on success)
+        close() -> None
+    """
+
+    def __init__(self, failures=None):
+        self._failures = list(failures or [])
+        self._failure_idx = 0
+        self.record: list = []
+        self.closed = False
+
+    def sendto(self, data, addr):
+        self.record.append((data, addr))
+        if self._failure_idx < len(self._failures):
+            slot = self._failures[self._failure_idx]
+            self._failure_idx += 1
+            if isinstance(slot, OSError):
+                raise slot
+            if isinstance(slot, type) and issubclass(slot, OSError):
+                raise slot()
+        return len(data)
+
+    def close(self):
+        self.closed = True
+
+    @property
+    def attempt_count(self):
+        return len(self.record)
+
+
+def make_failing_socket_factory(*failure_lists):
+    """Return a factory that yields a fresh FailingSocket per call,
+    walking through ``failure_lists`` in order. Use when a test wants to
+    track multiple sockets (each upload() call constructs a fresh
+    socket).
+    """
+    sockets: list = []
+    iterator = iter(failure_lists)
+
+    def _factory():
+        try:
+            failures = next(iterator)
+        except StopIteration:
+            failures = []
+        s = FailingSocket(failures=failures)
+        sockets.append(s)
+        return s
+
+    _factory.sockets = sockets
+    return _factory
