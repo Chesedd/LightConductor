@@ -14,6 +14,7 @@ from ProjectScreen.PlateLogic.TagGroupPatternDialog import TagGroupPatternDialog
 from ProjectScreen.PlateLogic.RenameDialog import RenameDialog
 from ProjectScreen.PlateLogic.DeleteDialog import DeleteDialog
 from ProjectScreen.TagLogic.WaveMiniMap import WaveMiniMap
+from ProjectScreen.TagLogic.LedStripView import LedStripView
 
 
 class SlaveBox(DropBox):
@@ -69,6 +70,12 @@ class SlaveBox(DropBox):
             duration=self.wave._renderer.duration,
         )
         waveWidget.layout.addWidget(self.miniMap)
+        self.ledStrip = LedStripView(
+            state=self._state,
+            master_id=self._master_id,
+            slave_id=self.boxID,
+        )
+        waveWidget.layout.addWidget(self.ledStrip)
         waveWidget.layout.addWidget(self.wave)
 
         waveSpace = QWidget()
