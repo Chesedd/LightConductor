@@ -19,7 +19,7 @@ from lightconductor.application.project_state import (
 )
 
 
-class LedStripView(QWidget):
+class LedGridView(QWidget):
     def __init__(self, state=None, master_id=None, slave_id=None, parent=None):
         super().__init__(parent)
         self._state = state
