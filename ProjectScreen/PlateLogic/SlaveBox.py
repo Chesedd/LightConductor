@@ -178,6 +178,7 @@ class SlaveBox(DropBox):
                 )
 
     def onPositionUpdate(self, time, timeStr):
+        self.ledStrip.set_time(time)
         for i in range(self.tagsLayout.count()):
             widget = self.tagsLayout.itemAt(i).widget()
             type_name = widget.tagType.name
