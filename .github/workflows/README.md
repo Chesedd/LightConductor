@@ -13,8 +13,8 @@ Triggers: push + pull_request against master.
 Timeout: 15 minutes per platform.
 
 fail-fast is disabled so every OS runs to completion
-even when one fails. CI stays informational (no
-required status check) until roadmap 7.4c.
+even when one fails. CI is ready to flip to required
+status checks (see "Required status check" below).
 
 ## Steps per platform
 
@@ -77,14 +77,42 @@ a GitHub Actions artifact, one per platform
 `coverage-html-windows-latest`,
 `coverage-html-macos-latest`, 14-day retention).
 
-No threshold is currently enforced — this is a baseline
-measurement phase (roadmap 7.4a). Baseline 88.51% was
-measured on Linux in 7.4a; cross-platform numbers become
-visible after 7.4b's first green runs. A fail-under gate
-(target ≥70%) lands in roadmap 7.4c after cross-platform
-stabilization.
+Coverage gate: `--cov-fail-under=80` applied across all
+three platforms. Baseline on Linux is 88.51% (measured
+in 7.4a); the 80% threshold gives ~8% headroom to absorb
+platform variance and minor regressions. A tightening to
+85% is a future consideration once cross-platform numbers
+stabilize over several weeks of CI data.
+
+Coverage artifact (HTML) is uploaded per OS and browsable
+in the run summary.
 
 Coverage config lives in `pyproject.toml` under
 `[tool.coverage.run]` / `[tool.coverage.report]`:
 branch coverage enabled, `__init__.py` omitted, Protocol
 method bodies excluded via `exclude_lines`.
+
+## Required status check
+
+After this PR merges and the pipeline proves stable on a
+few master commits, repo owners should mark the pytest
+workflow as a required status check so red CI blocks
+merges.
+
+Steps in GitHub UI:
+
+1. Go to the repo's Settings → Branches.
+2. Under "Branch protection rules", edit the rule for
+   `master` (or create one if none exists).
+3. Enable "Require status checks to pass before merging".
+4. Search for and select these checks:
+   - `pytest (ubuntu-latest)`
+   - `pytest (windows-latest)`
+   - `pytest (macos-latest)`
+5. Enable "Require branches to be up to date before
+   merging" (optional but recommended).
+6. Save.
+
+After this flip, PRs cannot merge until all three OS jobs
+pass (which means ruff + mypy + pytest-with-80%-coverage
+on each platform).

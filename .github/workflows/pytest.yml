@@ -81,7 +81,8 @@ jobs:
             --cov=src/lightconductor \
             --cov-report=term \
             --cov-report=html:htmlcov \
-            --cov-report=xml:coverage.xml
+            --cov-report=xml:coverage.xml \
+            --cov-fail-under=80
 
       - name: Upload coverage HTML report
         if: always()
