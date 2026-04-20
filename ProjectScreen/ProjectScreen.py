@@ -2,7 +2,7 @@ import logging
 
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
                             QFileDialog, QMessageBox)
-from PyQt6.QtCore import pyqtSignal, Qt, QUrl
+from PyQt6.QtCore import pyqtSignal, Qt, QUrl, QTimer, QEvent
 from PyQt6.QtGui import QAction, QKeySequence
 from ProjectScreen.PlateLogic.MasterBox import MasterBox
 from AssistanceTools.SimpleDialog import SimpleDialog
@@ -12,7 +12,7 @@ from lightconductor.application.commands import (
     CommandStack,
 )
 from lightconductor.application.compiled_show import CompileShowsForMastersUseCase
-from lightconductor.application.project_state import ProjectState
+from lightconductor.application.project_state import ProjectState, StateReplaced
 from lightconductor.application.validation_service import (
     SEVERITY_ERROR,
     ValidationIssue,
@@ -88,6 +88,18 @@ class ProjectWindow(QMainWindow):
         self.commands = CommandStack(self.state)
         self._loading = False
 
+        self._dirty: bool = False
+        self._base_window_title: str = ""
+        self._unsubscribe_dirty = self.state.subscribe(
+            self._on_state_event_dirty,
+        )
+        self._autosave_timer = QTimer(self)
+        self._autosave_timer.setInterval(
+            max(1, int(self.settings.autosave_interval_seconds)) * 1000,
+        )
+        self._autosave_timer.timeout.connect(self._autosave_tick)
+        self._autosave_timer.start()
+
         self.initActions()
         self.init_ui()
         self.initExistingData()
@@ -157,7 +169,8 @@ class ProjectWindow(QMainWindow):
             self.audioPlayer.setAudioOutput(self.audioOutput)
 
     def init_ui(self):
-        self.setWindowTitle(self.project_data['project_name'])
+        self._base_window_title = self.project_data['project_name']
+        self._refresh_window_title()
         self.setGeometry(100, 100, 1400, 800)
 
         central_widget = QWidget()
@@ -222,6 +235,7 @@ class ProjectWindow(QMainWindow):
                         self.initTypeAndTags(tag_type, manager, wave)
         finally:
             self._loading = False
+        self._set_dirty(False)
 
 
     def initSlave(self, slave, master_widget, master_id):
@@ -261,6 +275,7 @@ class ProjectWindow(QMainWindow):
         self.sessionController.save_session(
             self.audio, self.sr, domain_masters,
         )
+        self._set_dirty(False)
 
     def addTrack(self):
         filePath, _ = QFileDialog.getOpenFileName(
@@ -356,3 +371,62 @@ class ProjectWindow(QMainWindow):
             return
 
         self.audioPlayer.play()
+
+    def _on_state_event_dirty(self, event):
+        if self._loading:
+            return
+        if isinstance(event, StateReplaced):
+            return
+        self._set_dirty(True)
+
+    def _set_dirty(self, value: bool):
+        if self._dirty == value:
+            return
+        self._dirty = value
+        self._refresh_window_title()
+
+    def _refresh_window_title(self):
+        title = self._base_window_title
+        if self._dirty:
+            title = f"{title} \u2022"
+        self.setWindowTitle(title)
+
+    def _autosave_tick(self):
+        if not self._dirty:
+            return
+        self._run_autosave()
+
+    def _run_autosave(self):
+        logger.info("Autosave triggered")
+        domain_masters = self.state.masters()
+        issues = self.validation_service.validate(domain_masters)
+        errors = [i for i in issues if i.severity == SEVERITY_ERROR]
+        if errors:
+            logger.warning(
+                "Autosave skipped: %d validation error(s)", len(errors),
+            )
+            return
+        try:
+            self.sessionController.save_session(
+                self.audio, self.sr, domain_masters,
+            )
+        except Exception:
+            logger.exception("Autosave failed")
+            return
+        logger.info("Autosave completed")
+        self._set_dirty(False)
+
+    def changeEvent(self, event):
+        if event.type() == QEvent.Type.WindowStateChange:
+            if self.windowState() & Qt.WindowState.WindowMinimized:
+                if self._dirty:
+                    self._run_autosave()
+        super().changeEvent(event)
+
+    def closeEvent(self, event):
+        self._autosave_timer.stop()
+        try:
+            self._unsubscribe_dirty()
+        except Exception:
+            pass
+        super().closeEvent(event)

@@ -29,7 +29,12 @@ class LoadSettingsTests(unittest.TestCase):
         data = json.loads(self.settings_file.read_text(encoding="utf-8"))
         self.assertEqual(
             set(data.keys()),
-            {"default_master_ip", "udp_port", "udp_chunk_size"},
+            {
+                "default_master_ip",
+                "udp_port",
+                "udp_chunk_size",
+                "autosave_interval_seconds",
+            },
         )
 
     def test_load_reads_existing_file(self):
@@ -79,6 +84,31 @@ class LoadSettingsTests(unittest.TestCase):
         )
         save_settings(custom, self.settings_file)
         loaded = load_settings(self.settings_file)
+        self.assertEqual(loaded, custom)
+
+    def test_load_settings_defaults_autosave_interval(self):
+        self.settings_file.write_text(
+            json.dumps(
+                {
+                    "default_master_ip": "10.0.0.1",
+                    "udp_port": 55555,
+                    "udp_chunk_size": 1024,
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = load_settings(self.settings_file)
+        self.assertEqual(
+            result.autosave_interval_seconds,
+            AppSettings().autosave_interval_seconds,
+        )
+        self.assertEqual(result.autosave_interval_seconds, 30)
+
+    def test_save_and_load_settings_preserves_autosave_interval(self):
+        custom = AppSettings(autosave_interval_seconds=45)
+        save_settings(custom, self.settings_file)
+        loaded = load_settings(self.settings_file)
+        self.assertEqual(loaded.autosave_interval_seconds, 45)
         self.assertEqual(loaded, custom)
 
 
