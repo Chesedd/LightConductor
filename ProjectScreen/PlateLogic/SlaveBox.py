@@ -40,6 +40,7 @@ class SlaveBox(DropBox):
         ledCount=0,
         gridRows=1,
         gridColumns=0,
+        ledCells=None,
         state=None,
         master_id=None,
         commands=None,
@@ -51,6 +52,7 @@ class SlaveBox(DropBox):
         self.ledCount = ledCount
         self._grid_rows = int(gridRows or 1)
         self._grid_columns = int(gridColumns or 0)
+        self._led_cells = list(ledCells or [])
 
         self.title = title
         self.boxID = boxID

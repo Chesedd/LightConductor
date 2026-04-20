@@ -4,9 +4,11 @@ from datetime import datetime
 from PyQt6.QtCore import Qt, QThreadPool, QTimer, pyqtSignal
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
+    QDialog,
     QHBoxLayout,
     QLabel,
     QMenu,
+    QMessageBox,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -50,6 +52,7 @@ class newSlaveDialog(SimpleDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._configured_wire: list[int] | None = None
         self.uiCreate()
 
     def uiCreate(self):
@@ -61,52 +64,93 @@ class newSlaveDialog(SimpleDialog):
         self.gridRowsBar.setText("1")
         self.gridColumnsBar = self.LabelAndLine("Grid columns")
         self.gridColumnsBar.setText("60")
+        self.ledCountBar = self.LabelAndLine("LED count")
+        self.ledCountBar.setText("60")
 
-        ledCountWidget = QWidget()
-        ledCountLayout = QHBoxLayout(ledCountWidget)
-        ledCountLayout.setContentsMargins(0, 0, 0, 0)
-        ledCountLayout.addWidget(QLabel("LED count:"))
-        self.ledCountLabel = QLabel("60")
-        ledCountLayout.addWidget(self.ledCountLabel)
-        ledCountLayout.addStretch(1)
-        self.layout().addWidget(ledCountWidget)
+        wire_btn = QPushButton("Configure LED wire...")
+        wire_btn.clicked.connect(self._open_wire_dialog)
+        self.layout().addWidget(wire_btn)
 
-        self.gridRowsBar.textChanged.connect(self._recompute_led_count)
-        self.gridColumnsBar.textChanged.connect(self._recompute_led_count)
+        self._wire_status = QLabel("Wire: not configured (linear default will be used)")
+        self.layout().addWidget(self._wire_status)
 
         okButton = self.OkAndCancel()
         okButton.clicked.connect(self.onOkClicked)
 
-    def _recompute_led_count(self, _text=None):
-        rows = self._parse_positive_int(self.gridRowsBar.text(), default=1)
-        cols = self._parse_non_negative_int(self.gridColumnsBar.text(), default=0)
-        self.ledCountLabel.setText(str(rows * cols))
-
     @staticmethod
-    def _parse_positive_int(text: str, default: int) -> int:
+    def _parse_int(text: str, default: int) -> int:
         try:
-            value = int(text)
+            return int(text)
         except (TypeError, ValueError):
             return default
-        return max(1, value)
 
-    @staticmethod
-    def _parse_non_negative_int(text: str, default: int) -> int:
-        try:
-            value = int(text)
-        except (TypeError, ValueError):
-            return default
-        return max(0, value)
+    def _open_wire_dialog(self):
+        from ProjectScreen.PlateLogic.LedWireDialog import LedWireDialog
+
+        rows = max(1, self._parse_int(self.gridRowsBar.text(), 1))
+        cols = max(1, self._parse_int(self.gridColumnsBar.text(), 1))
+        led_count = max(0, self._parse_int(self.ledCountBar.text(), 0))
+        if led_count > rows * cols:
+            QMessageBox.warning(
+                self,
+                "Invalid layout",
+                f"LED count ({led_count}) exceeds canvas size "
+                f"({rows}x{cols}={rows * cols}). Adjust before "
+                f"configuring wire.",
+            )
+            return
+        dialog = LedWireDialog(
+            canvas_rows=rows,
+            canvas_cols=cols,
+            led_count=led_count,
+            initial_cells=self._configured_wire,
+            parent=self,
+        )
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self._configured_wire = dialog.cells
+            self._wire_status.setText(
+                f"Wire: configured ({len(self._configured_wire)} LEDs)"
+            )
 
     def onOkClicked(self):
-        data = {}
-        data["name"] = self.slaveNameBar.text()
-        data["pin"] = self.pinBar.text()
-        rows = self._parse_positive_int(self.gridRowsBar.text(), default=1)
-        cols = self._parse_non_negative_int(self.gridColumnsBar.text(), default=0)
-        data["grid_rows"] = rows
-        data["grid_columns"] = cols
-        data["led_count"] = rows * cols
+        rows = max(1, self._parse_int(self.gridRowsBar.text(), 1))
+        cols = max(1, self._parse_int(self.gridColumnsBar.text(), 1))
+        led_count = max(0, self._parse_int(self.ledCountBar.text(), 0))
+        if led_count > rows * cols:
+            QMessageBox.warning(
+                self,
+                "Invalid layout",
+                f"LED count ({led_count}) exceeds canvas size "
+                f"({rows}x{cols}={rows * cols}).",
+            )
+            return
+        wire = self._configured_wire
+        if wire is None or len(wire) != led_count:
+            from lightconductor.application.wire_assignment import (
+                build_linear_wire,
+            )
+
+            if self._configured_wire is not None:
+                QMessageBox.information(
+                    self,
+                    "Wire reset",
+                    "Wire configuration reset because LED count "
+                    "changed. Reopen 'Configure LED wire' to "
+                    "customize.",
+                )
+                self._configured_wire = None
+                self._wire_status.setText(
+                    "Wire: not configured (linear default will be used)"
+                )
+            wire = build_linear_wire(led_count)
+        data = {
+            "name": self.slaveNameBar.text(),
+            "pin": self.pinBar.text(),
+            "grid_rows": rows,
+            "grid_columns": cols,
+            "led_count": led_count,
+            "led_cells": list(wire),
+        }
         self.slaveCreated.emit(data)
         self.accept()
 
@@ -258,6 +302,7 @@ class MasterBox(DropBox):
             ledCount=slaveData.get("led_count", 0),
             gridRows=slaveData.get("grid_rows", 1),
             gridColumns=slaveData.get("grid_columns", 0),
+            ledCells=slaveData.get("led_cells", []),
             state=self._state,
             master_id=self.boxID,
             commands=self._commands,
@@ -279,6 +324,7 @@ class MasterBox(DropBox):
                 led_count=int(slaveData.get("led_count", 0) or 0),
                 grid_rows=int(slaveData.get("grid_rows", 1) or 1),
                 grid_columns=int(slaveData.get("grid_columns", 0) or 0),
+                led_cells=list(slaveData.get("led_cells", []) or []),
             )
             if self._commands is not None:
                 self._commands.push(
