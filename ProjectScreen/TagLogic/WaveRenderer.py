@@ -1,3 +1,6 @@
+import logging
+import time
+
 import pyqtgraph as pg
 
 from PyQt6.QtCore import QPointF, QUrl, QTimer
@@ -7,6 +10,9 @@ import numpy as np
 import librosa
 
 from ProjectScreen.TagLogic.ruler_format import format_tick_strings
+from lightconductor.application.beat_detection import detect_beats
+
+logger = logging.getLogger(__name__)
 
 
 class WaveRenderer:
@@ -25,6 +31,7 @@ class WaveRenderer:
             self.duration = 1.0
             self.durationMs = 0.0
             self.hasAudio = False
+            self.beat_times = np.empty(0, dtype=float)
             return
 
         self.audioData = audioData
@@ -32,6 +39,24 @@ class WaveRenderer:
         self.duration = len(self.audioData) / self.sr
         self.durationMs = librosa.get_duration(y=self.audioData, sr=self.sr)
         self.hasAudio = True
+
+        start_perf = time.perf_counter()
+        try:
+            beat_times = detect_beats(self.audioData, self.sr)
+        except Exception:
+            logger.exception("Beat detection failed unexpectedly; using no beats")
+            beat_times = np.empty(0, dtype=float)
+        elapsed_ms = (time.perf_counter() - start_perf) * 1000.0
+        if elapsed_ms > 500.0:
+            logger.warning(
+                "Beat detection slow: %d beats in %.1f ms (duration=%.3fs)",
+                len(beat_times), elapsed_ms, self.duration,
+            )
+        else:
+            logger.info(
+                "Beat detection: %d beats in %.1f ms", len(beat_times), elapsed_ms,
+            )
+        self.beat_times = beat_times
 
     def init_ui(self):
         self.initAudioPlayer()
