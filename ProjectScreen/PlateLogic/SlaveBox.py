@@ -194,6 +194,7 @@ class SlaveBox(DropBox):
                 "update_color_presets",
                 None,
             )
+        slave_grid_columns = int(getattr(slave, "grid_columns", 0) or 0) if slave else 0
         dialog = TagDialog(
             curType.row,
             curType.table,
@@ -205,6 +206,7 @@ class SlaveBox(DropBox):
             led_count=led_count,
             settings=settings,
             on_presets_changed=on_presets_changed,
+            slave_grid_columns=slave_grid_columns,
         )
         dialog.tagCreated.connect(self.wave.addTag)
         dialog.exec()
