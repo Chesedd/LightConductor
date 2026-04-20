@@ -36,6 +36,7 @@ class LoadSettingsTests(unittest.TestCase):
                 "autosave_interval_seconds",
                 "color_presets",
                 "recent_project_ids",
+                "device_templates",
             },
         )
 
@@ -221,6 +222,70 @@ class LoadSettingsTests(unittest.TestCase):
         self.assertEqual(
             result.recent_project_ids, ["p1", "p2", "p3"],
         )
+
+    def _write_templates_settings(self, templates_value):
+        payload = {
+            "default_master_ip": "10.0.0.1",
+            "udp_port": 55555,
+            "udp_chunk_size": 1024,
+            "autosave_interval_seconds": 30,
+            "color_presets": [],
+            "recent_project_ids": [],
+            "device_templates": templates_value,
+        }
+        self.settings_file.write_text(
+            json.dumps(payload), encoding="utf-8",
+        )
+
+    def _valid_template(self, tid="tpl-1", name="T1"):
+        return {
+            "template_version": 1,
+            "template_id": tid,
+            "template_name": name,
+            "slave_config": {
+                "name": "S",
+                "pin": "0",
+                "led_count": 30,
+                "id": "s1",
+                "tagTypes": {},
+            },
+        }
+
+    def test_device_templates_defaults_to_empty_list(self):
+        self.assertEqual(AppSettings().device_templates, [])
+
+    def test_device_templates_valid_round_trip(self):
+        tpl = self._valid_template()
+        custom = AppSettings(device_templates=[tpl])
+        save_settings(custom, self.settings_file)
+        loaded = load_settings(self.settings_file)
+        self.assertEqual(loaded.device_templates, [tpl])
+
+    def test_device_templates_wrong_outer_type_uses_default(self):
+        self._write_templates_settings("not a list")
+        result = load_settings(self.settings_file)
+        self.assertEqual(result.device_templates, [])
+
+    def test_device_templates_non_dict_entry_uses_default(self):
+        self._write_templates_settings(
+            [self._valid_template(), "not a dict"],
+        )
+        result = load_settings(self.settings_file)
+        self.assertEqual(result.device_templates, [])
+
+    def test_device_templates_missing_required_field_uses_default(self):
+        bad = self._valid_template()
+        del bad["template_id"]
+        self._write_templates_settings([bad])
+        result = load_settings(self.settings_file)
+        self.assertEqual(result.device_templates, [])
+
+    def test_device_templates_wrong_version_uses_default(self):
+        bad = self._valid_template()
+        bad["template_version"] = 2
+        self._write_templates_settings([bad])
+        result = load_settings(self.settings_file)
+        self.assertEqual(result.device_templates, [])
 
 
 if __name__ == "__main__":

@@ -17,6 +17,9 @@ from lightconductor.application.commands import (
 from lightconductor.application.duplicate import (
     build_duplicate_master_composite,
 )
+from lightconductor.application.device_templates import (
+    build_apply_template_composite,
+)
 from lightconductor.domain.models import Slave as DomainSlave
 
 logger = logging.getLogger(__name__)
@@ -189,6 +192,25 @@ class MasterBox(DropBox):
         duplicateAction = QAction("Duplicate master", self)
         duplicateAction.triggered.connect(self._on_duplicate_master)
         menu.addAction(duplicateAction)
+        templates = self._available_templates()
+        if templates:
+            submenu = menu.addMenu("Add slave from template")
+            for template in templates:
+                name = template.get(
+                    "template_name",
+                ) or "(unnamed)"
+                action = QAction(name, self)
+                action.triggered.connect(
+                    lambda _checked=False, tpl=template:
+                        self._on_apply_template(tpl),
+                )
+                submenu.addAction(action)
+        else:
+            disabled = QAction(
+                "Add slave from template (no templates)", self,
+            )
+            disabled.setEnabled(False)
+            menu.addAction(disabled)
         menu.exec(event.globalPos())
 
     def _on_duplicate_master(self):
@@ -210,4 +232,38 @@ class MasterBox(DropBox):
         except Exception:
             logger.exception(
                 "Duplicate master composite push failed",
+            )
+
+    def _available_templates(self):
+        """Return the templates list from the project window's
+        settings, or [] if settings is not reachable."""
+        if self._project_window is None:
+            return []
+        settings = getattr(self._project_window, "settings", None)
+        if settings is None:
+            return []
+        return list(settings.device_templates or [])
+
+    def _on_apply_template(self, template: dict):
+        if self._state is None or self._commands is None:
+            return
+        new_slave_id = datetime.now().strftime(
+            "%Y%m%d%H%M%S%f",
+        )
+        try:
+            composite = build_apply_template_composite(
+                template=template,
+                target_master_id=self.boxID,
+                new_slave_id=new_slave_id,
+            )
+        except ValueError:
+            logger.exception(
+                "Template malformed; skipping apply",
+            )
+            return
+        try:
+            self._commands.push(composite)
+        except Exception:
+            logger.exception(
+                "Apply template composite push failed",
             )

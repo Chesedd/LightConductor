@@ -16,6 +16,7 @@ class AppSettings:
     autosave_interval_seconds: int = 30
     color_presets: list = field(default_factory=list)
     recent_project_ids: list = field(default_factory=list)
+    device_templates: list = field(default_factory=list)
 
 
 def settings_path() -> Path:
@@ -74,6 +75,50 @@ def _coerce_recent_project_ids(value) -> list | None:
     return result
 
 
+def _coerce_device_templates(value) -> list | None:
+    """Return a sanitized list of template dicts, or None
+    if the payload is invalid.
+
+    Each entry must be a dict containing:
+        - template_version: int == 1 (strict)
+        - template_id: non-empty str
+        - template_name: str (empty allowed; UI shows
+          "(unnamed)")
+        - slave_config: dict
+    Deduplication by template_id (first occurrence wins).
+    Unknown extra keys are preserved. Returns a fresh list
+    of fresh dicts.
+    """
+    if not isinstance(value, list):
+        return None
+    seen_ids: set[str] = set()
+    result: list[dict] = []
+    for entry in value:
+        if not isinstance(entry, dict):
+            return None
+        version = entry.get("template_version")
+        if (
+            not isinstance(version, int)
+            or isinstance(version, bool)
+            or version != 1
+        ):
+            return None
+        tid = entry.get("template_id")
+        if not isinstance(tid, str) or not tid:
+            return None
+        tname = entry.get("template_name")
+        if not isinstance(tname, str):
+            return None
+        slave_cfg = entry.get("slave_config")
+        if not isinstance(slave_cfg, dict):
+            return None
+        if tid in seen_ids:
+            continue
+        seen_ids.add(tid)
+        result.append(dict(entry))
+    return result
+
+
 def _from_dict(data: object) -> AppSettings:
     defaults = AppSettings()
     if not isinstance(data, dict):
@@ -98,6 +143,16 @@ def _from_dict(data: object) -> AppSettings:
             continue
         if name == "recent_project_ids":
             coerced = _coerce_recent_project_ids(value)
+            if coerced is None:
+                logger.warning(
+                    "settings field %r is malformed; using default",
+                    name,
+                )
+                continue
+            kwargs[name] = coerced
+            continue
+        if name == "device_templates":
+            coerced = _coerce_device_templates(value)
             if coerced is None:
                 logger.warning(
                     "settings field %r is malformed; using default",
