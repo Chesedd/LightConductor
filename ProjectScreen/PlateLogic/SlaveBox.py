@@ -18,6 +18,10 @@ from ProjectScreen.TagLogic.LedStripView import LedStripView
 from lightconductor.application.duplicate import (
     build_duplicate_slave_composite,
 )
+from lightconductor.application.device_templates import (
+    template_from_slave,
+)
+from lightconductor.config import save_settings
 
 
 class SlaveBox(DropBox):
@@ -250,6 +254,12 @@ class SlaveBox(DropBox):
         duplicateAction.triggered.connect(self._on_duplicate_slave)
         menu.addAction(duplicateAction)
 
+        saveTemplateAction = QAction("Save as template", self)
+        saveTemplateAction.triggered.connect(
+            self._on_save_as_template,
+        )
+        menu.addAction(saveTemplateAction)
+
         deleteAction = QAction("Delete", self)
         deleteAction.triggered.connect(self.showDeleteDialog)
         menu.addAction(deleteAction)
@@ -310,5 +320,71 @@ class SlaveBox(DropBox):
             import logging
             logging.getLogger(__name__).exception(
                 "Duplicate slave composite push failed",
+            )
+
+    def _on_save_as_template(self):
+        if self._state is None:
+            return
+        if self._master_id is None:
+            return
+        project_window = self._project_window
+        if project_window is None:
+            return
+        settings = getattr(project_window, "settings", None)
+        if settings is None:
+            return
+        try:
+            source = (
+                self._state.master(self._master_id)
+                .slaves[self.boxID]
+            )
+        except KeyError:
+            return
+        from PyQt6.QtWidgets import (
+            QDialog, QLabel, QLineEdit,
+            QVBoxLayout, QHBoxLayout, QPushButton,
+            QMessageBox,
+        )
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Save as template")
+        dialog.setModal(True)
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel("Template name:"))
+        name_edit = QLineEdit(source.name)
+        name_edit.selectAll()
+        layout.addWidget(name_edit)
+        btn_row = QHBoxLayout()
+        ok_btn = QPushButton("Save")
+        cancel_btn = QPushButton("Cancel")
+        ok_btn.clicked.connect(dialog.accept)
+        cancel_btn.clicked.connect(dialog.reject)
+        btn_row.addStretch(1)
+        btn_row.addWidget(ok_btn)
+        btn_row.addWidget(cancel_btn)
+        layout.addLayout(btn_row)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        template_name = name_edit.text().strip()
+        if not template_name:
+            QMessageBox.warning(
+                self, "Invalid name",
+                "Template name cannot be empty.",
+            )
+            return
+        template = template_from_slave(source, template_name)
+        existing = list(settings.device_templates or [])
+        existing.append(template)
+        settings.device_templates = existing
+        try:
+            save_settings(settings)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "failed to persist device template",
+            )
+            QMessageBox.warning(
+                self, "Save failed",
+                "Template saved in memory but could not be "
+                "persisted to settings.json.",
             )
 
