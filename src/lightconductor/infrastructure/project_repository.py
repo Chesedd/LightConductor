@@ -187,3 +187,17 @@ class ProjectRepository:
             )
         self._write_registry(registry)
         return True
+
+    def read_registry(self) -> Dict[str, Dict[str, Any]]:
+        """Public facade over the internal _read_registry
+        (satisfies ProjectPreviewPort)."""
+        return self._read_registry()
+
+    def data_json_path(self, project_name: str) -> str:
+        return str(self._project_dir(project_name) / "data.json")
+
+    def audio_exists(self, project_name: str) -> bool:
+        return (self._project_dir(project_name) / "audio.wav").exists()
+
+    def project_dir_exists(self, project_name: str) -> bool:
+        return self._project_dir(project_name).exists()
