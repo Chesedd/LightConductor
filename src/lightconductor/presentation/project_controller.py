@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Protocol, Tuple
+from typing import Any, Callable, Dict, Optional, Protocol, Tuple
 
 from lightconductor.application.compiled_show import CompileShowsForMastersUseCase
 from lightconductor.domain.models import Master
@@ -24,7 +24,7 @@ class ProjectScreenController:
         self,
         masters: Dict[str, Master],
         *,
-        progress_callback=None,
+        progress_callback: Optional[Callable[[int, int], bool]] = None,
     ) -> None:
         compiled_by_host = self.compile_use_case.execute(masters)
         self.transport.upload(
@@ -36,7 +36,7 @@ class ProjectScreenController:
         self,
         masters: Dict[str, Master],
         *,
-        progress_callback=None,
+        progress_callback: Optional[Callable[[int, int], bool]] = None,
     ) -> None:
         self.transport.start_show(
             (master.ip for master in masters.values()),
