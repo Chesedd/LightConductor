@@ -1,13 +1,18 @@
+from pathlib import Path
+
 from PyQt6.QtWidgets import (
     QMainWindow, QPushButton, QVBoxLayout,
     QHBoxLayout, QWidget, QLabel, QMessageBox,
-    QDialog, QLineEdit, QFrame,
+    QDialog, QLineEdit, QFrame, QFileDialog,
 )
 from PyQt6.QtCore import pyqtSignal
 from ProjectScreen.ProjectScreen import ProjectWindow
 from AssistanceTools.SimpleDialog import SimpleDialog
 from MainScreen.ProjectCard import ProjectCard
 from lightconductor.config import load_settings
+from lightconductor.infrastructure.project_archive import (
+    ArchiveError,
+)
 from lightconductor.infrastructure.project_repository import ProjectRepository
 from lightconductor.presentation.main_controller import MainScreenController
 
@@ -111,10 +116,19 @@ class MainWindow(QMainWindow):
         self.buttonLayout.setSpacing(10)
         self.buttonLayout.setContentsMargins(0, 0, 0, 0)
 
+        actionsRow = QWidget()
+        actionsRowLayout = QHBoxLayout(actionsRow)
+        actionsRowLayout.setContentsMargins(0, 0, 0, 0)
+        actionsRowLayout.setSpacing(8)
         newProjectBtn = QPushButton("New project")
         newProjectBtn.setFixedHeight(52)
         newProjectBtn.clicked.connect(self.showProjectDialog)
-        self.buttonLayout.addWidget(newProjectBtn)
+        actionsRowLayout.addWidget(newProjectBtn)
+        importBtn = QPushButton("Import project")
+        importBtn.setFixedHeight(52)
+        importBtn.clicked.connect(self._on_import_requested)
+        actionsRowLayout.addWidget(importBtn)
+        self.buttonLayout.addWidget(actionsRow)
 
     #Загрузка существующих проектов
     def loadExistingProjects(self):
@@ -153,6 +167,7 @@ class MainWindow(QMainWindow):
         card.openRequested.connect(self._on_open_requested)
         card.renameRequested.connect(self._on_rename_requested)
         card.deleteRequested.connect(self._on_delete_requested)
+        card.exportRequested.connect(self._on_export_requested)
         self.buttonLayout.insertWidget(
             self.buttonLayout.count() - 1, card,
         )
@@ -225,6 +240,157 @@ class MainWindow(QMainWindow):
         if reply != QMessageBox.StandardButton.Yes:
             return
         self.deleteProject(project_id)
+
+    def _on_export_requested(self, project_id: str):
+        card = self.projectWidgets.get(project_id)
+        if card is None:
+            return
+        default_name = f"{card.project_name()}.zip"
+        file_path, _filter = QFileDialog.getSaveFileName(
+            self,
+            "Export project",
+            default_name,
+            "Zip archive (*.zip)",
+        )
+        if not file_path:
+            return
+        # Ensure .zip extension if user omitted it.
+        if not file_path.lower().endswith(".zip"):
+            file_path = file_path + ".zip"
+        try:
+            self.controller.export_project(project_id, file_path)
+        except FileNotFoundError as exc:
+            QMessageBox.critical(
+                self, "Export failed",
+                f"Source files missing:\n{exc}",
+            )
+            return
+        except OSError as exc:
+            QMessageBox.critical(
+                self, "Export failed",
+                f"Could not write archive:\n{exc}",
+            )
+            return
+        except Exception as exc:
+            QMessageBox.critical(
+                self, "Export failed",
+                f"Unexpected error:\n{exc}",
+            )
+            return
+        QMessageBox.information(
+            self, "Export complete",
+            f"Exported to:\n{file_path}",
+        )
+
+    def _on_import_requested(self):
+        from lightconductor.infrastructure.project_repository import (
+            ProjectNameCollision,
+        )
+        file_path, _filter = QFileDialog.getOpenFileName(
+            self,
+            "Import project",
+            "",
+            "Zip archive (*.zip)",
+        )
+        if not file_path:
+            return
+        # Step 1: inspect the archive. Any ArchiveError means
+        # we cannot proceed.
+        try:
+            manifest = self.controller.inspect_archive_manifest(
+                file_path,
+            )
+        except ArchiveError as exc:
+            QMessageBox.critical(
+                self, "Invalid archive",
+                f"Cannot import this archive:\n{exc}",
+            )
+            return
+        except OSError as exc:
+            QMessageBox.critical(
+                self, "Invalid archive",
+                f"Cannot read archive:\n{exc}",
+            )
+            return
+        except Exception as exc:
+            QMessageBox.critical(
+                self, "Invalid archive",
+                f"Unexpected error inspecting archive:\n{exc}",
+            )
+            return
+        # Step 2: ask for target name, pre-filled with the
+        # manifest's source name. Dialog loops on collision.
+        initial_name = (
+            manifest.get("source_project_name") or ""
+        )
+        dialog = RenameProjectDialog(initial_name, self)
+        dialog.setWindowTitle("Import project")
+        while True:
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            target_name = dialog.new_name().strip()
+            if not target_name:
+                QMessageBox.warning(
+                    self, "Invalid name",
+                    "Project name cannot be empty.",
+                )
+                continue
+            if any(sep in target_name for sep in ("/", "\\")):
+                QMessageBox.warning(
+                    self, "Invalid name",
+                    "Project name cannot contain path separators.",
+                )
+                continue
+            try:
+                self.controller.import_project(
+                    file_path, target_name,
+                )
+            except ProjectNameCollision:
+                QMessageBox.warning(
+                    self, "Name in use",
+                    f"\"{target_name}\" is already used by "
+                    f"another project. Choose a different name.",
+                )
+                continue
+            except ArchiveError as exc:
+                QMessageBox.critical(
+                    self, "Import failed",
+                    f"Archive invalid:\n{exc}",
+                )
+                return
+            except OSError as exc:
+                QMessageBox.critical(
+                    self, "Import failed",
+                    f"Filesystem error:\n{exc}",
+                )
+                return
+            except Exception as exc:
+                QMessageBox.critical(
+                    self, "Import failed",
+                    f"Unexpected error:\n{exc}",
+                )
+                return
+            # Success — rebuild the card list from scratch.
+            self._reload_cards()
+            QMessageBox.information(
+                self, "Import complete",
+                f"Imported project \"{target_name}\".",
+            )
+            return
+
+    def _reload_cards(self):
+        """Destroy all existing project cards and rebuild
+        from the controller's metadata list. Used after
+        import."""
+        for pid in list(self.projectWidgets.keys()):
+            widget = self.projectWidgets.pop(pid)
+            self.buttonLayout.removeWidget(widget)
+            widget.setParent(None)
+            widget.deleteLater()
+        projects = self.controller.list_projects_with_metadata()
+        for project in projects:
+            self.initProject(project)
+        self._refresh_recent_section()
 
     #удаление проекта
     def deleteProject(self, projectId):

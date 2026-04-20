@@ -1,5 +1,8 @@
+import json
 import sys
+import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -9,6 +12,9 @@ if str(SRC) not in sys.path:
 
 from lightconductor import presentation
 from lightconductor.config import AppSettings
+from lightconductor.infrastructure.project_archive import (
+    ArchiveReadError,
+)
 from lightconductor.presentation import MainScreenController
 
 
@@ -118,6 +124,78 @@ class ExportImportControllerTests(unittest.TestCase):
                 "song_name": "imported-song",
             },
         )
+
+
+class InspectArchiveManifestTests(unittest.TestCase):
+    def setUp(self):
+        self._td = tempfile.TemporaryDirectory()
+        self.tmp = Path(self._td.name)
+
+    def tearDown(self):
+        self._td.cleanup()
+
+    def _write_valid_archive(self, zip_path: Path) -> dict:
+        manifest = {
+            "manifest_version": 1,
+            "exported_at": "2025-01-01T00:00:00+00:00",
+            "source_project_name": "SourceProj",
+            "song_name": "SourceSong",
+            "source_created_at": "2024-06-15T10:00:00",
+            "data_schema_version": 1,
+            "has_audio": False,
+        }
+        envelope = {"schema_version": 1, "masters": {}}
+        with zipfile.ZipFile(
+            zip_path, mode="w",
+            compression=zipfile.ZIP_DEFLATED,
+        ) as zf:
+            zf.writestr(
+                "manifest.json",
+                json.dumps(manifest, indent=2).encode("utf-8"),
+            )
+            zf.writestr(
+                "data.json",
+                json.dumps(envelope, indent=2).encode("utf-8"),
+            )
+        return manifest
+
+    def test_inspect_archive_manifest_returns_fields(self):
+        repo = FakeRepo()
+        controller = MainScreenController(repo)
+        zip_path = self.tmp / "archive.zip"
+        manifest = self._write_valid_archive(zip_path)
+        result = controller.inspect_archive_manifest(zip_path)
+        self.assertEqual(
+            set(result.keys()),
+            {
+                "source_project_name",
+                "song_name",
+                "source_created_at",
+                "has_audio",
+            },
+        )
+        self.assertEqual(
+            result["source_project_name"],
+            manifest["source_project_name"],
+        )
+        self.assertEqual(
+            result["song_name"], manifest["song_name"],
+        )
+        self.assertEqual(
+            result["source_created_at"],
+            manifest["source_created_at"],
+        )
+        self.assertEqual(
+            result["has_audio"], manifest["has_audio"],
+        )
+
+    def test_inspect_archive_manifest_propagates_archive_error(self):
+        repo = FakeRepo()
+        controller = MainScreenController(repo)
+        bogus = self.tmp / "not-a-zip.zip"
+        bogus.write_text("this is not a zip file")
+        with self.assertRaises(ArchiveReadError):
+            controller.inspect_archive_manifest(bogus)
 
 
 class RecentProjectsTests(unittest.TestCase):
