@@ -1,14 +1,28 @@
 import logging
+from datetime import datetime
 
-from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
-                            QFileDialog, QMessageBox, QApplication, QLineEdit,
-                            QTextEdit, QPlainTextEdit, QAbstractSpinBox, QComboBox,
-                            QProgressDialog)
-from PyQt6.QtCore import pyqtSignal, Qt, QUrl, QTimer, QEvent
+from PyQt6.QtCore import QEvent, Qt, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import QAction, QKeySequence
-from ProjectScreen.PlateLogic.MasterBox import MasterBox
+from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
+from PyQt6.QtWidgets import (
+    QAbstractSpinBox,
+    QApplication,
+    QComboBox,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QMessageBox,
+    QPlainTextEdit,
+    QProgressDialog,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
 from AssistanceTools.SimpleDialog import SimpleDialog
-from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from lightconductor.application.beat_detection import snap_to_nearest_beat
 from lightconductor.application.commands import (
     AddMasterCommand,
@@ -18,20 +32,22 @@ from lightconductor.application.commands import (
 )
 from lightconductor.application.compiled_show import CompileShowsForMastersUseCase
 from lightconductor.application.project_search import compute_visibility
+from lightconductor.application.project_state import ProjectState, StateReplaced
+from lightconductor.application.score_export import (
+    build_score_records,
+    render_csv,
+    render_json,
+)
 from lightconductor.application.upload_plan import (
     UploadPlan,
     build_upload_plan,
-)
-from lightconductor.application.project_state import ProjectState, StateReplaced
-from lightconductor.application.score_export import (
-    build_score_records, render_csv, render_json,
 )
 from lightconductor.application.validation_service import (
     SEVERITY_ERROR,
     ValidationIssue,
     ValidationService,
 )
-from lightconductor.config import AppSettings, load_settings, save_settings
+from lightconductor.config import load_settings, save_settings
 from lightconductor.domain.models import Master as DomainMaster
 from lightconductor.infrastructure.audio_loader import LibrosaAudioLoader
 from lightconductor.infrastructure.master_udp_upload_transport import (
@@ -42,15 +58,18 @@ from lightconductor.infrastructure.master_udp_upload_transport import (
 from lightconductor.infrastructure.project_session_storage import ProjectSessionStorage
 from lightconductor.infrastructure.ui_session_bridge import UiSessionBridge
 from lightconductor.presentation.project_controller import ProjectScreenController
-from lightconductor.presentation.project_session_controller import ProjectSessionController
-
-from datetime import datetime
+from lightconductor.presentation.project_session_controller import (
+    ProjectSessionController,
+)
+from ProjectScreen.PlateLogic.MasterBox import MasterBox
 
 logger = logging.getLogger(__name__)
 
-#Диалог создания нового мастера
+
+# Диалог создания нового мастера
 class newMasterDialog(SimpleDialog):
     masterCreated = pyqtSignal(dict)
+
     def __init__(self, default_ip: str, parent=None):
         super().__init__(parent)
         self._default_ip = default_ip
@@ -74,7 +93,6 @@ class newMasterDialog(SimpleDialog):
         self.accept()
 
 
-
 class ProjectWindow(QMainWindow):
     def __init__(self, project_data):
         super().__init__()
@@ -89,7 +107,7 @@ class ProjectWindow(QMainWindow):
         self.sessionController = ProjectSessionController(
             UiSessionBridge(
                 domain_storage=ProjectSessionStorage(),
-                project_name=self.project_data['project_name'],
+                project_name=self.project_data["project_name"],
             )
         )
         self.showController = ProjectScreenController(
@@ -134,7 +152,7 @@ class ProjectWindow(QMainWindow):
     def is_loading(self) -> bool:
         return self._loading
 
-    #создание действий под горячие клавиши
+    # создание действий под горячие клавиши
     def initActions(self):
         saveAction = QAction("Save", self)
         saveAction.setShortcut(QKeySequence("Ctrl+S"))
@@ -188,8 +206,7 @@ class ProjectWindow(QMainWindow):
         fw = QApplication.focusWidget()
         if fw is None:
             return False
-        if isinstance(fw, (QLineEdit, QTextEdit, QPlainTextEdit,
-                           QAbstractSpinBox)):
+        if isinstance(fw, (QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox)):
             return True
         if isinstance(fw, QComboBox) and fw.isEditable():
             return True
@@ -220,19 +237,18 @@ class ProjectWindow(QMainWindow):
         if cur_type is None:
             return
         raw_time = max(0.0, float(wave._renderer.selectedLine.value()))
-        beats = (
-            getattr(wave._renderer, "beat_times", None)
-            if beat_snap else None
-        )
+        beats = getattr(wave._renderer, "beat_times", None) if beat_snap else None
         time_val = snap_to_nearest_beat(raw_time, beats, 0.1)
         dur = float(getattr(wave._renderer, "duration", 0.0) or 0.0)
         if dur > 0.0 and time_val > dur:
             time_val = dur
-        topology = list(getattr(
-            cur_type,
-            "topology",
-            [i for i in range(cur_type.row * cur_type.table)],
-        ))
+        topology = list(
+            getattr(
+                cur_type,
+                "topology",
+                [i for i in range(cur_type.row * cur_type.table)],
+            )
+        )
         colors = [[0, 0, 0] for _ in range(len(topology))]
         wave.addTagAtTime({"action": False, "colors": colors}, time_val)
 
@@ -245,8 +261,7 @@ class ProjectWindow(QMainWindow):
         wave = slave.wave
         controller = getattr(wave, "_tagController", None)
         selected = (
-            list(controller.selected_scene_tags())
-            if controller is not None else []
+            list(controller.selected_scene_tags()) if controller is not None else []
         )
         if not selected:
             # Fall back to existing single-tag path via TagInfoScreen.
@@ -336,8 +351,7 @@ class ProjectWindow(QMainWindow):
         try:
             time_val = float(wave._renderer.selectedLine.value())
             wave.addTagAtTime(
-                {"action": clip["action"],
-                 "colors": [list(c) for c in clip["colors"]]},
+                {"action": clip["action"], "colors": [list(c) for c in clip["colors"]]},
                 time_val,
             )
         finally:
@@ -360,7 +374,9 @@ class ProjectWindow(QMainWindow):
         for warning in warnings_:
             logger.warning(
                 "Validation warning during %s: [%s] %s — %s",
-                operation_name, warning.category, warning.path,
+                operation_name,
+                warning.category,
+                warning.path,
                 warning.message,
             )
 
@@ -368,8 +384,7 @@ class ProjectWindow(QMainWindow):
             return True
 
         lines = [
-            f"• [{issue.category}] {issue.path}\n  {issue.message}"
-            for issue in errors
+            f"• [{issue.category}] {issue.path}\n  {issue.message}" for issue in errors
         ]
         QMessageBox.warning(
             self,
@@ -407,11 +422,13 @@ class ProjectWindow(QMainWindow):
             lines.append("")
             lines.append("Hosts:")
             for host_plan in plan.hosts:
-                slave_summaries = ", ".join(
-                    f"slave {s.slave_id} ({s.blob_size}B, "
-                    f"{s.chunk_count} chunks)"
-                    for s in host_plan.slaves
-                ) or "no slaves"
+                slave_summaries = (
+                    ", ".join(
+                        f"slave {s.slave_id} ({s.blob_size}B, {s.chunk_count} chunks)"
+                        for s in host_plan.slaves
+                    )
+                    or "no slaves"
+                )
                 lines.append(
                     f"  • {host_plan.host}: {slave_summaries}",
                 )
@@ -429,7 +446,8 @@ class ProjectWindow(QMainWindow):
         return "\n".join(lines)
 
     def _format_upload_failed_message(
-        self, exc: "UploadFailedError",
+        self,
+        exc: "UploadFailedError",
     ) -> str:
         """Build a human-readable body for the UploadFailedError dialog
         — host, port, attempts, and likely causes.
@@ -439,8 +457,7 @@ class ProjectWindow(QMainWindow):
             f"Could not reach master at {exc.host}:{exc.port}.",
         )
         lines.append(
-            f"Tried {exc.attempts} time(s), "
-            f"last error: {exc.original}",
+            f"Tried {exc.attempts} time(s), last error: {exc.original}",
         )
         lines.append("")
         lines.append("Possible causes:")
@@ -471,7 +488,7 @@ class ProjectWindow(QMainWindow):
             self.audioPlayer.setAudioOutput(self.audioOutput)
 
     def init_ui(self):
-        self._base_window_title = self.project_data['project_name']
+        self._base_window_title = self.project_data["project_name"]
         self._refresh_window_title()
         self.setGeometry(100, 100, 1400, 800)
 
@@ -488,7 +505,7 @@ class ProjectWindow(QMainWindow):
 
         self.initButtons()
 
-    #создание кнопок под юай
+    # создание кнопок под юай
     def initButtons(self):
         controls = QWidget()
         controlsLayout = QHBoxLayout(controls)
@@ -514,16 +531,14 @@ class ProjectWindow(QMainWindow):
         showButton = QPushButton("Start show")
         showButton.clicked.connect(self.startShow)
         showButton.setStyleSheet(
-            "QPushButton { background-color: #2d6a4f; border: 1px solid #3f8a68; font-weight: 600; }"
+            "QPushButton { background-color: #2d6a4f; border: 1px solid #3f8a68; font-weight: 600; }"  # noqa: E501
             "QPushButton:hover { background-color: #347a5a; }"
         )
         controlsLayout.addWidget(showButton)
         controlsLayout.addStretch(1)
 
         self.searchEdit = QLineEdit()
-        self.searchEdit.setPlaceholderText(
-            "Search masters / slaves / tag types..."
-        )
+        self.searchEdit.setPlaceholderText("Search masters / slaves / tag types...")
         self.searchEdit.setFixedWidth(240)
         self.searchEdit.textChanged.connect(
             self._on_search_text_changed,
@@ -547,12 +562,11 @@ class ProjectWindow(QMainWindow):
                 for slave_id, slave in master.slaves.items():
                     manager = self.initSlave(slave, master_widget, master_id)
                     wave = master_widget.slaves[slave_id].wave
-                    for type_name, tag_type in slave.tag_types.items():
+                    for _type_name, tag_type in slave.tag_types.items():
                         self.initTypeAndTags(tag_type, manager, wave)
         finally:
             self._loading = False
         self._set_dirty(False)
-
 
     def initSlave(self, slave, master_widget, master_id):
         slaveData = {
@@ -587,9 +601,7 @@ class ProjectWindow(QMainWindow):
         preset. Mutates self.settings and persists to settings.json.
         Silent on IO errors (logged only).
         """
-        self.settings.color_presets = [
-            list(p) for p in (presets or [])
-        ]
+        self.settings.color_presets = [list(p) for p in (presets or [])]
         try:
             save_settings(self.settings)
         except Exception:
@@ -602,7 +614,9 @@ class ProjectWindow(QMainWindow):
         if not self._report_validation_errors(issues, "Save"):
             return
         self.sessionController.save_session(
-            self.audio, self.sr, domain_masters,
+            self.audio,
+            self.sr,
+            domain_masters,
         )
         self._set_dirty(False)
 
@@ -611,17 +625,21 @@ class ProjectWindow(QMainWindow):
             self,
             "Choose audio",
             "",
-            "Аудио файлы (*.mp3, *.wav, *.flac, *.ogg, *.m4a);;Все файлы (*)"
+            "Аудио файлы (*.mp3, *.wav, *.flac, *.ogg, *.m4a);;Все файлы (*)",
         )
         if not filePath:
             return
         try:
-            self.audio, self.sr, self.audioPath = self.showController.load_track(filePath)
+            self.audio, self.sr, self.audioPath = self.showController.load_track(
+                filePath
+            )
             self.initAudioPlayer()
             self.updateSlavesAudio()
         except FileNotFoundError:
             logger.warning("Audio file not found: %s", filePath)
-            QMessageBox.warning(self, "Файл не найден", f"Файл не существует:\n{filePath}")
+            QMessageBox.warning(
+                self, "Файл не найден", f"Файл не существует:\n{filePath}"
+            )
         except Exception as e:
             logger.exception("Failed to load audio track: %s", filePath)
             QMessageBox.critical(self, "Ошибка загрузки трека", str(e))
@@ -657,7 +675,9 @@ class ProjectWindow(QMainWindow):
             self.commands.push(
                 AddMasterCommand(
                     master=DomainMaster(
-                        id=boxID, name=masterName, ip=masterIp,
+                        id=boxID,
+                        name=masterName,
+                        ip=masterIp,
                     ),
                 )
             )
@@ -685,38 +705,33 @@ class ProjectWindow(QMainWindow):
             return
         # Separate warnings for the preview dialog
         # (errors already blocked above).
-        warnings_only = [
-            i for i in issues if i.severity != SEVERITY_ERROR
-        ]
+        warnings_only = [i for i in issues if i.severity != SEVERITY_ERROR]
         # Pre-compile for the preview. Compile is pure and cheap;
         # the second compile inside upload_show is intentional and
         # acceptable for MVP.
         try:
-            compiled_by_host = (
-                self.showController.compile_use_case.execute(
-                    domain_masters,
-                )
+            compiled_by_host = self.showController.compile_use_case.execute(
+                domain_masters,
             )
         except Exception as exc:
             logger.exception("Compile failed during upload preview")
             QMessageBox.critical(
-                self, "Upload blocked",
+                self,
+                "Upload blocked",
                 f"Cannot compile the show:\n{exc}",
             )
             return
         plan = build_upload_plan(
             compiled_by_host=compiled_by_host,
             chunk_size=self.settings.udp_chunk_size,
-            inter_packet_delay=(
-                self.showController.transport.inter_packet_delay
-            ),
+            inter_packet_delay=(self.showController.transport.inter_packet_delay),
         )
         body = self._format_upload_preview(plan, warnings_only)
         reply = QMessageBox.question(
-            self, "Confirm upload",
+            self,
+            "Confirm upload",
             body,
-            QMessageBox.StandardButton.Yes
-            | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
@@ -724,7 +739,10 @@ class ProjectWindow(QMainWindow):
             return
         progress = QProgressDialog(
             "Uploading show: 0 / 0 packets",
-            "Cancel", 0, max(1, plan.total_packets), self,
+            "Cancel",
+            0,
+            max(1, plan.total_packets),
+            self,
         )
         progress.setWindowTitle("Upload in progress")
         progress.setWindowModality(Qt.WindowModality.WindowModal)
@@ -750,9 +768,9 @@ class ProjectWindow(QMainWindow):
                 progress_callback=_cb,
             )
             logger.info(
-                "Compiled show uploaded "
-                "(%d hosts, %d slaves, %d packets)",
-                plan.total_hosts, plan.total_slaves,
+                "Compiled show uploaded (%d hosts, %d slaves, %d packets)",
+                plan.total_hosts,
+                plan.total_slaves,
                 plan.total_packets,
             )
             progress.setValue(max(1, plan.total_packets))
@@ -760,27 +778,32 @@ class ProjectWindow(QMainWindow):
             progress.close()
             logger.info(
                 "Upload cancelled by user after %d/%d packets",
-                exc.packets_sent, exc.total_packets,
+                exc.packets_sent,
+                exc.total_packets,
             )
             QMessageBox.information(
-                self, "Upload cancelled",
+                self,
+                "Upload cancelled",
                 f"Sent {exc.packets_sent} of "
                 f"{exc.total_packets} packet(s) before cancel.",
             )
         except UploadFailedError as exc:
             progress.close()
             logger.exception(
-                "Upload failed: %s", exc,
+                "Upload failed: %s",
+                exc,
             )
             QMessageBox.critical(
-                self, "Upload failed",
+                self,
+                "Upload failed",
                 self._format_upload_failed_message(exc),
             )
         except Exception as exc:
             progress.close()
             logger.exception("Failed to upload show")
             QMessageBox.critical(
-                self, "Upload failed",
+                self,
+                "Upload failed",
                 f"{exc}",
             )
 
@@ -788,7 +811,8 @@ class ProjectWindow(QMainWindow):
         domain_masters = self.state.masters()
         if not domain_masters:
             QMessageBox.information(
-                self, "Nothing to export",
+                self,
+                "Nothing to export",
                 "The project has no masters or tags to export.",
             )
             return
@@ -819,20 +843,23 @@ class ProjectWindow(QMainWindow):
         except OSError as exc:
             logger.exception("Failed to write score export")
             QMessageBox.critical(
-                self, "Export failed",
+                self,
+                "Export failed",
                 f"Could not write {file_path}:\n{exc}",
             )
             return
         except Exception as exc:
             logger.exception("Unexpected error during score export")
             QMessageBox.critical(
-                self, "Export failed",
+                self,
+                "Export failed",
                 f"Unexpected error:\n{exc}",
             )
             return
         logger.info(
             "Exported %d score records to %s",
-            len(records), file_path,
+            len(records),
+            file_path,
         )
 
     def startShow(self):
@@ -880,7 +907,8 @@ class ProjectWindow(QMainWindow):
                 slave_widget.setVisible(sv.visible)
                 manager = getattr(
                     getattr(slave_widget, "wave", None),
-                    "manager", None,
+                    "manager",
+                    None,
                 )
                 if manager is None:
                     continue
@@ -945,12 +973,15 @@ class ProjectWindow(QMainWindow):
         errors = [i for i in issues if i.severity == SEVERITY_ERROR]
         if errors:
             logger.warning(
-                "Autosave skipped: %d validation error(s)", len(errors),
+                "Autosave skipped: %d validation error(s)",
+                len(errors),
             )
             return
         try:
             self.sessionController.save_session(
-                self.audio, self.sr, domain_masters,
+                self.audio,
+                self.sr,
+                domain_masters,
             )
         except Exception:
             logger.exception("Autosave failed")

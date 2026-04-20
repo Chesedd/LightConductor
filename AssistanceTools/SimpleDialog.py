@@ -1,11 +1,18 @@
-from PyQt6.QtWidgets import QDialog, QLabel, QLineEdit, QHBoxLayout, QWidget, QPushButton
+from PyQt6.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QWidget,
+)
 
 
 class SimpleDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-    #создание виджета вида: текст+лайн
+    # создание виджета вида: текст+лайн
     def LabelAndLine(self, text):
         label = QLabel(text)
         line = QLineEdit()
@@ -16,7 +23,7 @@ class SimpleDialog(QDialog):
         self.layout().addWidget(widget)
         return line
 
-    #создание виджета вида: ok+cancel
+    # создание виджета вида: ok+cancel
     def OkAndCancel(self):
         okBtn = QPushButton("OK")
         cancelBtn = QPushButton("Cancel")

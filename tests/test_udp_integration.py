@@ -17,7 +17,6 @@ from lightconductor.domain.models import Master, Slave, Tag, TagType
 from lightconductor.infrastructure.master_udp_upload_transport import (
     MasterUdpUploadTransport,
 )
-
 from tests._mock_udp import (
     ParsedBegin,
     ParsedChunk,
@@ -70,7 +69,9 @@ def _build_master_with_slave(
         led_count=led_count,
         tag_types={"front": tag_type},
     )
-    return Master(id=master_id, name="master", ip=master_ip, slaves={slave_id_str: slave})
+    return Master(
+        id=master_id, name="master", ip=master_ip, slaves={slave_id_str: slave}
+    )
 
 
 def _drain_receiver(recv, expected_packet_count, timeout=1.0):
@@ -86,7 +87,9 @@ def _drain_receiver(recv, expected_packet_count, timeout=1.0):
         time.sleep(0.01)
 
 
-def _compiled(slave_id: int, blob: bytes, master_ip: str = "127.0.0.1") -> CompiledSlaveShow:
+def _compiled(
+    slave_id: int, blob: bytes, master_ip: str = "127.0.0.1"
+) -> CompiledSlaveShow:
     return CompiledSlaveShow(
         master_ip=master_ip,
         slave_id=slave_id,
@@ -98,9 +101,7 @@ def _compiled(slave_id: int, blob: bytes, master_ip: str = "127.0.0.1") -> Compi
 class UdpIntegrationTests(unittest.TestCase):
     def test_empty_upload_sends_nothing(self):
         with mock_udp_receiver() as recv:
-            transport = MasterUdpUploadTransport(
-                port=recv.port, inter_packet_delay=0.0
-            )
+            transport = MasterUdpUploadTransport(port=recv.port, inter_packet_delay=0.0)
             transport.upload({})
             time.sleep(0.1)
             self.assertEqual([], recv.snapshot())
@@ -165,7 +166,9 @@ class UdpIntegrationTests(unittest.TestCase):
             _drain_receiver(recv, expected_packet_count=3)
 
         packets = recv.snapshot()
-        begins = [parse_packet(p) for p in packets if isinstance(parse_packet(p), ParsedBegin)]
+        begins = [
+            parse_packet(p) for p in packets if isinstance(parse_packet(p), ParsedBegin)
+        ]
         self.assertEqual(1, len(begins))
         begin = begins[0]
         self.assertEqual(len(blob), begin.total_size)
@@ -195,7 +198,7 @@ class UdpIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(expected_chunks, len(chunks))
         self.assertEqual(0, chunks[0].offset)
-        for prev, cur in zip(chunks, chunks[1:]):
+        for prev, cur in zip(chunks, chunks[1:], strict=False):
             self.assertEqual(prev.offset + chunk_size, cur.offset)
             self.assertEqual(chunk_size, prev.chunk_len)
         self.assertEqual(len(blob), sum(c.chunk_len for c in chunks))
@@ -255,9 +258,7 @@ class UdpIntegrationTests(unittest.TestCase):
 
     def test_start_show_with_distinct_hosts_deduplicates(self):
         with mock_udp_receiver() as recv:
-            transport = MasterUdpUploadTransport(
-                port=recv.port, inter_packet_delay=0.0
-            )
+            transport = MasterUdpUploadTransport(port=recv.port, inter_packet_delay=0.0)
             transport.start_show(["127.0.0.1", "127.0.0.1", "127.0.0.1"])
             _drain_receiver(recv, expected_packet_count=1)
             time.sleep(0.1)
@@ -268,9 +269,7 @@ class UdpIntegrationTests(unittest.TestCase):
 
     def test_start_show_empty_hosts_sends_nothing(self):
         with mock_udp_receiver() as recv:
-            transport = MasterUdpUploadTransport(
-                port=recv.port, inter_packet_delay=0.0
-            )
+            transport = MasterUdpUploadTransport(port=recv.port, inter_packet_delay=0.0)
             transport.start_show([])
             time.sleep(0.1)
             self.assertEqual([], recv.snapshot())
@@ -300,7 +299,9 @@ class UdpIntegrationTests(unittest.TestCase):
         self.assertIn(source_slave_id, reassembled)
         self.assertEqual(source_blob, reassembled[source_slave_id])
 
-        begins = [parse_packet(p) for p in packets if isinstance(parse_packet(p), ParsedBegin)]
+        begins = [
+            parse_packet(p) for p in packets if isinstance(parse_packet(p), ParsedBegin)
+        ]
         self.assertEqual(1, len(begins))
         self.assertEqual(crc32_of(source_blob), begins[0].crc32)
         self.assertEqual(len(source_blob), begins[0].total_size)

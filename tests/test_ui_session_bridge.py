@@ -29,6 +29,7 @@ try:
     import librosa  # noqa: F401
     import numpy  # noqa: F401
     import soundfile  # noqa: F401
+
     HAVE_AUDIO = True
 except ImportError:
     HAVE_AUDIO = False
@@ -43,22 +44,30 @@ def _make_bridge(projects_root: Path, project_name: str = "proj1") -> UiSessionB
 
 def _sample_master(master_id: str = "m1", ip: str = "10.0.0.5") -> Master:
     tag_type = TagType(
-        name="front", pin="3", rows=1, columns=4,
-        color=[255, 0, 0], topology=[0, 1, 2, 3],
+        name="front",
+        pin="3",
+        rows=1,
+        columns=4,
+        color=[255, 0, 0],
+        topology=[0, 1, 2, 3],
         tags=[Tag(time_seconds=0.1, action=True, colors=[[1, 2, 3]])],
     )
     slave = Slave(
-        id="s1", name="S", pin="7", led_count=60,
+        id="s1",
+        name="S",
+        pin="7",
+        led_count=60,
         tag_types={"front": tag_type},
     )
     return Master(
-        id=master_id, name="M", ip=ip,
+        id=master_id,
+        name="M",
+        ip=ip,
         slaves={"s1": slave},
     )
 
 
 class UiSessionBridgeTests(unittest.TestCase):
-
     def test_load_domain_masters_returns_empty_if_no_data_file(self):
         with tempfile.TemporaryDirectory() as td:
             bridge = _make_bridge(Path(td))
@@ -143,7 +152,9 @@ class UiSessionBridgeTests(unittest.TestCase):
         storage = MagicMock()
         domain_dict = {
             "m1": Master(
-                id="m1", name="M", ip="1.2.3.4",
+                id="m1",
+                name="M",
+                ip="1.2.3.4",
                 slaves={"s1": Slave(id="s1", name="S", pin="0")},
             ),
         }

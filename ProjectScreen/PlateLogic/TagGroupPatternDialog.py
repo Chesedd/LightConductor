@@ -1,6 +1,13 @@
 from PyQt6.QtWidgets import (
-    QDialog, QLabel, QLineEdit, QHBoxLayout, QVBoxLayout, QPushButton,
-    QWidget, QComboBox)
+    QComboBox,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from AssistanceTools.ColorPicker import ColorPicker
 from lightconductor.application.pattern_service import PatternService
@@ -21,11 +28,13 @@ class TagGroupPatternDialog(QDialog):
         patternLayout = QHBoxLayout(patternRow)
         patternLayout.addWidget(QLabel("Pattern"))
         self.patternBar = QComboBox()
-        self.patternBar.addItems([
-            "Sequential fill",
-            "Floating gradient",
-            "Moving window",
-        ])
+        self.patternBar.addItems(
+            [
+                "Sequential fill",
+                "Floating gradient",
+                "Moving window",
+            ]
+        )
         self.patternBar.currentTextChanged.connect(self.onPatternChanged)
         patternLayout.addWidget(self.patternBar)
         self.mainLayout.addWidget(patternRow)
@@ -89,7 +98,11 @@ class TagGroupPatternDialog(QDialog):
             return default
 
     def buildTags(self):
-        rgb = [self.colorPicker.rgb[0], self.colorPicker.rgb[1], self.colorPicker.rgb[2]]
+        rgb = [
+            self.colorPicker.rgb[0],
+            self.colorPicker.rgb[1],
+            self.colorPicker.rgb[2],
+        ]
         start_time = self._parse_float(self.startTimeBar, 0.0)
         end_time = self._parse_float(self.endTimeBar, start_time)
         step = self._parse_float(self.stepBar, 0.2)
@@ -100,12 +113,16 @@ class TagGroupPatternDialog(QDialog):
         elif pattern_name == "Floating gradient":
             width = self._parse_int(self.gradientWidthBar, 4)
             frames = _pattern_service.floating_gradient(
-                self.led_count, rgb, width,
+                self.led_count,
+                rgb,
+                width,
             )
         else:
             window = self._parse_int(self.windowSizeBar, 3)
             frames = _pattern_service.moving_window(
-                self.led_count, window, rgb,
+                self.led_count,
+                window,
+                rgb,
             )
 
         return _pattern_service.build_tags(

@@ -38,9 +38,7 @@ class _MetadataTestBase(unittest.TestCase):
 
     def _write_registry_json(self, data):
         self.registry_path.parent.mkdir(parents=True, exist_ok=True)
-        self.registry_path.write_text(
-            json.dumps(data), encoding="utf-8"
-        )
+        self.registry_path.write_text(json.dumps(data), encoding="utf-8")
 
     def _write_registry_raw(self, content):
         self.registry_path.parent.mkdir(parents=True, exist_ok=True)
@@ -68,14 +66,16 @@ class ProjectMetadataUseCaseTests(_MetadataTestBase):
         self.assertEqual(self.use_case.execute(), [])
 
     def test_registry_with_one_project_no_data_json(self):
-        self._write_registry_json({
-            "p1": {
-                "id": "p1",
-                "project_name": "Demo",
-                "song_name": "Song",
-                "created_at": "2024-05-01T12:00:00",
-            },
-        })
+        self._write_registry_json(
+            {
+                "p1": {
+                    "id": "p1",
+                    "project_name": "Demo",
+                    "song_name": "Song",
+                    "created_at": "2024-05-01T12:00:00",
+                },
+            }
+        )
         self._ensure_project_dir("Demo")
 
         result = self.use_case.execute()
@@ -92,20 +92,22 @@ class ProjectMetadataUseCaseTests(_MetadataTestBase):
         self.assertFalse(meta.track_present)
 
     def test_registry_entry_without_matching_dir_is_skipped(self):
-        self._write_registry_json({
-            "a": {
-                "id": "a",
-                "project_name": "A",
-                "song_name": "sA",
-                "created_at": "2024-01-01T00:00:00",
-            },
-            "b": {
-                "id": "b",
-                "project_name": "B",
-                "song_name": "sB",
-                "created_at": "2024-01-01T00:00:00",
-            },
-        })
+        self._write_registry_json(
+            {
+                "a": {
+                    "id": "a",
+                    "project_name": "A",
+                    "song_name": "sA",
+                    "created_at": "2024-01-01T00:00:00",
+                },
+                "b": {
+                    "id": "b",
+                    "project_name": "B",
+                    "song_name": "sB",
+                    "created_at": "2024-01-01T00:00:00",
+                },
+            }
+        )
         self._ensure_project_dir("A")
         # Directory B intentionally missing.
         result = self.use_case.execute()
@@ -113,14 +115,16 @@ class ProjectMetadataUseCaseTests(_MetadataTestBase):
         self.assertEqual(result[0].project_name, "A")
 
     def test_counts_from_v1_envelope(self):
-        self._write_registry_json({
-            "p1": {
-                "id": "p1",
-                "project_name": "Demo",
-                "song_name": "Song",
-                "created_at": "2024-01-01T00:00:00",
-            },
-        })
+        self._write_registry_json(
+            {
+                "p1": {
+                    "id": "p1",
+                    "project_name": "Demo",
+                    "song_name": "Song",
+                    "created_at": "2024-01-01T00:00:00",
+                },
+            }
+        )
         envelope = {
             "schema_version": 1,
             "masters": {
@@ -151,14 +155,16 @@ class ProjectMetadataUseCaseTests(_MetadataTestBase):
         self.assertEqual(result[0].slaves_count, 5)
 
     def test_counts_from_legacy_pre_envelope_dict(self):
-        self._write_registry_json({
-            "p1": {
-                "id": "p1",
-                "project_name": "Legacy",
-                "song_name": "Song",
-                "created_at": "2024-01-01T00:00:00",
-            },
-        })
+        self._write_registry_json(
+            {
+                "p1": {
+                    "id": "p1",
+                    "project_name": "Legacy",
+                    "song_name": "Song",
+                    "created_at": "2024-01-01T00:00:00",
+                },
+            }
+        )
         legacy = {
             "m1": {
                 "id": "m1",
@@ -182,14 +188,16 @@ class ProjectMetadataUseCaseTests(_MetadataTestBase):
         self.assertEqual(result[0].slaves_count, 3)
 
     def test_counts_zero_on_malformed_data_json(self):
-        self._write_registry_json({
-            "p1": {
-                "id": "p1",
-                "project_name": "Bad",
-                "song_name": "Song",
-                "created_at": "2024-01-01T00:00:00",
-            },
-        })
+        self._write_registry_json(
+            {
+                "p1": {
+                    "id": "p1",
+                    "project_name": "Bad",
+                    "song_name": "Song",
+                    "created_at": "2024-01-01T00:00:00",
+                },
+            }
+        )
         self._write_data_json("Bad", "{")
 
         result = self.use_case.execute()
@@ -203,14 +211,16 @@ class ProjectMetadataUseCaseTests(_MetadataTestBase):
         self.assertFalse(meta.track_present)
 
     def test_modified_at_is_iso_string_when_data_json_exists(self):
-        self._write_registry_json({
-            "p1": {
-                "id": "p1",
-                "project_name": "Demo",
-                "song_name": "Song",
-                "created_at": "2024-01-01T00:00:00",
-            },
-        })
+        self._write_registry_json(
+            {
+                "p1": {
+                    "id": "p1",
+                    "project_name": "Demo",
+                    "song_name": "Song",
+                    "created_at": "2024-01-01T00:00:00",
+                },
+            }
+        )
         self._write_data_json("Demo", {"schema_version": 1, "masters": {}})
 
         result = self.use_case.execute()
@@ -228,14 +238,16 @@ class ProjectMetadataUseCaseTests(_MetadataTestBase):
         )
 
     def test_track_present_true_when_audio_wav_exists(self):
-        self._write_registry_json({
-            "p1": {
-                "id": "p1",
-                "project_name": "WithAudio",
-                "song_name": "Song",
-                "created_at": "2024-01-01T00:00:00",
-            },
-        })
+        self._write_registry_json(
+            {
+                "p1": {
+                    "id": "p1",
+                    "project_name": "WithAudio",
+                    "song_name": "Song",
+                    "created_at": "2024-01-01T00:00:00",
+                },
+            }
+        )
         self._ensure_project_dir("WithAudio")
         self._write_audio("WithAudio")
 
@@ -244,15 +256,17 @@ class ProjectMetadataUseCaseTests(_MetadataTestBase):
         self.assertTrue(result[0].track_present)
 
     def test_malformed_registry_entry_skipped_and_logged(self):
-        self._write_registry_json({
-            "bad": "not-a-dict",
-            "good": {
-                "id": "good",
-                "project_name": "Good",
-                "song_name": "sG",
-                "created_at": "2024-01-01T00:00:00",
-            },
-        })
+        self._write_registry_json(
+            {
+                "bad": "not-a-dict",
+                "good": {
+                    "id": "good",
+                    "project_name": "Good",
+                    "song_name": "sG",
+                    "created_at": "2024-01-01T00:00:00",
+                },
+            }
+        )
         self._ensure_project_dir("Good")
 
         with self.assertLogs(
@@ -268,27 +282,27 @@ class ProjectMetadataUseCaseTests(_MetadataTestBase):
         )
 
     def test_created_at_preserved_from_registry(self):
-        self._write_registry_json({
-            "p1": {
-                "id": "p1",
-                "project_name": "Dated",
-                "song_name": "Song",
-                "created_at": "2024-01-15T10:30:00",
-            },
-            "p2": {
-                "id": "p2",
-                "project_name": "Undated",
-                "song_name": "Song",
-            },
-        })
+        self._write_registry_json(
+            {
+                "p1": {
+                    "id": "p1",
+                    "project_name": "Dated",
+                    "song_name": "Song",
+                    "created_at": "2024-01-15T10:30:00",
+                },
+                "p2": {
+                    "id": "p2",
+                    "project_name": "Undated",
+                    "song_name": "Song",
+                },
+            }
+        )
         self._ensure_project_dir("Dated")
         self._ensure_project_dir("Undated")
 
         result = self.use_case.execute()
         by_id = {m.id: m for m in result}
-        self.assertEqual(
-            by_id["p1"].created_at, "2024-01-15T10:30:00"
-        )
+        self.assertEqual(by_id["p1"].created_at, "2024-01-15T10:30:00")
         self.assertIsNone(by_id["p2"].created_at)
 
 

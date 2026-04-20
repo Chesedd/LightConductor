@@ -58,10 +58,10 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Run ruff check
-        run: ruff check src/lightconductor/
+        run: ruff check .
 
       - name: Run ruff format check
-        run: ruff format --check src/lightconductor/
+        run: ruff format --check .
 
       - name: Run pytest
         run: pytest tests/ -q

@@ -63,6 +63,7 @@ def _seed(state, times, type_name="tt1"):
 # CompositeCommand
 # ---------------------------------------------------------------------------
 
+
 def test_empty_composite_execute_and_undo_are_noops(state):
     _seed(state, [0.0, 1.0])
     before = [t.time_seconds for t in _tags(state)]
@@ -197,7 +198,8 @@ def test_redo_via_commandstack(state):
 def test_across_tag_types_interleaved(state):
     # Add second tag type "beta".
     state.add_tag_type(
-        "m1", "s1",
+        "m1",
+        "s1",
         _tag_type(name="beta", pin="2", color=[2, 2, 2]),
     )
     # Seed "tt1" (alpha-ish) with 3 tags and "beta" with 1 tag.
@@ -228,7 +230,7 @@ def test_across_tag_types_interleaved(state):
     assert [t.time_seconds for t in alpha_after] == [0.0, 1.0, 2.0]
     assert [t.time_seconds for t in beta_after] == [10.0]
     # Identity preserved.
-    for orig, restored in zip(alpha_before, alpha_after):
+    for orig, restored in zip(alpha_before, alpha_after, strict=True):
         assert orig is restored
     assert beta_before[0] is beta_after[0]
 

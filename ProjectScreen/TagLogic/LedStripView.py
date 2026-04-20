@@ -1,9 +1,10 @@
-from PyQt6.QtCore import Qt, QRectF
-from PyQt6.QtGui import QColor, QPainter, QPen, QBrush
+from PyQt6.QtCore import QRectF, Qt
+from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
 from PyQt6.QtWidgets import QWidget
 
 from lightconductor.application.led_preview import (
-    render_led_strip_at, _safe_int,
+    _safe_int,
+    render_led_strip_at,
 )
 from lightconductor.application.project_state import (
     SlaveAdded,
@@ -79,11 +80,19 @@ class LedStripView(QWidget):
             return
         if getattr(event, "slave_id", None) != self._slave_id:
             return
-        if isinstance(event, (
-            TagAdded, TagRemoved, TagUpdated,
-            TagTypeAdded, TagTypeRemoved, TagTypeUpdated,
-            SlaveAdded, SlaveRemoved,
-        )):
+        if isinstance(
+            event,
+            (
+                TagAdded,
+                TagRemoved,
+                TagUpdated,
+                TagTypeAdded,
+                TagTypeRemoved,
+                TagTypeUpdated,
+                SlaveAdded,
+                SlaveRemoved,
+            ),
+        ):
             self._recompute()
 
     def paintEvent(self, event):

@@ -1,5 +1,6 @@
-from PyQt6.QtWidgets import QLayout, QWidgetItem, QSizePolicy
-from PyQt6.QtCore import Qt, QRect, QSize, QPoint
+from PyQt6.QtCore import QPoint, QRect, QSize, Qt
+from PyQt6.QtWidgets import QLayout, QSizePolicy, QWidgetItem
+
 
 class FlowLayout(QLayout):
     def __init__(self, parent=None):
@@ -29,6 +30,7 @@ class FlowLayout(QLayout):
             self.parentWidget().updateGeometry()
             self.parentWidget().update()
         return index
+
     def addItem(self, item):
         self.itemList.append(item)
 
@@ -78,8 +80,9 @@ class FlowLayout(QLayout):
         for item in self.itemList:
             size = size.expandedTo(item.minimumSize())
         left, top, right, bottom = self.getContentsMargins()
-        size+=QSize(left + right, top + bottom)
+        size += QSize(left + right, top + bottom)
         return size
+
     def _doLayout(self, rect, testOnly):
         left, top, right, bottom = self.getContentsMargins()
         effectiveRect = rect.adjusted(left, top, -right, -bottom)
@@ -96,14 +99,18 @@ class FlowLayout(QLayout):
             if spaceX == -1:
                 spaceX = widget.style().layoutSpacing(
                     QSizePolicy.ControlType.PushButton,
-                    QSizePolicy.ControlType.PushButton, Qt.Orientation.Horizontal)
+                    QSizePolicy.ControlType.PushButton,
+                    Qt.Orientation.Horizontal,
+                )
 
             spaceY = self.verticalSpacing()
             if spaceY == -1:
                 spaceY = widget.style().layoutSpacing(
                     QSizePolicy.ControlType.PushButton,
-                    QSizePolicy.ControlType.PushButton, Qt.Orientation.Vertical)
-            
+                    QSizePolicy.ControlType.PushButton,
+                    Qt.Orientation.Vertical,
+                )
+
             nextX = x + item.sizeHint().width() + spaceX
             if nextX - spaceX > effectiveRect.right() and lineHeight > 0:
                 x = effectiveRect.x()

@@ -59,14 +59,14 @@ class _SocketPatcher:
 
     def __enter__(self):
         from lightconductor.application import host_reachability
+
         self._orig = host_reachability.socket.socket
-        host_reachability.socket.socket = (
-            lambda *a, **kw: self.fake
-        )
+        host_reachability.socket.socket = lambda *a, **kw: self.fake
         return self
 
     def __exit__(self, *a):
         from lightconductor.application import host_reachability
+
         host_reachability.socket.socket = self._orig
 
 
@@ -116,7 +116,8 @@ class PingSocketBehaviorTests(unittest.TestCase):
             result = ping_host("10.0.0.1", 43690, 1.0)
         self.assertEqual(result, PingStatus.ONLINE)
         self.assertEqual(
-            fake.connect_called_with, ("10.0.0.1", 43690),
+            fake.connect_called_with,
+            ("10.0.0.1", 43690),
         )
         self.assertEqual(fake.send_called_with, b"")
         self.assertTrue(fake.close_called)
@@ -163,7 +164,8 @@ class PingSocketBehaviorTests(unittest.TestCase):
         with _SocketPatcher(fake):
             ping_host("example.invalid", 12345, 1.0)
         self.assertEqual(
-            fake.connect_called_with, ("example.invalid", 12345),
+            fake.connect_called_with,
+            ("example.invalid", 12345),
         )
 
 

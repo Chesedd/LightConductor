@@ -19,6 +19,7 @@ try:
     import librosa  # noqa: F401
     import numpy as np
     import soundfile  # noqa: F401
+
     HAVE_AUDIO = True
 except ImportError:
     HAVE_AUDIO = False
@@ -112,9 +113,7 @@ class MastersStorageTests(unittest.TestCase):
 
     def test_save_masters_rotates_backups(self):
         self.storage.save_masters("proj", {"m1": _make_master(name="V1")})
-        first_bytes = (
-            self.root / "proj" / "data.json"
-        ).read_bytes()
+        first_bytes = (self.root / "proj" / "data.json").read_bytes()
         self.storage.save_masters("proj", {"m1": _make_master(name="V2")})
         bak1 = backup_path(self.root / "proj" / "data.json", 1)
         self.assertTrue(bak1.exists())

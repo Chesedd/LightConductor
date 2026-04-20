@@ -1,20 +1,31 @@
-from PyQt6.QtWidgets import (
-    QDialog, QLabel, QLineEdit, QHBoxLayout, QVBoxLayout, QPushButton,
-    QWidget, QComboBox, QButtonGroup)
 from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import (
+    QButtonGroup,
+    QComboBox,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
-from ProjectScreen.TagLogic.TagScreen import ColorButton
 from AssistanceTools.ColorPicker import ColorPicker
 from lightconductor.application.pattern_service import PatternService
+from ProjectScreen.TagLogic.TagScreen import ColorButton
 
 _pattern_service = PatternService()
 
 
 class TagDialog(QDialog):
     tagCreated = pyqtSignal(dict)
+
     def __init__(
         self,
-        rows, columns, topology,
+        rows,
+        columns,
+        topology,
         parent=None,
         *,
         slave=None,
@@ -59,8 +70,11 @@ class TagDialog(QDialog):
             and self._preview_led_count > 0
         ):
             from ProjectScreen.TagLogic.LedStripView import LedStripView
+
             self.ledPreview = LedStripView(
-                state=None, master_id=None, slave_id=None,
+                state=None,
+                master_id=None,
+                slave_id=None,
                 parent=self,
             )
 
@@ -135,9 +149,8 @@ class TagDialog(QDialog):
         self.presetsBar = None
         if self._settings is not None:
             from AssistanceTools.ColorPresetsBar import ColorPresetsBar
-            presets = [
-                list(p) for p in (self._settings.color_presets or [])
-            ]
+
+            presets = [list(p) for p in (self._settings.color_presets or [])]
             self.presetsBar = ColorPresetsBar(presets=presets)
             self.presetsBar.presetChosen.connect(
                 self._on_preset_chosen,
@@ -159,7 +172,11 @@ class TagDialog(QDialog):
     def setColor(self):
         button = self.buttonGroup.checkedButton()
         if button:
-            rgb = [self.colorPicker.rgb[0], self.colorPicker.rgb[1], self.colorPicker.rgb[2]]
+            rgb = [
+                self.colorPicker.rgb[0],
+                self.colorPicker.rgb[1],
+                self.colorPicker.rgb[2],
+            ]
             button.setColor(rgb)
         self._refresh_preview()
 
@@ -173,7 +190,11 @@ class TagDialog(QDialog):
     def fillAllActiveColors(self):
         if not hasattr(self, "buttonGroup"):
             return
-        rgb = [self.colorPicker.rgb[0], self.colorPicker.rgb[1], self.colorPicker.rgb[2]]
+        rgb = [
+            self.colorPicker.rgb[0],
+            self.colorPicker.rgb[1],
+            self.colorPicker.rgb[2],
+        ]
         for button in self.buttonGroup.buttons():
             if button.isEnabled():
                 button.setColor(rgb)
@@ -190,7 +211,11 @@ class TagDialog(QDialog):
             end = int(self.rangeToBar.text())
         except ValueError:
             end = start
-        rgb = [self.colorPicker.rgb[0], self.colorPicker.rgb[1], self.colorPicker.rgb[2]]
+        rgb = [
+            self.colorPicker.rgb[0],
+            self.colorPicker.rgb[1],
+            self.colorPicker.rgb[2],
+        ]
 
         ordered_buttons = []
         for cell_index in self.topology:
@@ -200,9 +225,12 @@ class TagDialog(QDialog):
 
         current_colors = [button.rgb for button in ordered_buttons]
         updated_colors = _pattern_service.apply_fill_range(
-            current_colors, start, end, rgb,
+            current_colors,
+            start,
+            end,
+            rgb,
         )
-        for button, color in zip(ordered_buttons, updated_colors):
+        for button, color in zip(ordered_buttons, updated_colors, strict=True):
             button.setColor(color)
         self._refresh_preview()
 
@@ -243,7 +271,7 @@ class TagDialog(QDialog):
     def onOkClicked(self):
         action = self.stateBar.currentText()
         data = {}
-        if action=='On':
+        if action == "On":
             data["action"] = True
             colors = []
             for cell_index in self.topology:
@@ -266,6 +294,7 @@ class TagDialog(QDialog):
         from lightconductor.application.led_preview import (
             render_led_strip_with_overlay,
         )
+
         action_on = self.stateBar.currentText() == "On"
         if action_on and hasattr(self, "rowsLayouts"):
             colors = []

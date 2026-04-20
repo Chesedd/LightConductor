@@ -13,9 +13,7 @@ from lightconductor.infrastructure.master_udp_upload_transport import (
     UploadFailedError,
     compute_backoff_delays,
 )
-
 from tests._mock_udp import (
-    FailingSocket,
     make_failing_socket_factory,
 )
 
@@ -78,9 +76,7 @@ class UploadRetryBehaviourTests(unittest.TestCase):
         self.assertEqual(3, sock.attempt_count)
 
     def test_upload_retries_on_transient_oserror_then_succeeds(self):
-        factory = make_failing_socket_factory(
-            [OSError("send buf full"), None]
-        )
+        factory = make_failing_socket_factory([OSError("send buf full"), None])
         transport = MasterUdpUploadTransport(
             port=43690,
             chunk_size=1024,

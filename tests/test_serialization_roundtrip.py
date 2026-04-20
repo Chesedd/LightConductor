@@ -20,22 +20,17 @@ if str(SRC) not in sys.path:
 
 from lightconductor.domain.models import Master, Slave, Tag, TagType
 from lightconductor.infrastructure.json_mapper import (
-    pack_master, unpack_master,
+    pack_master,
+    unpack_master,
 )
 
 
 def _pack_project(masters):
-    return {
-        master_id: pack_master(m)
-        for master_id, m in masters.items()
-    }
+    return {master_id: pack_master(m) for master_id, m in masters.items()}
 
 
 def _unpack_project(boxes):
-    return {
-        master_id: unpack_master(m_dict)
-        for master_id, m_dict in boxes.items()
-    }
+    return {master_id: unpack_master(m_dict) for master_id, m_dict in boxes.items()}
 
 
 def _round_trip(masters):
@@ -46,7 +41,6 @@ def _round_trip(masters):
 
 
 class SerializationRoundTripTests(unittest.TestCase):
-
     def test_empty_project_roundtrip(self):
         packed_once, packed_twice = _round_trip({})
         self.assertEqual(packed_once, packed_twice)
@@ -61,10 +55,11 @@ class SerializationRoundTripTests(unittest.TestCase):
     def test_slave_without_tag_types(self):
         masters = {
             "m1": Master(
-                id="m1", name="M", ip="1.2.3.4",
+                id="m1",
+                name="M",
+                ip="1.2.3.4",
                 slaves={
-                    "s1": Slave(id="s1", name="S", pin="7",
-                                led_count=60, tag_types={}),
+                    "s1": Slave(id="s1", name="S", pin="7", led_count=60, tag_types={}),
                 },
             ),
         }
@@ -74,16 +69,25 @@ class SerializationRoundTripTests(unittest.TestCase):
     def test_type_without_tags(self):
         masters = {
             "m1": Master(
-                id="m1", name="M", ip="1.2.3.4",
+                id="m1",
+                name="M",
+                ip="1.2.3.4",
                 slaves={
                     "s1": Slave(
-                        id="s1", name="S", pin="7", led_count=60,
+                        id="s1",
+                        name="S",
+                        pin="7",
+                        led_count=60,
                         tag_types={
                             "front": TagType(
-                                name="front", pin="3",
-                                rows=1, columns=4,
+                                name="front",
+                                pin="3",
+                                rows=1,
+                                columns=4,
                                 color="255,0,0",
-                                topology=[0, 1, 2, 3], tags=[]),
+                                topology=[0, 1, 2, 3],
+                                tags=[],
+                            ),
                         },
                     ),
                 },
@@ -95,19 +99,31 @@ class SerializationRoundTripTests(unittest.TestCase):
     def test_minimal_full_project(self):
         masters = {
             "m1": Master(
-                id="m1", name="M", ip="1.2.3.4",
+                id="m1",
+                name="M",
+                ip="1.2.3.4",
                 slaves={
                     "s1": Slave(
-                        id="s1", name="S", pin="7", led_count=60,
+                        id="s1",
+                        name="S",
+                        pin="7",
+                        led_count=60,
                         tag_types={
                             "front": TagType(
-                                name="front", pin="3",
-                                rows=1, columns=4,
+                                name="front",
+                                pin="3",
+                                rows=1,
+                                columns=4,
                                 color="255,0,0",
                                 topology=[0, 1, 2, 3],
-                                tags=[Tag(time_seconds=0.5,
-                                          action=True,
-                                          colors=[[1, 2, 3]])]),
+                                tags=[
+                                    Tag(
+                                        time_seconds=0.5,
+                                        action=True,
+                                        colors=[[1, 2, 3]],
+                                    )
+                                ],
+                            ),
                         },
                     ),
                 },
@@ -119,44 +135,82 @@ class SerializationRoundTripTests(unittest.TestCase):
     def test_multi_level_project(self):
         masters = {
             "m1": Master(
-                id="m1", name="Room A", ip="10.0.0.1",
+                id="m1",
+                name="Room A",
+                ip="10.0.0.1",
                 slaves={
                     "s1": Slave(
-                        id="s1", name="Front", pin="1", led_count=60,
+                        id="s1",
+                        name="Front",
+                        pin="1",
+                        led_count=60,
                         tag_types={
                             "red": TagType(
-                                name="red", pin="1", rows=1, columns=2,
-                                color=[255, 0, 0], topology=[0, 1],
+                                name="red",
+                                pin="1",
+                                rows=1,
+                                columns=2,
+                                color=[255, 0, 0],
+                                topology=[0, 1],
                                 tags=[
-                                    Tag(time_seconds=0.1, action=True,
-                                        colors=[[255, 0, 0]]),
-                                    Tag(time_seconds=0.2, action=False,
-                                        colors=[[0, 255, 0]]),
+                                    Tag(
+                                        time_seconds=0.1,
+                                        action=True,
+                                        colors=[[255, 0, 0]],
+                                    ),
+                                    Tag(
+                                        time_seconds=0.2,
+                                        action=False,
+                                        colors=[[0, 255, 0]],
+                                    ),
                                 ],
                             ),
                             "blue": TagType(
-                                name="blue", pin="2", rows=1, columns=3,
-                                color=[0, 0, 255], topology=[2, 3, 4],
+                                name="blue",
+                                pin="2",
+                                rows=1,
+                                columns=3,
+                                color=[0, 0, 255],
+                                topology=[2, 3, 4],
                                 tags=[
-                                    Tag(time_seconds=0.3, action=True,
-                                        colors=[[0, 0, 255]]),
+                                    Tag(
+                                        time_seconds=0.3,
+                                        action=True,
+                                        colors=[[0, 0, 255]],
+                                    ),
                                 ],
                             ),
                         },
                     ),
                     "s2": Slave(
-                        id="s2", name="Back", pin="2", led_count=120,
+                        id="s2",
+                        name="Back",
+                        pin="2",
+                        led_count=120,
                         tag_types={
                             "green": TagType(
-                                name="green", pin="3", rows=1, columns=1,
-                                color=[0, 255, 0], topology=[5],
+                                name="green",
+                                pin="3",
+                                rows=1,
+                                columns=1,
+                                color=[0, 255, 0],
+                                topology=[5],
                                 tags=[
-                                    Tag(time_seconds=0.4, action=False,
-                                        colors=[[0, 255, 0]]),
-                                    Tag(time_seconds=0.5, action=True,
-                                        colors=[[0, 255, 0]]),
-                                    Tag(time_seconds=0.6, action=False,
-                                        colors=[[0, 255, 0]]),
+                                    Tag(
+                                        time_seconds=0.4,
+                                        action=False,
+                                        colors=[[0, 255, 0]],
+                                    ),
+                                    Tag(
+                                        time_seconds=0.5,
+                                        action=True,
+                                        colors=[[0, 255, 0]],
+                                    ),
+                                    Tag(
+                                        time_seconds=0.6,
+                                        action=False,
+                                        colors=[[0, 255, 0]],
+                                    ),
                                 ],
                             ),
                         },
@@ -164,10 +218,15 @@ class SerializationRoundTripTests(unittest.TestCase):
                 },
             ),
             "m2": Master(
-                id="m2", name="Room B", ip="10.0.0.2",
+                id="m2",
+                name="Room B",
+                ip="10.0.0.2",
                 slaves={
                     "s3": Slave(
-                        id="s3", name="Only", pin="5", led_count=30,
+                        id="s3",
+                        name="Only",
+                        pin="5",
+                        led_count=30,
                         tag_types={},
                     ),
                 },
@@ -179,14 +238,21 @@ class SerializationRoundTripTests(unittest.TestCase):
     def test_unicode_in_names(self):
         masters = {
             "m1": Master(
-                id="m1", name="Мастер 🎨", ip="1.2.3.4",
+                id="m1",
+                name="Мастер 🎨",
+                ip="1.2.3.4",
                 slaves={
                     "s1": Slave(
-                        id="s1", name="一号", pin="1", led_count=60,
+                        id="s1",
+                        name="一号",
+                        pin="1",
+                        led_count=60,
                         tag_types={
                             "красный": TagType(
-                                name="красный", pin="1",
-                                rows=1, columns=1,
+                                name="красный",
+                                pin="1",
+                                rows=1,
+                                columns=1,
                                 color=[255, 0, 0],
                                 topology=[0],
                                 tags=[],
@@ -203,15 +269,23 @@ class SerializationRoundTripTests(unittest.TestCase):
         # str pin -> str
         masters_str = {
             "m1": Master(
-                id="m1", name="M", ip="1.2.3.4",
+                id="m1",
+                name="M",
+                ip="1.2.3.4",
                 slaves={
                     "s1": Slave(
-                        id="s1", name="S", pin="7", led_count=60,
+                        id="s1",
+                        name="S",
+                        pin="7",
+                        led_count=60,
                         tag_types={
                             "red": TagType(
-                                name="red", pin="3",
-                                rows=1, columns=3,
-                                color="r", topology=[0, 1, 2],
+                                name="red",
+                                pin="3",
+                                rows=1,
+                                columns=3,
+                                color="r",
+                                topology=[0, 1, 2],
                                 tags=[],
                             ),
                         },
@@ -236,10 +310,15 @@ class SerializationRoundTripTests(unittest.TestCase):
         tt_int.tags = []
         masters_int = {
             "m1": Master(
-                id="m1", name="M", ip="1.2.3.4",
+                id="m1",
+                name="M",
+                ip="1.2.3.4",
                 slaves={
                     "s1": Slave(
-                        id="s1", name="S", pin="7", led_count=60,
+                        id="s1",
+                        name="S",
+                        pin="7",
+                        led_count=60,
                         tag_types={"red": tt_int},
                     ),
                 },
@@ -253,15 +332,23 @@ class SerializationRoundTripTests(unittest.TestCase):
     def test_topology_order_preserved(self):
         masters = {
             "m1": Master(
-                id="m1", name="M", ip="1.2.3.4",
+                id="m1",
+                name="M",
+                ip="1.2.3.4",
                 slaves={
                     "s1": Slave(
-                        id="s1", name="S", pin="7", led_count=60,
+                        id="s1",
+                        name="S",
+                        pin="7",
+                        led_count=60,
                         tag_types={
                             "red": TagType(
-                                name="red", pin="3",
-                                rows=1, columns=4,
-                                color="r", topology=[3, 1, 0, 2],
+                                name="red",
+                                pin="3",
+                                rows=1,
+                                columns=4,
+                                color="r",
+                                topology=[3, 1, 0, 2],
                                 tags=[],
                             ),
                         },
@@ -279,20 +366,29 @@ class SerializationRoundTripTests(unittest.TestCase):
     def test_multiple_colors_per_tag(self):
         masters = {
             "m1": Master(
-                id="m1", name="M", ip="1.2.3.4",
+                id="m1",
+                name="M",
+                ip="1.2.3.4",
                 slaves={
                     "s1": Slave(
-                        id="s1", name="S", pin="7", led_count=60,
+                        id="s1",
+                        name="S",
+                        pin="7",
+                        led_count=60,
                         tag_types={
                             "red": TagType(
-                                name="red", pin="3",
-                                rows=1, columns=1,
-                                color="r", topology=[0],
+                                name="red",
+                                pin="3",
+                                rows=1,
+                                columns=1,
+                                color="r",
+                                topology=[0],
                                 tags=[
-                                    Tag(time_seconds=0.1, action=True,
-                                        colors=[[255, 0, 0],
-                                                [0, 255, 0],
-                                                [0, 0, 255]]),
+                                    Tag(
+                                        time_seconds=0.1,
+                                        action=True,
+                                        colors=[[255, 0, 0], [0, 255, 0], [0, 0, 255]],
+                                    ),
                                 ],
                             ),
                         },

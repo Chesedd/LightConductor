@@ -1,6 +1,12 @@
-from PyQt6.QtWidgets import (
-    QDialog, QLabel, QHBoxLayout, QVBoxLayout, QPushButton, QWidget)
 from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class DeleteDialog(QDialog):

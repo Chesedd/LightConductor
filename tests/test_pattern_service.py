@@ -124,7 +124,7 @@ class PatternServiceBuildEventsTests(unittest.TestCase):
 class PatternEventTests(unittest.TestCase):
     def test_pattern_event_is_frozen(self):
         event = PatternEvent(led_index=0, color=[1, 2, 3], time_seconds=0.0)
-        with self.assertRaises(Exception):
+        with self.assertRaises(Exception):  # noqa: B017 - frozen dataclass raises FrozenInstanceError; test only cares that assignment fails
             event.led_index = 99
 
 

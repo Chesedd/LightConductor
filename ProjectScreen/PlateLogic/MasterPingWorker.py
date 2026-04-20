@@ -1,11 +1,11 @@
 """QRunnable-based background UDP probe. Emits a signal with
 (master_id, status) on completion."""
+
 from __future__ import annotations
 
 from PyQt6.QtCore import QObject, QRunnable, pyqtSignal
 
 from lightconductor.application.host_reachability import (
-    PingStatus,
     ping_host,
 )
 
@@ -14,6 +14,7 @@ class MasterPingSignals(QObject):
     """Separate QObject for signals because QRunnable itself is not a
     QObject. Instances of this class live on the main thread and emit
     from the worker thread via queued connection semantics."""
+
     completed = pyqtSignal(str, str)
 
 
@@ -39,8 +40,11 @@ class MasterPingWorker(QRunnable):
 
     def run(self) -> None:
         status = ping_host(
-            self.host, self.port, self.timeout,
+            self.host,
+            self.port,
+            self.timeout,
         )
         self.signals.completed.emit(
-            self.master_id, status.value,
+            self.master_id,
+            status.value,
         )

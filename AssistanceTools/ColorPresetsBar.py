@@ -48,16 +48,12 @@ class ColorPresetsBar(QWidget):
 
     def __init__(self, presets=None, parent=None):
         super().__init__(parent)
-        self._presets = [
-            [int(c[0]), int(c[1]), int(c[2])] for c in (presets or [])
-        ]
+        self._presets = [[int(c[0]), int(c[1]), int(c[2])] for c in (presets or [])]
         self._layout = FlowLayout(self)
         self._rebuild()
 
     def set_presets(self, presets):
-        self._presets = [
-            [int(c[0]), int(c[1]), int(c[2])] for c in (presets or [])
-        ]
+        self._presets = [[int(c[0]), int(c[1]), int(c[2])] for c in (presets or [])]
         self._rebuild()
 
     def add_preset(self, rgb):

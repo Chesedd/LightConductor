@@ -54,7 +54,8 @@ class ProjectSessionControllerTests(unittest.TestCase):
         self.assertEqual(22050, storage.saved_sr)
         self.assertIs(masters, storage.saved_masters)
         self.assertEqual(
-            ["save_audio", "save_domain_masters"], storage.calls,
+            ["save_audio", "save_domain_masters"],
+            storage.calls,
         )
 
 

@@ -1,4 +1,5 @@
-from PyQt6.QtWidgets import QWidget, QLabel, QVBoxLayout
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
+
 
 class TagState(QWidget):
     def __init__(self, tagType):
@@ -13,8 +14,7 @@ class TagState(QWidget):
         self.circleState = QLabel()
         self.circleState.setFixedSize(20, 20)
         self.circleState.setStyleSheet(
-            f"background-color: rgb({self.tagType.color});"
-            "border-radius: 10px;"
+            f"background-color: rgb({self.tagType.color});border-radius: 10px;"
         )
         self.mainLayout.addWidget(self.circleState)
 
@@ -25,11 +25,9 @@ class TagState(QWidget):
         # state: bool — True → show tag-type color; False → black.
         if state:
             self.circleState.setStyleSheet(
-                f"background-color: rgb({self.tagType.color});"
-                "border-radius: 10px;"
+                f"background-color: rgb({self.tagType.color});border-radius: 10px;"
             )
         else:
             self.circleState.setStyleSheet(
-                f"background-color: rgb(0, 0, 0);"
-                "border-radius: 10px;"
+                "background-color: rgb(0, 0, 0);border-radius: 10px;"
             )

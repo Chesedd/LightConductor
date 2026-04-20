@@ -1,5 +1,13 @@
-from PyQt6.QtWidgets import QWidget, QSizePolicy, QPushButton, QScrollArea, QVBoxLayout, QFrame
-from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtWidgets import (
+    QFrame,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
+
 
 class DropBox(QWidget):
     boxDeleted = pyqtSignal(str)
@@ -43,11 +51,15 @@ class DropBox(QWidget):
 
     def createContentArea(self):
         self.contentArea = QScrollArea()
-        self.contentArea.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.contentArea.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         self.contentArea.setMaximumHeight(0)
         self.contentArea.setMinimumHeight(0)
         self.contentArea.setFrameShape(QFrame.Shape.NoFrame)
-        self.contentArea.setStyleSheet("QScrollArea { border: 1px solid #2e353d; border-top: none; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }")
+        self.contentArea.setStyleSheet(
+            "QScrollArea { border: 1px solid #2e353d; border-top: none; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }"  # noqa: E501
+        )
         self.contentArea.setWidgetResizable(True)
 
         self.contentWidget = QWidget()

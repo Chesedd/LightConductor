@@ -92,10 +92,10 @@ class MockUdpReceiver:
 def mock_udp_receiver():
     """Context-manager shorthand:
 
-        with mock_udp_receiver() as recv:
-            # recv.port is the bound port
-            # ... run transport ...
-        # thread joined on exit
+    with mock_udp_receiver() as recv:
+        # recv.port is the bound port
+        # ... run transport ...
+    # thread joined on exit
     """
     recv = MockUdpReceiver()
     recv.start()

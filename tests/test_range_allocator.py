@@ -12,7 +12,9 @@ from lightconductor.application.range_allocator import available_starts
 
 class RangeAllocatorTests(unittest.TestCase):
     def test_returns_available_starts_without_overlap(self):
-        starts = available_starts(led_count=10, occupied_ranges=[(2, 3), (7, 2)], length=2)
+        starts = available_starts(
+            led_count=10, occupied_ranges=[(2, 3), (7, 2)], length=2
+        )
         self.assertEqual([0, 5], starts)
 
     def test_empty_on_invalid_length(self):

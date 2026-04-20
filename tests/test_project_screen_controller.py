@@ -66,17 +66,19 @@ class ProjectScreenControllerTests(unittest.TestCase):
 
     def test_send_start_signal(self):
         transport = FakeTransport()
-        controller = ProjectScreenController(FakeUseCase(), transport, FakeAudioLoader())
-
-        controller.send_start_signal(
-            {"m": Master(id="m", name="x", ip="10.0.0.1")}
+        controller = ProjectScreenController(
+            FakeUseCase(), transport, FakeAudioLoader()
         )
+
+        controller.send_start_signal({"m": Master(id="m", name="x", ip="10.0.0.1")})
 
         self.assertEqual(["10.0.0.1"], transport.started_hosts)
 
     def test_load_track(self):
         audio_loader = FakeAudioLoader()
-        controller = ProjectScreenController(FakeUseCase(), FakeTransport(), audio_loader)
+        controller = ProjectScreenController(
+            FakeUseCase(), FakeTransport(), audio_loader
+        )
         audio, sr, path = controller.load_track("demo.wav")
         self.assertEqual([0.1, 0.2], audio)
         self.assertEqual(44100, sr)

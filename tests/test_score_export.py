@@ -82,14 +82,18 @@ class BuildScoreRecordsTests(unittest.TestCase):
         records = build_score_records({"m1": master})
         self.assertEqual(3, len(records))
         self.assertEqual(
-            [0, 1, 2], [rec["led_physical_index"] for rec in records],
+            [0, 1, 2],
+            [rec["led_physical_index"] for rec in records],
         )
-        self.assertEqual((10, 20, 30),
-                         (records[0]["r"], records[0]["g"], records[0]["b"]))
-        self.assertEqual((40, 50, 60),
-                         (records[1]["r"], records[1]["g"], records[1]["b"]))
-        self.assertEqual((70, 80, 90),
-                         (records[2]["r"], records[2]["g"], records[2]["b"]))
+        self.assertEqual(
+            (10, 20, 30), (records[0]["r"], records[0]["g"], records[0]["b"])
+        )
+        self.assertEqual(
+            (40, 50, 60), (records[1]["r"], records[1]["g"], records[1]["b"])
+        )
+        self.assertEqual(
+            (70, 80, 90), (records[2]["r"], records[2]["g"], records[2]["b"])
+        )
 
     def test_colors_shorter_than_topology_pads_black(self):
         tag = Tag(time_seconds=0.0, action=True, colors=[[255, 0, 0]])
@@ -99,12 +103,11 @@ class BuildScoreRecordsTests(unittest.TestCase):
 
         records = build_score_records({"m1": master})
         self.assertEqual(3, len(records))
-        self.assertEqual((255, 0, 0),
-                         (records[0]["r"], records[0]["g"], records[0]["b"]))
-        self.assertEqual((0, 0, 0),
-                         (records[1]["r"], records[1]["g"], records[1]["b"]))
-        self.assertEqual((0, 0, 0),
-                         (records[2]["r"], records[2]["g"], records[2]["b"]))
+        self.assertEqual(
+            (255, 0, 0), (records[0]["r"], records[0]["g"], records[0]["b"])
+        )
+        self.assertEqual((0, 0, 0), (records[1]["r"], records[1]["g"], records[1]["b"]))
+        self.assertEqual((0, 0, 0), (records[2]["r"], records[2]["g"], records[2]["b"]))
         self.assertTrue(all(rec["action"] is True for rec in records))
 
     def test_colors_longer_than_topology_truncated(self):
@@ -119,8 +122,9 @@ class BuildScoreRecordsTests(unittest.TestCase):
 
         records = build_score_records({"m1": master})
         self.assertEqual(1, len(records))
-        self.assertEqual((255, 0, 0),
-                         (records[0]["r"], records[0]["g"], records[0]["b"]))
+        self.assertEqual(
+            (255, 0, 0), (records[0]["r"], records[0]["g"], records[0]["b"])
+        )
 
     def test_action_off_yields_false_in_records(self):
         tag = Tag(
@@ -167,7 +171,8 @@ class BuildScoreRecordsTests(unittest.TestCase):
             ],
         )
         m2 = make_master(
-            id="m2", name="M2",
+            id="m2",
+            name="M2",
             slaves={
                 "s1": make_slave(
                     id="s1",
@@ -176,7 +181,8 @@ class BuildScoreRecordsTests(unittest.TestCase):
             },
         )
         m1 = make_master(
-            id="m1", name="M1",
+            id="m1",
+            name="M1",
             slaves={
                 "s1": make_slave(
                     id="s1",
@@ -206,8 +212,9 @@ class BuildScoreRecordsTests(unittest.TestCase):
 
         records = build_score_records({"m1": master})
         self.assertEqual(1, len(records))
-        self.assertEqual((255, 0, 128),
-                         (records[0]["r"], records[0]["g"], records[0]["b"]))
+        self.assertEqual(
+            (255, 0, 128), (records[0]["r"], records[0]["g"], records[0]["b"])
+        )
 
     def test_color_out_of_range_clamped(self):
         tag = Tag(time_seconds=0.0, action=True, colors=[[300, -5, 128]])
@@ -217,8 +224,9 @@ class BuildScoreRecordsTests(unittest.TestCase):
 
         records = build_score_records({"m1": master})
         self.assertEqual(1, len(records))
-        self.assertEqual((255, 0, 128),
-                         (records[0]["r"], records[0]["g"], records[0]["b"]))
+        self.assertEqual(
+            (255, 0, 128), (records[0]["r"], records[0]["g"], records[0]["b"])
+        )
 
 
 class RenderCsvTests(unittest.TestCase):
@@ -232,21 +240,35 @@ class RenderCsvTests(unittest.TestCase):
         records = [
             {
                 "time_seconds": 0.0,
-                "master_id": "m1", "master_name": "M", "master_ip": "ip",
-                "slave_id": "s1", "slave_name": "S", "slave_pin": "1",
-                "type_name": "alpha", "type_pin": 1,
+                "master_id": "m1",
+                "master_name": "M",
+                "master_ip": "ip",
+                "slave_id": "s1",
+                "slave_name": "S",
+                "slave_pin": "1",
+                "type_name": "alpha",
+                "type_pin": 1,
                 "led_physical_index": 0,
                 "action": True,
-                "r": 10, "g": 20, "b": 30,
+                "r": 10,
+                "g": 20,
+                "b": 30,
             },
             {
                 "time_seconds": 1.0,
-                "master_id": "m1", "master_name": "M", "master_ip": "ip",
-                "slave_id": "s1", "slave_name": "S", "slave_pin": "1",
-                "type_name": "alpha", "type_pin": 1,
+                "master_id": "m1",
+                "master_name": "M",
+                "master_ip": "ip",
+                "slave_id": "s1",
+                "slave_name": "S",
+                "slave_pin": "1",
+                "type_name": "alpha",
+                "type_pin": 1,
                 "led_physical_index": 0,
                 "action": False,
-                "r": 0, "g": 0, "b": 0,
+                "r": 0,
+                "g": 0,
+                "b": 0,
             },
         ]
         output = render_csv(records)
@@ -262,21 +284,35 @@ class RenderJsonTests(unittest.TestCase):
         records = [
             {
                 "time_seconds": 0.0,
-                "master_id": "m1", "master_name": "M", "master_ip": "ip",
-                "slave_id": "s1", "slave_name": "S", "slave_pin": "1",
-                "type_name": "alpha", "type_pin": 1,
+                "master_id": "m1",
+                "master_name": "M",
+                "master_ip": "ip",
+                "slave_id": "s1",
+                "slave_name": "S",
+                "slave_pin": "1",
+                "type_name": "alpha",
+                "type_pin": 1,
                 "led_physical_index": 0,
                 "action": True,
-                "r": 10, "g": 20, "b": 30,
+                "r": 10,
+                "g": 20,
+                "b": 30,
             },
             {
                 "time_seconds": 1.0,
-                "master_id": "m1", "master_name": "M", "master_ip": "ip",
-                "slave_id": "s1", "slave_name": "S", "slave_pin": "1",
-                "type_name": "alpha", "type_pin": 1,
+                "master_id": "m1",
+                "master_name": "M",
+                "master_ip": "ip",
+                "slave_id": "s1",
+                "slave_name": "S",
+                "slave_pin": "1",
+                "type_name": "alpha",
+                "type_pin": 1,
                 "led_physical_index": 0,
                 "action": False,
-                "r": 0, "g": 0, "b": 0,
+                "r": 0,
+                "g": 0,
+                "b": 0,
             },
         ]
         output = render_json(records)

@@ -36,8 +36,12 @@ def _counter_id_factory():
 def _make_slave_with_tags():
     """Slave with 2 tag_types: 'alpha' has 3 tags, 'beta' has 2."""
     alpha = TagType(
-        name="alpha", pin="7", rows=1, columns=3,
-        color=[255, 0, 0], topology=[0, 1, 2],
+        name="alpha",
+        pin="7",
+        rows=1,
+        columns=3,
+        color=[255, 0, 0],
+        topology=[0, 1, 2],
         tags=[
             Tag(time_seconds=0.1, action=True, colors=[[1, 2, 3]]),
             Tag(time_seconds=0.5, action=False, colors=[[4, 5, 6]]),
@@ -45,8 +49,12 @@ def _make_slave_with_tags():
         ],
     )
     beta = TagType(
-        name="beta", pin="9", rows=2, columns=2,
-        color="blue", topology=[3, 4, 5, 6],
+        name="beta",
+        pin="9",
+        rows=2,
+        columns=2,
+        color="blue",
+        topology=[3, 4, 5, 6],
         tags=[
             Tag(time_seconds=0.2, action=True, colors=[]),
             Tag(time_seconds=0.8, action=False, colors=[]),
@@ -84,10 +92,12 @@ class TemplateFromSlaveTests(unittest.TestCase):
         before_beta = len(source.tag_types["beta"].tags)
         _ = template_from_slave(source, "t1")
         self.assertEqual(
-            len(source.tag_types["alpha"].tags), before_alpha,
+            len(source.tag_types["alpha"].tags),
+            before_alpha,
         )
         self.assertEqual(
-            len(source.tag_types["beta"].tags), before_beta,
+            len(source.tag_types["beta"].tags),
+            before_beta,
         )
 
     def test_template_from_slave_template_id_uses_factory(self):
@@ -129,7 +139,9 @@ class SlaveFromTemplateTests(unittest.TestCase):
         source = _make_slave_with_tags()
         template = template_from_slave(source, "t1")
         renamed = slave_from_template(
-            template, "new-id", new_slave_name="Renamed",
+            template,
+            "new-id",
+            new_slave_name="Renamed",
         )
         self.assertEqual(renamed.name, "Renamed")
         kept = slave_from_template(template, "new-id")
@@ -149,16 +161,28 @@ class BuildApplyTemplateCompositeTests(unittest.TestCase):
             led_count=60,
             tag_types={
                 "a": TagType(
-                    name="a", pin="1", rows=1, columns=1,
-                    color=[1, 1, 1], topology=[0],
+                    name="a",
+                    pin="1",
+                    rows=1,
+                    columns=1,
+                    color=[1, 1, 1],
+                    topology=[0],
                 ),
                 "b": TagType(
-                    name="b", pin="2", rows=1, columns=1,
-                    color=[2, 2, 2], topology=[1],
+                    name="b",
+                    pin="2",
+                    rows=1,
+                    columns=1,
+                    color=[2, 2, 2],
+                    topology=[1],
                 ),
                 "c": TagType(
-                    name="c", pin="3", rows=1, columns=1,
-                    color=[3, 3, 3], topology=[2],
+                    name="c",
+                    pin="3",
+                    rows=1,
+                    columns=1,
+                    color=[3, 3, 3],
+                    topology=[2],
                 ),
             },
         )
@@ -169,18 +193,9 @@ class BuildApplyTemplateCompositeTests(unittest.TestCase):
             new_slave_id="s-new",
         )
         self.assertIsInstance(composite, CompositeCommand)
-        slave_cmds = [
-            c for c in composite.children
-            if isinstance(c, AddSlaveCommand)
-        ]
-        tt_cmds = [
-            c for c in composite.children
-            if isinstance(c, AddTagTypeCommand)
-        ]
-        tag_cmds = [
-            c for c in composite.children
-            if isinstance(c, AddTagCommand)
-        ]
+        slave_cmds = [c for c in composite.children if isinstance(c, AddSlaveCommand)]
+        tt_cmds = [c for c in composite.children if isinstance(c, AddTagTypeCommand)]
+        tag_cmds = [c for c in composite.children if isinstance(c, AddTagCommand)]
         self.assertEqual(len(slave_cmds), 1)
         self.assertEqual(len(tt_cmds), 3)
         self.assertEqual(len(tag_cmds), 0)

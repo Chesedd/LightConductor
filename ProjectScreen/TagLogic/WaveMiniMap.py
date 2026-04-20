@@ -56,9 +56,12 @@ class WaveMiniMap(pg.PlotWidget):
         if empty:
             dur = max(float(duration or 0.0), 1.0)
             self.vb.setLimits(
-                xMin=0, xMax=dur,
-                yMin=-1, yMax=1,
-                minXRange=dur, maxXRange=dur,
+                xMin=0,
+                xMax=dur,
+                yMin=-1,
+                yMax=1,
+                minXRange=dur,
+                maxXRange=dur,
             )
             self.vb.setRange(xRange=(0, dur), yRange=(-1, 1), padding=0)
             self._set_region_safely((0.0, dur))
@@ -75,9 +78,12 @@ class WaveMiniMap(pg.PlotWidget):
             self._wave_curve = self.plot(x, y, pen=pg.mkPen("b", width=1))
 
             self.vb.setLimits(
-                xMin=0, xMax=dur,
-                yMin=-1, yMax=1,
-                minXRange=dur, maxXRange=dur,
+                xMin=0,
+                xMax=dur,
+                yMin=-1,
+                yMax=1,
+                minXRange=dur,
+                maxXRange=dur,
             )
             self.vb.setRange(xRange=(0, dur), yRange=(-1, 1), padding=0)
 
@@ -90,9 +96,7 @@ class WaveMiniMap(pg.PlotWidget):
 
         if not self._signals_wired:
             self.region.sigRegionChanged.connect(self._on_region_changed)
-            self._target_wave.vb.sigRangeChanged.connect(
-                self._on_target_range_changed
-            )
+            self._target_wave.vb.sigRangeChanged.connect(self._on_target_range_changed)
             self._signals_wired = True
 
     def _set_region_safely(self, rgn):

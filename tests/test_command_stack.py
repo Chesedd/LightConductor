@@ -16,7 +16,6 @@ from lightconductor.application.commands import (
     CommandStack,
     DeleteSlaveCommand,
     DeleteTagCommand,
-    DeleteTagTypeCommand,
     EditTagCommand,
     MoveTagCommand,
 )
@@ -65,6 +64,7 @@ def _tags(state):
 # ---------------------------------------------------------------------------
 # Basic stack behavior
 # ---------------------------------------------------------------------------
+
 
 def test_new_stack_has_no_undo_no_redo(stack):
     assert stack.can_undo() is False
@@ -171,6 +171,7 @@ def test_clear_drops_both_stacks_but_keeps_state(state, stack):
 # Integration with the broader command set
 # ---------------------------------------------------------------------------
 
+
 def test_stack_add_master_undo_redo_cycle():
     s = ProjectState()
     stack = CommandStack(s)
@@ -227,7 +228,9 @@ def test_stack_add_tag_type_then_add_tag_chained_undo_redo(state, stack):
     new_tag = _tag(time_seconds=1.0)
     stack.push(AddTagCommand("m1", "s1", "tt2", new_tag))
 
-    assert [t.time_seconds for t in state.master("m1").slaves["s1"].tag_types["tt2"].tags] == [1.0]
+    assert [
+        t.time_seconds for t in state.master("m1").slaves["s1"].tag_types["tt2"].tags
+    ] == [1.0]
 
     stack.undo()  # undo add-tag
     assert state.master("m1").slaves["s1"].tag_types["tt2"].tags == []
@@ -249,9 +252,15 @@ def test_stack_edit_tag_chain_with_add_full_cycle(state, stack):
     stack.push(AddTagCommand("m1", "s1", "tt1", new_tag))
     assert [t.time_seconds for t in _tags(state)] == [1.0]
 
-    stack.push(EditTagCommand(
-        "m1", "s1", "tt1", tag_index=0, new_time_seconds=2.5,
-    ))
+    stack.push(
+        EditTagCommand(
+            "m1",
+            "s1",
+            "tt1",
+            tag_index=0,
+            new_time_seconds=2.5,
+        )
+    )
     assert [t.time_seconds for t in _tags(state)] == [2.5]
 
     stack.undo()  # undo edit
