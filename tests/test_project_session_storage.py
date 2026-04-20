@@ -67,12 +67,12 @@ class MastersStorageTests(unittest.TestCase):
         self.storage.save_masters("proj_A", masters)
         self.assertTrue((self.root / "proj_A" / "data.json").exists())
 
-    def test_save_masters_writes_v1_envelope(self):
+    def test_save_masters_writes_current_envelope(self):
         self.storage.save_masters("proj_A", {"m1": _make_master()})
         raw = json.loads(
             (self.root / "proj_A" / "data.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(raw["schema_version"], 1)
+        self.assertEqual(raw["schema_version"], 2)
         self.assertIn("masters", raw)
         self.assertIn("m1", raw["masters"])
 

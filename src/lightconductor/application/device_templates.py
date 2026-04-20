@@ -45,6 +45,8 @@ def template_from_slave(
         "name": packed["name"],
         "pin": packed["pin"],
         "led_count": packed["led_count"],
+        "grid_rows": packed["grid_rows"],
+        "grid_columns": packed["grid_columns"],
         "id": packed["id"],
         "tagTypes": stripped_tag_types,
     }
@@ -112,6 +114,8 @@ def build_apply_template_composite(
         name=full.name,
         pin=full.pin,
         led_count=full.led_count,
+        grid_rows=full.grid_rows,
+        grid_columns=full.grid_columns,
         tag_types={},
     )
     children: List[Command] = [

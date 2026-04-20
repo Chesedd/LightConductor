@@ -411,6 +411,36 @@ class SerializationRoundTripTests(unittest.TestCase):
         self.assertEqual(packed_once, packed_twice)
         self.assertEqual(packed_once["x"]["ip"], "192.168.0.129")
 
+    def test_slave_roundtrip_preserves_grid_fields(self):
+        masters = {
+            "m1": Master(
+                id="m1",
+                name="M",
+                ip="1.2.3.4",
+                slaves={
+                    "s1": Slave(
+                        id="s1",
+                        name="S",
+                        pin="7",
+                        led_count=40,
+                        grid_rows=4,
+                        grid_columns=10,
+                        tag_types={},
+                    ),
+                },
+            ),
+        }
+        packed_once, packed_twice = _round_trip(masters)
+        self.assertEqual(packed_once, packed_twice)
+        packed_slave = packed_once["m1"]["slaves"]["s1"]
+        self.assertEqual(packed_slave["grid_rows"], 4)
+        self.assertEqual(packed_slave["grid_columns"], 10)
+
+        unpacked = _unpack_project(packed_once)
+        s_out = unpacked["m1"].slaves["s1"]
+        self.assertEqual(s_out.grid_rows, 4)
+        self.assertEqual(s_out.grid_columns, 10)
+
 
 if __name__ == "__main__":
     unittest.main()

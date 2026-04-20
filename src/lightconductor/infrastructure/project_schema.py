@@ -7,11 +7,11 @@ from typing import Any, Dict, Iterable, Tuple, cast
 
 logger = logging.getLogger(__name__)
 
-CURRENT_SCHEMA_VERSION = 1
+CURRENT_SCHEMA_VERSION = 2
 
 
 class SchemaValidationError(ValueError):
-    """Raised when data.json content violates schema v1."""
+    """Raised when data.json content violates the current schema."""
 
 
 _MASTER_FIELDS: Tuple[Tuple[str, Tuple[type, ...]], ...] = (
@@ -25,6 +25,8 @@ _SLAVE_FIELDS: Tuple[Tuple[str, Tuple[type, ...]], ...] = (
     ("name", (str,)),
     ("pin", (str, int)),
     ("led_count", (int,)),
+    ("grid_rows", (int,)),
+    ("grid_columns", (int,)),
     ("id", (str,)),
     ("tagTypes", (dict,)),
 )
@@ -48,32 +50,72 @@ _TAG_FIELDS: Tuple[Tuple[str, Tuple[type, ...]], ...] = (
 
 
 def wrap_boxes(boxes: Dict[str, Any]) -> Dict[str, Any]:
-    """Wrap a masters dict in the v1 envelope. Used on write."""
+    """Wrap a masters dict in the current envelope. Used on write."""
     return {"schema_version": CURRENT_SCHEMA_VERSION, "masters": boxes}
 
 
 def unwrap_boxes(data: Dict[str, Any]) -> Dict[str, Any]:
-    """Return the masters dict from a validated v1 envelope."""
+    """Return the masters dict from a validated envelope."""
     return cast(Dict[str, Any], data["masters"])
+
+
+def _migrate_v1_to_v2(envelope: Dict[str, Any]) -> Dict[str, Any]:
+    """Add grid_rows and grid_columns to every slave in-place.
+
+    Derives defaults from led_count (1 row × N columns) to preserve
+    the invariant led_count == grid_rows * grid_columns for legacy
+    slaves. If either field is already present it is left as-is.
+    Bumps envelope schema_version to 2. Returns the mutated envelope.
+    """
+    masters = envelope.get("masters")
+    if not isinstance(masters, dict):
+        envelope["schema_version"] = 2
+        return envelope
+    for master in masters.values():
+        if not isinstance(master, dict):
+            continue
+        slaves = master.get("slaves")
+        if not isinstance(slaves, dict):
+            continue
+        for slave in slaves.values():
+            if not isinstance(slave, dict):
+                continue
+            if "grid_rows" not in slave:
+                slave["grid_rows"] = 1
+            if "grid_columns" not in slave:
+                led_count = slave.get("led_count", 0)
+                try:
+                    slave["grid_columns"] = int(led_count)
+                except (TypeError, ValueError):
+                    slave["grid_columns"] = 0
+    envelope["schema_version"] = 2
+    return envelope
 
 
 def migrate_to_current(data: Any) -> Dict[str, Any]:
     """Apply migrations until data reaches CURRENT_SCHEMA_VERSION.
 
-    - If `data` is a dict without `schema_version`, it is treated as
-      v0 legacy and wrapped via wrap_boxes().
-    - If `data` is already v1, returned as-is.
-    - If `data` carries a version higher than CURRENT_SCHEMA_VERSION,
-      SchemaValidationError is raised (prevent older code from
-      silently corrupting newer files).
+    Migration chain:
+      - v0 (dict without schema_version): wrap in a v1 envelope,
+        then apply v1→v2 grid-field migration.
+      - v1: apply v1→v2 grid-field migration.
+      - v2 (current): returned as-is.
+
+    If `data` carries a version higher than CURRENT_SCHEMA_VERSION,
+    SchemaValidationError is raised (prevent older code from
+    silently corrupting newer files).
     """
     if not isinstance(data, dict):
         raise SchemaValidationError(
             f"top-level: expected dict, got {type(data).__name__}"
         )
     if "schema_version" not in data:
-        envelope = wrap_boxes(data)
+        envelope: Dict[str, Any] = {
+            "schema_version": 1,
+            "masters": data,
+        }
         _coerce_legacy_tag_actions(envelope)
+        _migrate_v1_to_v2(envelope)
         return envelope
     version = data["schema_version"]
     if not isinstance(version, int) or isinstance(version, bool):
@@ -85,10 +127,13 @@ def migrate_to_current(data: Any) -> Dict[str, Any]:
             f"schema_version {version} is newer than supported "
             f"{CURRENT_SCHEMA_VERSION}; refusing to downgrade"
         )
+    if version == 1:
+        _coerce_legacy_tag_actions(data)
+        _migrate_v1_to_v2(data)
+        return data
     if version == CURRENT_SCHEMA_VERSION:
         _coerce_legacy_tag_actions(data)
         return data
-    # No intermediate versions exist yet; future migrations will chain here.
     raise SchemaValidationError(f"unknown schema_version {version}")
 
 
@@ -158,7 +203,7 @@ def _check_fields(
 
 
 def validate(data: Any) -> None:
-    """Validate that `data` is a well-formed v1 envelope.
+    """Validate that `data` is a well-formed current-schema envelope.
 
     Raises SchemaValidationError with a clear field path on violation.
     Extra (unknown) keys at any level are allowed for forward compat.
@@ -207,7 +252,7 @@ def validate(data: Any) -> None:
 
 
 def load_and_migrate(path: Path) -> Dict[str, Any]:
-    """Read `path`, migrate, validate, return the v1 envelope.
+    """Read `path`, migrate, validate, return the current envelope.
 
     On json.JSONDecodeError or OSError, raises SchemaValidationError
     with the original exception chained as __cause__.
