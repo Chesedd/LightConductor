@@ -113,10 +113,14 @@ class TagDialog(QDialog):
         slave_cols = self._slave_grid_columns
         if slave_cols < 1:
             slave_cols = max(1, int(self.columns or 1))
+        led_cells = None
+        if self._preview_slave is not None:
+            led_cells = frozenset(getattr(self._preview_slave, "led_cells", []) or [])
         dialog = TagPinsDialog(
             topology=self.topology,
             slave_grid_columns=slave_cols,
             current_colors=self.colors,
+            led_cells=led_cells,
             settings=self._settings,
             on_presets_changed=self._on_presets_changed,
             parent=self,
