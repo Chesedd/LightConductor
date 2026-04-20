@@ -35,6 +35,7 @@ class LoadSettingsTests(unittest.TestCase):
                 "udp_chunk_size",
                 "autosave_interval_seconds",
                 "color_presets",
+                "recent_project_ids",
             },
         )
 
@@ -177,6 +178,49 @@ class LoadSettingsTests(unittest.TestCase):
         self._write_settings([])
         result = load_settings(self.settings_file)
         self.assertEqual(result.color_presets, [])
+
+    def _write_recent_settings(self, recent_value):
+        payload = {
+            "default_master_ip": "10.0.0.1",
+            "udp_port": 55555,
+            "udp_chunk_size": 1024,
+            "autosave_interval_seconds": 30,
+            "color_presets": [],
+            "recent_project_ids": recent_value,
+        }
+        self.settings_file.write_text(
+            json.dumps(payload), encoding="utf-8",
+        )
+
+    def test_recent_project_ids_defaults_to_empty_list(self):
+        self.assertEqual(AppSettings().recent_project_ids, [])
+
+    def test_recent_project_ids_valid_round_trip(self):
+        custom = AppSettings(
+            recent_project_ids=["p1", "p2", "p3"],
+        )
+        save_settings(custom, self.settings_file)
+        loaded = load_settings(self.settings_file)
+        self.assertEqual(
+            loaded.recent_project_ids, ["p1", "p2", "p3"],
+        )
+
+    def test_recent_project_ids_non_list_uses_default(self):
+        self._write_recent_settings("not a list")
+        result = load_settings(self.settings_file)
+        self.assertEqual(result.recent_project_ids, [])
+
+    def test_recent_project_ids_non_string_entry_uses_default(self):
+        self._write_recent_settings(["p1", 42])
+        result = load_settings(self.settings_file)
+        self.assertEqual(result.recent_project_ids, [])
+
+    def test_recent_project_ids_deduplicates_preserving_order(self):
+        self._write_recent_settings(["p1", "p2", "p1", "p3"])
+        result = load_settings(self.settings_file)
+        self.assertEqual(
+            result.recent_project_ids, ["p1", "p2", "p3"],
+        )
 
 
 if __name__ == "__main__":

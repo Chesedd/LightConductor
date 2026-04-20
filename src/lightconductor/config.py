@@ -15,6 +15,7 @@ class AppSettings:
     udp_chunk_size: int = 768
     autosave_interval_seconds: int = 30
     color_presets: list = field(default_factory=list)
+    recent_project_ids: list = field(default_factory=list)
 
 
 def settings_path() -> Path:
@@ -48,6 +49,31 @@ def _coerce_color_presets(value) -> list | None:
     return result
 
 
+def _coerce_recent_project_ids(value) -> list | None:
+    """Return a sanitized list of non-empty string ids, or
+    None if the payload is invalid.
+
+    Accepts a list whose every entry is a non-empty string.
+    Deduplicates while preserving order (first occurrence
+    wins). Returns a fresh list. Does NOT enforce capacity;
+    capacity is a controller-level concern.
+    """
+    if not isinstance(value, list):
+        return None
+    seen: set[str] = set()
+    result: list[str] = []
+    for entry in value:
+        if not isinstance(entry, str):
+            return None
+        if not entry:
+            return None
+        if entry in seen:
+            continue
+        seen.add(entry)
+        result.append(entry)
+    return result
+
+
 def _from_dict(data: object) -> AppSettings:
     defaults = AppSettings()
     if not isinstance(data, dict):
@@ -62,6 +88,16 @@ def _from_dict(data: object) -> AppSettings:
         value = data[name]
         if name == "color_presets":
             coerced = _coerce_color_presets(value)
+            if coerced is None:
+                logger.warning(
+                    "settings field %r is malformed; using default",
+                    name,
+                )
+                continue
+            kwargs[name] = coerced
+            continue
+        if name == "recent_project_ids":
+            coerced = _coerce_recent_project_ids(value)
             if coerced is None:
                 logger.warning(
                     "settings field %r is malformed; using default",
