@@ -151,6 +151,38 @@ class SlaveFromTemplateTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             slave_from_template("not a dict", "id-1")
 
+    def test_template_from_slave_captures_led_cells(self):
+        source = Slave(
+            id="s-source",
+            name="Src",
+            pin="0",
+            led_count=3,
+            grid_rows=2,
+            grid_columns=2,
+            led_cells=[2, 0, 1],
+            tag_types={},
+        )
+        template = template_from_slave(source, "t1")
+        self.assertEqual(
+            template["slave_config"]["led_cells"],
+            [2, 0, 1],
+        )
+
+    def test_slave_from_template_restores_led_cells(self):
+        source = Slave(
+            id="s-source",
+            name="Src",
+            pin="0",
+            led_count=3,
+            grid_rows=2,
+            grid_columns=2,
+            led_cells=[2, 0, 1],
+            tag_types={},
+        )
+        template = template_from_slave(source, "t1")
+        dup = slave_from_template(template, "new-id")
+        self.assertEqual(dup.led_cells, [2, 0, 1])
+
 
 class BuildApplyTemplateCompositeTests(unittest.TestCase):
     def test_apply_template_composite_children_structure(self):

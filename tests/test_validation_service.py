@@ -36,14 +36,17 @@ def _slave(
     tag_types=None,
     grid_rows=None,
     grid_columns=None,
+    led_cells=None,
 ):
     if grid_rows is None and grid_columns is None:
         grid_rows = 1
-        grid_columns = led_count
+        grid_columns = max(1, led_count)
     elif grid_rows is None:
         grid_rows = 1
     elif grid_columns is None:
-        grid_columns = 0
+        grid_columns = max(1, led_count)
+    if led_cells is None:
+        led_cells = list(range(led_count))
     return Slave(
         id=slave_id,
         name=name,
@@ -51,6 +54,7 @@ def _slave(
         led_count=led_count,
         grid_rows=grid_rows,
         grid_columns=grid_columns,
+        led_cells=list(led_cells),
         tag_types=dict(tag_types or {}),
     )
 
@@ -115,13 +119,19 @@ class ValidationServiceOverlapAndBoundsTests(unittest.TestCase):
             oob[0].path,
         )
 
-    def test_no_out_of_bounds_when_led_count_is_zero(self):
+    def test_no_out_of_bounds_when_canvas_is_zero(self):
         tt = _tag_type("a", "100", topology=[0, 1, 2, 3])
-        slave = _slave(pin="0", led_count=0, tag_types={"a": tt})
+        slave = _slave(
+            pin="0",
+            led_count=0,
+            grid_rows=0,
+            grid_columns=0,
+            led_cells=[],
+            tag_types={"a": tt},
+        )
         master = _master(slaves={"s1": slave})
         issues = self.service.validate({"m1": master})
         self.assertFalse(any(i.category == "out_of_bounds" for i in issues))
-        self.assertFalse(any(i.category == "unused_leds" for i in issues))
 
 
 class ValidationServiceDuplicateSegmentStartTests(unittest.TestCase):
@@ -198,15 +208,6 @@ class ValidationServiceWarningsTests(unittest.TestCase):
     def setUp(self):
         self.service = ValidationService()
 
-    def test_warning_for_unused_leds_at_end(self):
-        tt = _tag_type("a", "0", topology=[0, 1, 2, 3, 4, 5])
-        slave = _slave(pin="0", led_count=10, tag_types={"a": tt})
-        master = _master(slaves={"s1": slave})
-        issues = self.service.validate({"m1": master})
-        unused = [i for i in issues if i.category == "unused_leds"]
-        self.assertEqual(1, len(unused))
-        self.assertEqual(SEVERITY_WARNING, unused[0].severity)
-
     def test_warning_for_gap_between_segments(self):
         t1 = _tag_type("a", "0", topology=[0, 1, 2])
         t2 = _tag_type("b", "5", topology=[0, 1, 2])
@@ -216,8 +217,6 @@ class ValidationServiceWarningsTests(unittest.TestCase):
         gaps = [i for i in issues if i.category == "gap"]
         self.assertEqual(1, len(gaps))
         self.assertEqual(SEVERITY_WARNING, gaps[0].severity)
-        unused = [i for i in issues if i.category == "unused_leds"]
-        self.assertEqual(1, len(unused))
 
     def test_no_warning_for_contiguous_full_coverage(self):
         t1 = _tag_type("a", "0", topology=[0, 1, 2, 3, 4])
@@ -299,63 +298,177 @@ class ValidationIssueShapeTests(unittest.TestCase):
             self.assertIsInstance(issue.message, str)
 
 
-class ValidationServiceGridLedMismatchTests(unittest.TestCase):
+class ValidationServiceLedCellsTests(unittest.TestCase):
     def setUp(self):
         self.service = ValidationService()
 
-    def test_slave_grid_matches_led_count_passes(self):
+    def test_led_cells_length_mismatch_raises_error(self):
+        # led_count=4 but led_cells only provides 3 entries.
         slave = _slave(
             pin="0",
-            led_count=60,
-            grid_rows=6,
-            grid_columns=10,
+            led_count=4,
+            grid_rows=2,
+            grid_columns=2,
+            led_cells=[0, 1, 2],
         )
         master = _master(slaves={"s1": slave})
         issues = self.service.validate({"m1": master})
-        mismatches = [i for i in issues if i.category == "grid_led_mismatch"]
-        self.assertEqual([], mismatches)
-
-    def test_slave_grid_mismatch_raises_error_issue(self):
-        slave = _slave(
-            pin="0",
-            led_count=60,
-            grid_rows=6,
-            grid_columns=11,
-        )
-        master = _master(slaves={"s1": slave})
-        issues = self.service.validate({"m1": master})
-        mismatches = [i for i in issues if i.category == "grid_led_mismatch"]
+        mismatches = [i for i in issues if i.category == "led_cells_mismatch"]
         self.assertEqual(1, len(mismatches))
-        issue = mismatches[0]
-        self.assertEqual(SEVERITY_ERROR, issue.severity)
-        self.assertEqual("masters.m1.slaves.s1", issue.path)
-        self.assertIn("6", issue.message)
-        self.assertIn("11", issue.message)
-        self.assertIn("60", issue.message)
+        self.assertEqual(SEVERITY_ERROR, mismatches[0].severity)
+        self.assertEqual("masters.m1.slaves.s1", mismatches[0].path)
 
-    def test_slave_zero_grid_zero_led_passes(self):
+    def test_led_cells_duplicate_values_raises_error(self):
+        slave = _slave(
+            pin="0",
+            led_count=3,
+            grid_rows=2,
+            grid_columns=2,
+            led_cells=[0, 0, 1],
+        )
+        master = _master(slaves={"s1": slave})
+        issues = self.service.validate({"m1": master})
+        dupes = [i for i in issues if i.category == "led_cells_duplicate"]
+        self.assertEqual(1, len(dupes))
+        self.assertEqual(SEVERITY_ERROR, dupes[0].severity)
+        self.assertIn("0", dupes[0].message)
+
+    def test_led_cells_out_of_canvas_raises_error(self):
+        # Canvas 2x2=4, so valid cells are [0..3]. 4 is out of range.
+        slave = _slave(
+            pin="0",
+            led_count=3,
+            grid_rows=2,
+            grid_columns=2,
+            led_cells=[0, 1, 4],
+        )
+        master = _master(slaves={"s1": slave})
+        issues = self.service.validate({"m1": master})
+        oor = [i for i in issues if i.category == "led_cells_out_of_canvas"]
+        self.assertEqual(1, len(oor))
+        self.assertEqual(SEVERITY_ERROR, oor[0].severity)
+        self.assertIn("4", oor[0].message)
+
+    def test_canvas_zero_dimensions_raises_error(self):
         slave = _slave(
             pin="0",
             led_count=0,
             grid_rows=0,
             grid_columns=0,
+            led_cells=[],
         )
         master = _master(slaves={"s1": slave})
         issues = self.service.validate({"m1": master})
-        mismatches = [i for i in issues if i.category == "grid_led_mismatch"]
-        self.assertEqual([], mismatches)
+        zero = [i for i in issues if i.category == "canvas_zero"]
+        self.assertEqual(1, len(zero))
+        self.assertEqual(SEVERITY_ERROR, zero[0].severity)
 
-    def test_slave_grid_one_by_n_matches_linear_strip(self):
+    def test_canvas_too_small_for_leds_raises_error(self):
+        # Canvas 2x2=4 but led_count=5 > 4.
         slave = _slave(
             pin="0",
-            led_count=60,
-            grid_rows=1,
-            grid_columns=60,
+            led_count=5,
+            grid_rows=2,
+            grid_columns=2,
+            led_cells=[0, 1, 2, 3, 0],
         )
         master = _master(slaves={"s1": slave})
         issues = self.service.validate({"m1": master})
-        mismatches = [i for i in issues if i.category == "grid_led_mismatch"]
-        self.assertEqual([], mismatches)
+        too_small = [i for i in issues if i.category == "canvas_too_small_for_leds"]
+        self.assertEqual(1, len(too_small))
+        self.assertEqual(SEVERITY_ERROR, too_small[0].severity)
+
+    def test_topology_references_non_led_cell_raises_error(self):
+        # Canvas 2x2=4 with only cells 0 and 1 physically wired.
+        # A TagType topology touching cell 2 (no LED) must error.
+        tt = _tag_type("t", "0", topology=[0, 2])
+        slave = _slave(
+            pin="0",
+            led_count=2,
+            grid_rows=2,
+            grid_columns=2,
+            led_cells=[0, 1],
+            tag_types={"t": tt},
+        )
+        master = _master(slaves={"s1": slave})
+        issues = self.service.validate({"m1": master})
+        bad = [i for i in issues if i.category == "topology_non_led_cell"]
+        self.assertEqual(1, len(bad))
+        self.assertEqual(SEVERITY_ERROR, bad[0].severity)
+        self.assertEqual(
+            "masters.m1.slaves.s1.tag_types.t",
+            bad[0].path,
+        )
+
+    def test_valid_slave_with_custom_led_cells_passes(self):
+        # Non-sequential led_cells ordering must validate cleanly.
+        slave = _slave(
+            pin="0",
+            led_count=4,
+            grid_rows=2,
+            grid_columns=2,
+            led_cells=[3, 1, 0, 2],
+        )
+        master = _master(slaves={"s1": slave})
+        issues = self.service.validate({"m1": master})
+        led_issues = [
+            i
+            for i in issues
+            if i.category
+            in {
+                "led_cells_mismatch",
+                "led_cells_duplicate",
+                "led_cells_out_of_canvas",
+                "canvas_zero",
+                "canvas_too_small_for_leds",
+            }
+        ]
+        self.assertEqual([], led_issues)
+
+    def test_valid_slave_with_canvas_larger_than_leds_passes(self):
+        # Canvas 4x4=16 but only 10 LEDs wired: the remaining 6
+        # cells are empty placeholders, which is allowed.
+        slave = _slave(
+            pin="0",
+            led_count=10,
+            grid_rows=4,
+            grid_columns=4,
+            led_cells=list(range(10)),
+        )
+        master = _master(slaves={"s1": slave})
+        issues = self.service.validate({"m1": master})
+        self.assertEqual([], issues)
+
+    def test_default_sequential_led_cells_passes(self):
+        # Migration default: led_cells = [0..led_count-1] on a
+        # 1×N linear canvas must pass all invariants.
+        slave = _slave(
+            pin="0",
+            led_count=30,
+            grid_rows=1,
+            grid_columns=30,
+            led_cells=list(range(30)),
+        )
+        master = _master(slaves={"s1": slave})
+        issues = self.service.validate({"m1": master})
+        self.assertEqual([], issues)
+
+    def test_topology_in_led_cells_non_sequential_passes(self):
+        # led_cells reorders the wire; topology references cell
+        # indices on the canvas (not wire positions) — must pass.
+        tt = _tag_type("t", "0", topology=[3, 1])
+        slave = _slave(
+            pin="0",
+            led_count=4,
+            grid_rows=2,
+            grid_columns=2,
+            led_cells=[3, 1, 0, 2],
+            tag_types={"t": tt},
+        )
+        master = _master(slaves={"s1": slave})
+        issues = self.service.validate({"m1": master})
+        topo_issues = [i for i in issues if i.category == "topology_non_led_cell"]
+        self.assertEqual([], topo_issues)
 
 
 if __name__ == "__main__":

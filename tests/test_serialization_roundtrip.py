@@ -441,6 +441,38 @@ class SerializationRoundTripTests(unittest.TestCase):
         self.assertEqual(s_out.grid_rows, 4)
         self.assertEqual(s_out.grid_columns, 10)
 
+    def test_slave_roundtrip_preserves_led_cells(self):
+        # Non-sequential led_cells (custom wire ordering) must
+        # survive pack → unpack → pack in exact original order.
+        wire = [5, 2, 0, 8, 3, 1, 4, 6, 7]
+        masters = {
+            "m1": Master(
+                id="m1",
+                name="M",
+                ip="1.2.3.4",
+                slaves={
+                    "s1": Slave(
+                        id="s1",
+                        name="S",
+                        pin="7",
+                        led_count=9,
+                        grid_rows=3,
+                        grid_columns=3,
+                        led_cells=list(wire),
+                        tag_types={},
+                    ),
+                },
+            ),
+        }
+        packed_once, packed_twice = _round_trip(masters)
+        self.assertEqual(packed_once, packed_twice)
+        packed_slave = packed_once["m1"]["slaves"]["s1"]
+        self.assertEqual(packed_slave["led_cells"], wire)
+
+        unpacked = _unpack_project(packed_once)
+        s_out = unpacked["m1"].slaves["s1"]
+        self.assertEqual(s_out.led_cells, wire)
+
 
 if __name__ == "__main__":
     unittest.main()

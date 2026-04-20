@@ -44,6 +44,7 @@ def _minimal_slave(tag_types=None):
         "led_count": 30,
         "grid_rows": 1,
         "grid_columns": 30,
+        "led_cells": list(range(30)),
         "id": "s1",
         "tagTypes": tag_types if tag_types is not None else {},
     }
@@ -100,10 +101,10 @@ class MigrationTests(unittest.TestCase):
         self.assertIs(coerced_tags["1"]["action"], False)
         validate(result)
 
-    def test_migrate_v1_to_v2_fills_grid_fields(self):
+    def test_migrate_v1_to_current_fills_grid_fields(self):
         # Hand-crafted v1 envelope: schema_version=1, two slaves each
         # lacking grid_rows/grid_columns. Migration must bump schema
-        # to v2 and populate grid fields from led_count.
+        # to current (v3) and populate grid fields from led_count.
         envelope = {
             "schema_version": 1,
             "masters": {
@@ -133,7 +134,7 @@ class MigrationTests(unittest.TestCase):
 
         result = migrate_to_current(envelope)
 
-        self.assertEqual(result["schema_version"], 2)
+        self.assertEqual(result["schema_version"], CURRENT_SCHEMA_VERSION)
         slaves = result["masters"]["m1"]["slaves"]
         self.assertEqual(slaves["s1"]["grid_rows"], 1)
         self.assertEqual(slaves["s1"]["grid_columns"], 30)
@@ -141,10 +142,9 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(slaves["s2"]["grid_columns"], 60)
         validate(result)
 
-    def test_migrate_v0_legacy_goes_to_v2_via_v1(self):
+    def test_migrate_v0_legacy_goes_to_current_via_v1_v2(self):
         # Legacy dict without schema_version (pre-v1 project). Chain:
-        # v0 → v1 (wrap_boxes) → v2 (grid fields). Result must be a
-        # valid v2 envelope with grid fields populated.
+        # v0 → v1 (wrap_boxes) → v2 (grid fields) → v3 (led_cells).
         legacy = {
             "m1": {
                 "name": "M",
@@ -164,13 +164,16 @@ class MigrationTests(unittest.TestCase):
 
         result = migrate_to_current(legacy)
 
-        self.assertEqual(result["schema_version"], 2)
+        self.assertEqual(result["schema_version"], CURRENT_SCHEMA_VERSION)
         slave = result["masters"]["m1"]["slaves"]["s1"]
         self.assertEqual(slave["grid_rows"], 1)
         self.assertEqual(slave["grid_columns"], 45)
         validate(result)
 
-    def test_migrate_v2_envelope_passes_through_unchanged(self):
+    def test_migrate_v2_to_v3_fills_led_cells(self):
+        # Hand-crafted v2 envelope: schema_version=2, two slaves
+        # each lacking led_cells. Migration must bump to v3 and
+        # populate led_cells as [0..led_count-1].
         envelope = {
             "schema_version": 2,
             "masters": {
@@ -182,9 +185,79 @@ class MigrationTests(unittest.TestCase):
                         "s1": {
                             "name": "S1",
                             "pin": "1",
-                            "led_count": 40,
-                            "grid_rows": 4,
-                            "grid_columns": 10,
+                            "led_count": 4,
+                            "grid_rows": 2,
+                            "grid_columns": 2,
+                            "id": "s1",
+                            "tagTypes": {},
+                        },
+                        "s2": {
+                            "name": "S2",
+                            "pin": "2",
+                            "led_count": 0,
+                            "grid_rows": 1,
+                            "grid_columns": 1,
+                            "id": "s2",
+                            "tagTypes": {},
+                        },
+                    },
+                }
+            },
+        }
+
+        result = migrate_to_current(envelope)
+
+        self.assertEqual(result["schema_version"], 3)
+        slaves = result["masters"]["m1"]["slaves"]
+        self.assertEqual(slaves["s1"]["led_cells"], [0, 1, 2, 3])
+        self.assertEqual(slaves["s2"]["led_cells"], [])
+        validate(result)
+
+    def test_migrate_legacy_v0_goes_to_v3(self):
+        # v0 legacy dict (no schema_version) must chain through
+        # v1 → v2 → v3 and arrive with led_cells populated.
+        legacy = {
+            "m1": {
+                "name": "M",
+                "id": "m1",
+                "ip": "10.0.0.1",
+                "slaves": {
+                    "s1": {
+                        "name": "S1",
+                        "pin": "1",
+                        "led_count": 6,
+                        "id": "s1",
+                        "tagTypes": {},
+                    },
+                },
+            }
+        }
+
+        result = migrate_to_current(legacy)
+
+        self.assertEqual(result["schema_version"], 3)
+        slave = result["masters"]["m1"]["slaves"]["s1"]
+        self.assertEqual(slave["led_cells"], [0, 1, 2, 3, 4, 5])
+        validate(result)
+
+    def test_migrate_v3_envelope_passes_through_unchanged(self):
+        # A v3 envelope with non-sequential led_cells must be
+        # preserved verbatim by migrate_to_current.
+        envelope = {
+            "schema_version": 3,
+            "masters": {
+                "m1": {
+                    "name": "M",
+                    "id": "m1",
+                    "ip": "10.0.0.1",
+                    "slaves": {
+                        "s1": {
+                            "name": "S1",
+                            "pin": "1",
+                            "led_count": 4,
+                            "grid_rows": 2,
+                            "grid_columns": 2,
+                            "led_cells": [3, 1, 0, 2],
                             "id": "s1",
                             "tagTypes": {},
                         }
@@ -196,9 +269,8 @@ class MigrationTests(unittest.TestCase):
         result = migrate_to_current(envelope)
 
         slave = result["masters"]["m1"]["slaves"]["s1"]
-        self.assertEqual(slave["grid_rows"], 4)
-        self.assertEqual(slave["grid_columns"], 10)
-        self.assertEqual(result["schema_version"], 2)
+        self.assertEqual(slave["led_cells"], [3, 1, 0, 2])
+        self.assertEqual(result["schema_version"], 3)
 
 
 class WrapUnwrapTests(unittest.TestCase):

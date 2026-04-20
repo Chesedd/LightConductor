@@ -361,6 +361,7 @@ class PackSlaveTests(unittest.TestCase):
             led_count=60,
             grid_rows=1,
             grid_columns=60,
+            led_cells=list(range(60)),
             tag_types={},
         )
         self.assertEqual(
@@ -371,6 +372,7 @@ class PackSlaveTests(unittest.TestCase):
                 "led_count": 60,
                 "grid_rows": 1,
                 "grid_columns": 60,
+                "led_cells": list(range(60)),
                 "id": "s1",
                 "tagTypes": {},
             },
@@ -380,7 +382,16 @@ class PackSlaveTests(unittest.TestCase):
         result = pack_slave(Slave(id="x", name="x", pin="0", led_count=0, tag_types={}))
         self.assertEqual(
             list(result.keys()),
-            ["name", "pin", "led_count", "grid_rows", "grid_columns", "id", "tagTypes"],
+            [
+                "name",
+                "pin",
+                "led_count",
+                "grid_rows",
+                "grid_columns",
+                "led_cells",
+                "id",
+                "tagTypes",
+            ],
         )
 
     def test_pack_slave_tag_types_becomes_tagTypes(self):
@@ -419,6 +430,7 @@ class PackSlaveTests(unittest.TestCase):
         s.led_count = 0
         s.grid_rows = 1
         s.grid_columns = 0
+        s.led_cells = []
         s.tag_types = {}
         result = pack_slave(s)
         self.assertEqual(result["pin"], 7)
@@ -459,6 +471,7 @@ class UnpackSlaveTests(unittest.TestCase):
             "led_count": 60,
             "grid_rows": 1,
             "grid_columns": 60,
+            "led_cells": list(range(60)),
             "id": "s1",
             "tagTypes": {},
         }
@@ -470,6 +483,7 @@ class UnpackSlaveTests(unittest.TestCase):
         self.assertEqual(s.led_count, 60)
         self.assertEqual(s.grid_rows, 1)
         self.assertEqual(s.grid_columns, 60)
+        self.assertEqual(s.led_cells, list(range(60)))
         self.assertEqual(s.tag_types, {})
 
     def test_unpack_slave_recurses_into_tag_types(self):
@@ -479,6 +493,7 @@ class UnpackSlaveTests(unittest.TestCase):
             "led_count": 0,
             "grid_rows": 1,
             "grid_columns": 0,
+            "led_cells": [],
             "id": "x",
             "tagTypes": {
                 "front": {
@@ -524,6 +539,7 @@ class UnpackSlaveTests(unittest.TestCase):
             "led_count": 0,
             "grid_rows": 1,
             "grid_columns": 0,
+            "led_cells": [],
             "id": "x",
             "tagTypes": ["not", "dict"],
         }
@@ -540,6 +556,7 @@ class UnpackSlaveTests(unittest.TestCase):
             "pin": "0",
             "grid_rows": 1,
             "grid_columns": 0,
+            "led_cells": [],
             "id": "x",
             "tagTypes": {},
         }
@@ -555,6 +572,7 @@ class UnpackSlaveTests(unittest.TestCase):
             "pin": "0",
             "led_count": 0,
             "grid_columns": 0,
+            "led_cells": [],
             "id": "x",
             "tagTypes": {},
         }
@@ -568,12 +586,29 @@ class UnpackSlaveTests(unittest.TestCase):
             "pin": "0",
             "led_count": 0,
             "grid_rows": 1,
+            "led_cells": [],
             "id": "x",
             "tagTypes": {},
         }
         with self.assertRaises(ValueError) as ctx:
             unpack_slave(data)
         self.assertIn("grid_columns", str(ctx.exception))
+
+    def test_unpack_slave_rejects_missing_led_cells(self):
+        # led_cells is required in v3 data — missing must raise,
+        # not fall back to the dataclass default.
+        data = {
+            "name": "x",
+            "pin": "0",
+            "led_count": 0,
+            "grid_rows": 1,
+            "grid_columns": 0,
+            "id": "x",
+            "tagTypes": {},
+        }
+        with self.assertRaises(ValueError) as ctx:
+            unpack_slave(data)
+        self.assertIn("led_cells", str(ctx.exception))
 
 
 class SlaveRoundTripTests(unittest.TestCase):
@@ -690,6 +725,7 @@ class UnpackMasterTests(unittest.TestCase):
                     "led_count": 60,
                     "grid_rows": 1,
                     "grid_columns": 60,
+                    "led_cells": list(range(60)),
                     "id": "s1",
                     "tagTypes": {},
                 },
