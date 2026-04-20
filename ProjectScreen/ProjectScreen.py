@@ -16,6 +16,7 @@ from lightconductor.application.commands import (
     DeleteTagCommand,
 )
 from lightconductor.application.compiled_show import CompileShowsForMastersUseCase
+from lightconductor.application.project_search import compute_visibility
 from lightconductor.application.project_state import ProjectState, StateReplaced
 from lightconductor.application.score_export import (
     build_score_records, render_csv, render_json,
@@ -101,6 +102,13 @@ class ProjectWindow(QMainWindow):
         self._tag_clipboard = None
         self._unsubscribe_dirty = self.state.subscribe(
             self._on_state_event_dirty,
+        )
+        # Re-apply search filter on state mutations so newly-added
+        # entities respect the active filter. singleShot(0) defers to
+        # the next event-loop tick, letting widget-side bridges finish
+        # building the new subtree before we query visibility.
+        self._search_unsubscribe = self.state.subscribe(
+            self._on_state_event_search,
         )
         self._autosave_timer = QTimer(self)
         self._autosave_timer.setInterval(
@@ -419,6 +427,16 @@ class ProjectWindow(QMainWindow):
         controlsLayout.addWidget(showButton)
         controlsLayout.addStretch(1)
 
+        self.searchEdit = QLineEdit()
+        self.searchEdit.setPlaceholderText(
+            "Search masters / slaves / tag types..."
+        )
+        self.searchEdit.setFixedWidth(240)
+        self.searchEdit.textChanged.connect(
+            self._on_search_text_changed,
+        )
+        controlsLayout.addWidget(self.searchEdit)
+
         self.layout.addWidget(controls)
 
     def initExistingData(self):
@@ -647,6 +665,68 @@ class ProjectWindow(QMainWindow):
 
         self.audioPlayer.play()
 
+    def _on_search_text_changed(self, _text: str):
+        self._apply_search_filter()
+
+    def _apply_search_filter(self):
+        """Walk the current widget tree and apply visibility decisions
+        from compute_visibility. Safe to call when self.masters is
+        empty or widgets are still being built — missing ids are
+        silently skipped."""
+        query = ""
+        if hasattr(self, "searchEdit") and self.searchEdit is not None:
+            query = self.searchEdit.text()
+        domain_masters = self.state.masters()
+        decisions = compute_visibility(domain_masters, query)
+        for master_id, master_widget in self.masters.items():
+            mv = decisions.get(master_id)
+            if mv is None:
+                master_widget.setVisible(True)
+                continue
+            master_widget.setVisible(mv.visible)
+            slaves_widgets = getattr(master_widget, "slaves", {})
+            for slave_id, slave_widget in slaves_widgets.items():
+                sv = mv.slaves.get(slave_id)
+                if sv is None:
+                    slave_widget.setVisible(True)
+                    continue
+                slave_widget.setVisible(sv.visible)
+                manager = getattr(
+                    getattr(slave_widget, "wave", None),
+                    "manager", None,
+                )
+                if manager is None:
+                    continue
+                type_widgets = getattr(manager, "types", {}) or {}
+                for type_name, widget_type in type_widgets.items():
+                    tt_visible = sv.tag_types.get(type_name, True)
+                    button = self._find_tag_button(manager, widget_type)
+                    if button is not None:
+                        button.setVisible(tt_visible)
+
+    def _find_tag_button(self, manager, widget_type):
+        """Locate the TagButton in the TagManager whose tagType matches
+        widget_type. TagManager stores them in self.buttons
+        (QButtonGroup) — iterate and match by the tagType attribute.
+        Returns None if not found. Tolerant: the QButtonGroup API may
+        not be present in test stubs."""
+        buttons_group = getattr(manager, "buttons", None)
+        if buttons_group is None:
+            return None
+        try:
+            buttons = buttons_group.buttons()
+        except AttributeError:
+            return None
+        for btn in buttons:
+            if getattr(btn, "tagType", None) is widget_type:
+                return btn
+        return None
+
+    def _on_state_event_search(self, _event):
+        if self._loading:
+            return
+        QTimer.singleShot(0, self._apply_search_filter)
+
     def _on_state_event_dirty(self, event):
         if self._loading:
             return
@@ -702,6 +782,10 @@ class ProjectWindow(QMainWindow):
         self._autosave_timer.stop()
         try:
             self._unsubscribe_dirty()
+        except Exception:
+            pass
+        try:
+            self._search_unsubscribe()
         except Exception:
             pass
         super().closeEvent(event)
