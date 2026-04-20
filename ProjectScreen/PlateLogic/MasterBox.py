@@ -9,7 +9,10 @@ from AssistanceTools.ChooseBox import  TagTypeChooseBox
 from AssistanceTools.SimpleDialog import SimpleDialog
 from ProjectScreen.TagLogic.WaveWidget import WaveWidget
 from AssistanceTools.DropBox import DropBox
-from lightconductor.application.project_state import SlaveAdded, SlaveRemoved
+from lightconductor.application.commands import (
+    AddSlaveCommand,
+    DeleteSlaveCommand,
+)
 from lightconductor.domain.models import Slave as DomainSlave
 
 logger = logging.getLogger(__name__)
@@ -70,11 +73,6 @@ class MasterBox(DropBox):
 
         self.slaves = {}
 
-        if self._state is not None:
-            self._unsubscribe_state = self._state.subscribe(self._on_state_event)
-        else:
-            self._unsubscribe_state = None
-
         self.toggleButton.setText(f"▼ {title} (ip: {masterIp})")
         self.initSlaveButton()
 
@@ -90,82 +88,16 @@ class MasterBox(DropBox):
         dialog.exec()
 
     def addSlave(self, slaveData, boxID=None):
+        chooseBox = TagTypeChooseBox("Visible tags")
         if boxID is None:
             boxID = datetime.now().strftime("%Y%m%d%H%M%S%f")
-        if self._project_window is not None and self._project_window.is_loading():
-            return
-        if self._state is None:
-            return
-        master_domain = self._state.master(self.boxID)
-        if boxID in master_domain.slaves:
-            return
-        self._state.add_slave(
-            self.boxID,
-            DomainSlave(
-                id=boxID,
-                name=slaveData["name"],
-                pin=str(slaveData["pin"]),
-                led_count=int(slaveData.get("led_count", 0) or 0),
-            ),
-        )
-
-    def deleteSlavesData(self, boxID):
-        logger.debug(
-            "Deleting slave boxID=%s, current slaves=%s",
-            boxID, list(self.slaves.keys()),
-        )
-        if boxID not in self.slaves:
-            return False
-        if (
-            self._state is not None
-            and self._project_window is not None
-            and not self._project_window.is_loading()
-        ):
-            try:
-                self._state.remove_slave(self.boxID, boxID)
-            except KeyError:
-                logger.warning(
-                    "state missing slave %s on master %s during delete",
-                    boxID, self.boxID,
-                )
-            return True
-        # Headless / no-state fallback.
-        del self.slaves[boxID]
-        return True
-
-    def _on_state_event(self, event):
-        if getattr(event, "master_id", None) != self.boxID:
-            return
-        if isinstance(event, SlaveAdded):
-            self._handle_slave_added(event)
-        elif isinstance(event, SlaveRemoved):
-            self._handle_slave_removed(event)
-
-    def _handle_slave_added(self, event):
-        if event.slave_id in self.slaves:
-            return
-        slave_domain = self._state.master(self.boxID).slaves[event.slave_id]
-        self._build_slave_widget_from_state(slave_domain)
-
-    def _handle_slave_removed(self, event):
-        slave_widget = self.slaves.pop(event.slave_id, None)
-        if slave_widget is not None:
-            slave_widget.deleteLater()
-
-    def _build_slave_widget_from_state(self, slave_domain):
-        """Build SlaveBox + TagManager + WaveWidget from a domain Slave.
-
-        StateReplaced does not re-emit descendant events, so for tag_types
-        and tags already present on the domain slave we drive the same
-        code paths the listeners use (via TagManager.addType with
-        is_loading() == True, and WaveWidget.addExistingTag)."""
-        chooseBox = TagTypeChooseBox("Visible tags")
         manager = TagManager(
             chooseBox,
             state=self._state,
             project_window=self._project_window,
             master_id=self.boxID,
-            slave_id=slave_domain.id,
+            slave_id=boxID,
+            commands=self._commands,
         )
         wave = WaveWidget(
             self.audio,
@@ -176,39 +108,74 @@ class MasterBox(DropBox):
             state=self._state,
             project_window=self._project_window,
             master_id=self.boxID,
-            slave_id=slave_domain.id,
+            slave_id=boxID,
+            commands=self._commands,
         )
-        slave_widget = SlaveBox(
-            title=slave_domain.name,
-            boxID=slave_domain.id,
+        slave = SlaveBox(
+            title=slaveData["name"],
+            boxID=boxID,
             wave=wave,
-            slavePin=slave_domain.pin,
-            ledCount=slave_domain.led_count,
+            slavePin=slaveData["pin"],
+            ledCount=slaveData.get("led_count", 0),
             state=self._state,
             master_id=self.boxID,
             commands=self._commands,
             project_window=self._project_window,
         )
-        slave_widget.boxDeleted.connect(self.deleteSlavesData)
-        self.slaves[slave_domain.id] = slave_widget
-        self.contentLayout.addWidget(slave_widget)
+        slave.boxDeleted.connect(self.deleteSlavesData)
 
-        for type_name, tag_type in slave_domain.tag_types.items():
-            params = {
-                "name": tag_type.name,
-                "color": tag_type.color,
-                "pin": tag_type.pin,
-                "row": int(tag_type.rows),
-                "table": int(tag_type.columns),
-                "topology": list(tag_type.topology),
-            }
-            widget_type = manager.addType(params)
-            for domain_tag in tag_type.tags:
-                tag_dict = {
-                    "time": domain_tag.time_seconds,
-                    "action": domain_tag.action,
-                    "colors": domain_tag.colors,
-                }
-                wave.addExistingTag(tag_dict, widget_type)
+        self.slaves[boxID] = slave
+        self.contentLayout.addWidget(slave)
+        if (
+            self._state is not None
+            and self._project_window is not None
+            and not self._project_window.is_loading()
+        ):
+            domain_slave = DomainSlave(
+                id=boxID,
+                name=slaveData["name"],
+                pin=str(slaveData["pin"]),
+                led_count=int(slaveData.get("led_count", 0) or 0),
+            )
+            if self._commands is not None:
+                self._commands.push(
+                    AddSlaveCommand(
+                        master_id=self.boxID,
+                        slave=domain_slave,
+                    )
+                )
+            else:
+                self._state.add_slave(self.boxID, domain_slave)
 
-        return slave_widget
+    def deleteSlavesData(self, boxID):
+        logger.debug("Deleting slave boxID=%s, current slaves=%s", boxID, list(self.slaves.keys()))
+        if boxID in self.slaves:
+            del self.slaves[boxID]
+            if (
+                self._state is not None
+                and self._project_window is not None
+                and not self._project_window.is_loading()
+            ):
+                if self._commands is not None:
+                    try:
+                        self._commands.push(
+                            DeleteSlaveCommand(
+                                master_id=self.boxID,
+                                slave_id=boxID,
+                            )
+                        )
+                    except KeyError:
+                        logger.warning(
+                            "state missing slave %s on master %s during delete",
+                            boxID, self.boxID,
+                        )
+                else:
+                    try:
+                        self._state.remove_slave(self.boxID, boxID)
+                    except KeyError:
+                        logger.warning(
+                            "state missing slave %s on master %s during delete",
+                            boxID, self.boxID,
+                        )
+            return True
+        return False
