@@ -6,8 +6,12 @@ import numpy as np
 
 import librosa
 
+from ProjectScreen.TagLogic.ruler_format import format_tick_strings
+
 
 class WaveRenderer:
+    _format_tick_strings = staticmethod(format_tick_strings)
+
     def __init__(self, plot_widget, audioData, sr, audioPath):
         self._plot_widget = plot_widget
         self.vb = plot_widget.getViewBox()
@@ -37,7 +41,9 @@ class WaveRenderer:
 
         self._plot_widget.setStyleSheet("QGraphicsView { border: 2px solid black; }")
         self._plot_widget.hideAxis("left")
-        self._plot_widget.setLabel('bottom', 'Time', units='s')
+        bottom_axis = self._plot_widget.getAxis('bottom')
+        bottom_axis.tickStrings = WaveRenderer._format_tick_strings
+        self._plot_widget.setLabel('bottom', '')
         self._plot_widget.setBackground('w')
         self.drawWave()
 
@@ -46,7 +52,7 @@ class WaveRenderer:
             xMax=self.duration,
             yMin=-1,
             yMax=1,
-            minXRange=0.001,
+            minXRange=0.05,
             maxXRange=self.duration
         )
 
