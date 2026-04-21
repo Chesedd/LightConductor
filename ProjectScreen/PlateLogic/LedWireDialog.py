@@ -1,5 +1,5 @@
 from PyQt6.QtCore import QEvent, Qt, pyqtSignal
-from PyQt6.QtGui import QMouseEvent
+from PyQt6.QtGui import QMouseEvent, QWheelEvent
 from PyQt6.QtWidgets import (
     QApplication,
     QDialog,
@@ -7,11 +7,16 @@ from PyQt6.QtWidgets import (
     QLabel,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
 from lightconductor.application.grid_sizing import compute_cell_size
+from lightconductor.application.grid_zoom import (
+    DEFAULT_MIN_CELL,
+    apply_wheel_zoom,
+)
 from lightconductor.application.wire_assignment import (
     add_to_wire,
     remove_from_wire,
@@ -28,6 +33,11 @@ class LedWireDialog(QDialog):
     cell to remove it; remaining cells keep their relative order
     and wire indices remap automatically. OK enables when exactly
     led_count cells are placed.
+
+    Mouse wheel over the grid zooms cells in/out. The first wheel
+    tick pins the cell size to a manual value; subsequent dialog
+    resizes no longer re-fit (``_user_zoomed``). A ``QScrollArea``
+    wraps the grid so oversized content scrolls.
     """
 
     wireConfigured = pyqtSignal(list)
@@ -71,6 +81,12 @@ class LedWireDialog(QDialog):
         self._drag_visited: set[int] = set()
         self._drag_snapshot: list[int] = []
         self._suppress_next_click: bool = False
+        # Zoom state. _cell_size is the pixel side of each square cell
+        # button. _user_zoomed flips to True on the first wheel tick;
+        # while True, resizeEvent stops re-fitting and the user's
+        # manual size sticks.
+        self._cell_size: int = 32
+        self._user_zoomed: bool = False
         self._build_ui()
         self._sync_buttons()
 
@@ -99,7 +115,12 @@ class LedWireDialog(QDialog):
                 self._buttons[index] = btn
                 row_layout.addWidget(btn)
             grid_layout.addWidget(row_w)
-        root.addWidget(self._grid_widget)
+
+        self._scroll = QScrollArea(self)
+        self._scroll.setWidgetResizable(False)
+        self._scroll.setWidget(self._grid_widget)
+        self._scroll.viewport().installEventFilter(self)
+        root.addWidget(self._scroll)
 
         btn_row = QHBoxLayout()
         self._ok_btn = QPushButton("OK")
@@ -117,26 +138,44 @@ class LedWireDialog(QDialog):
         initial_w = max(260, self._canvas_cols * initial_side + 40)
         initial_h = max(200, self._canvas_rows * initial_side + 120)
         self.resize(initial_w, initial_h)
+        self._fit_cell_size()
         self._apply_cell_size()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        if not self._user_zoomed:
+            self._fit_cell_size()
         self._apply_cell_size()
 
-    def _apply_cell_size(self):
-        if not self._buttons:
-            return
-        w = self._grid_widget.width()
-        h = self._grid_widget.height()
-        side = compute_cell_size(
+    def _fit_cell_size(self) -> None:
+        viewport = self._scroll.viewport()
+        w = viewport.width()
+        h = viewport.height()
+        self._cell_size = compute_cell_size(
             w,
             h,
             self._canvas_rows,
             self._canvas_cols,
-            min_size=6,
+            min_size=DEFAULT_MIN_CELL,
         )
+
+    def _apply_cell_size(self):
+        if not self._buttons:
+            return
+        side = self._cell_size
         for btn in self._buttons.values():
             btn.setFixedSize(side, side)
+        self._grid_widget.setFixedSize(
+            self._canvas_cols * side,
+            self._canvas_rows * side,
+        )
+
+    def _on_wheel_zoom(self, delta: int) -> None:
+        if delta == 0:
+            return
+        self._user_zoomed = True
+        self._cell_size = apply_wheel_zoom(self._cell_size, delta)
+        self._apply_cell_size()
 
     def _toggle_cell(self, index):
         if self._suppress_next_click:
@@ -215,6 +254,14 @@ class LedWireDialog(QDialog):
 
     def eventFilter(self, obj, event):  # type: ignore[override]
         et = event.type()
+        if et == QEvent.Type.Wheel and obj is self._scroll.viewport():
+            if isinstance(event, QWheelEvent):
+                delta = event.angleDelta().y()
+                if delta != 0:
+                    self._on_wheel_zoom(delta)
+                    event.accept()
+                    return True
+            return False
         if (
             et == QEvent.Type.MouseButtonPress
             and isinstance(event, QMouseEvent)

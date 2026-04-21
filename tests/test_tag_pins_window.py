@@ -331,6 +331,42 @@ class TagPinsWindowTests(unittest.TestCase):
         self.assertIs(slave_b, win.active_slave())
         self.assertEqual([255, 255, 255], win.colors[0])
 
+    def test_wheel_zoom_changes_cell_size_and_sets_flag(self) -> None:
+        """Directly invoking ``_on_wheel_zoom`` (the handler the
+        scroll-area viewport's event filter routes a wheel tick to)
+        must apply :func:`apply_wheel_zoom` and flip ``_user_zoomed``
+        True. Starting from a pinned 16 so initial fit-to-window (which
+        for a 1x2 topology exceeds the 64 clamp) doesn't dominate."""
+        from lightconductor.application.grid_zoom import apply_wheel_zoom
+
+        self.pw.set_active_slave(self.slave)
+        self.pw.showTagEditorWindow()
+        win = self.pw._tag_pins_window
+        assert win is not None
+        self.assertFalse(win._user_zoomed)
+        win._cell_size = 16
+        win._on_wheel_zoom(120)
+        self.assertTrue(win._user_zoomed)
+        self.assertEqual(apply_wheel_zoom(16, 120), win._cell_size)
+
+    def test_resize_after_user_zoom_does_not_refit(self) -> None:
+        """After the first wheel tick, later dialog resizes must not
+        re-fit the grid back to viewport size — the user's pinned cell
+        size sticks until the dialog is closed and reopened."""
+        self.pw.set_active_slave(self.slave)
+        self.pw.showTagEditorWindow()
+        win = self.pw._tag_pins_window
+        assert win is not None
+        win._on_wheel_zoom(120)
+        win._on_wheel_zoom(120)
+        pinned = win._cell_size
+        win.resize(900, 700)
+        QApplication.processEvents()
+        self.assertEqual(pinned, win._cell_size)
+        win.resize(200, 200)
+        QApplication.processEvents()
+        self.assertEqual(pinned, win._cell_size)
+
     def test_place_tag_twice_at_same_time_replaces_atomically(self) -> None:
         self.pw.set_active_slave(self.slave)
         self.pw.showTagEditorWindow()
