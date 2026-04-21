@@ -169,6 +169,24 @@ class LedWireDragTests(unittest.TestCase):
         d._drag_end()
         self.assertEqual([2, 0, 1, 3], d._order)
 
+    def test_drag_still_works_after_wheel_zoom_in(self) -> None:
+        """Zooming in grows the grid past the viewport; drag-paint
+        still routes through the same ``_drag_*`` API regardless of
+        cell size or scroll offset, so the resulting wire order is
+        identical to the unzoomed case."""
+        d = self._make(led_count=4)
+        d._on_wheel_zoom(120)
+        d._on_wheel_zoom(120)
+        d._on_wheel_zoom(120)
+        self.assertTrue(d._user_zoomed)
+        self.assertGreater(d._cell_size, 6)
+        d._drag_begin(0, shift=False)
+        d._drag_apply(1)
+        d._drag_apply(2)
+        d._drag_apply(3)
+        d._drag_end()
+        self.assertEqual([0, 1, 2, 3], d._order)
+
 
 class TagPinsDragTests(unittest.TestCase):
     def setUp(self) -> None:

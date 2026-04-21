@@ -20,7 +20,7 @@ from __future__ import annotations
 from typing import Any, List, Optional
 
 from PyQt6.QtCore import QEvent, Qt
-from PyQt6.QtGui import QMouseEvent
+from PyQt6.QtGui import QMouseEvent, QWheelEvent
 from PyQt6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -37,6 +38,10 @@ from PyQt6.QtWidgets import (
 from AssistanceTools.ColorPicker import ColorPicker
 from lightconductor.application.commands import AddOrReplaceTagCommand
 from lightconductor.application.grid_sizing import compute_cell_size
+from lightconductor.application.grid_zoom import (
+    DEFAULT_MIN_CELL,
+    apply_wheel_zoom,
+)
 from lightconductor.application.pattern_service import PatternService
 from lightconductor.application.topology_bbox import compute_topology_bbox
 from lightconductor.domain.models import Tag as DomainTag
@@ -92,6 +97,14 @@ class TagPinsDialog(QDialog):
         self._drag_mode: Optional[str] = None
         self._drag_visited: set[int] = set()
         self._drag_color: List[int] = [0, 0, 0]
+
+        # Zoom state. ``_cell_size`` is the pixel side of each square
+        # color-cell button. ``_user_zoomed`` flips True on the first
+        # wheel tick over the grid; while True, resizeEvent stops
+        # re-fitting and the user's manual size sticks.
+        self._cell_size: int = 24
+        self._user_zoomed: bool = False
+        self._grid_scroll: Optional[QScrollArea] = None
 
         self.setModal(False)
         self.setWindowFlag(Qt.WindowType.Window, True)
@@ -201,7 +214,12 @@ class TagPinsDialog(QDialog):
         grid_outer = QVBoxLayout(self._grid_container)
         grid_outer.setContentsMargins(0, 0, 0, 0)
         grid_outer.setSpacing(0)
-        body.addWidget(self._grid_container)
+
+        self._grid_scroll = QScrollArea()
+        self._grid_scroll.setWidgetResizable(False)
+        self._grid_scroll.setWidget(self._grid_container)
+        self._grid_scroll.viewport().installEventFilter(self)
+        body.addWidget(self._grid_scroll)
 
         body_widget = QWidget()
         body_widget.setLayout(body)
@@ -554,22 +572,42 @@ class TagPinsDialog(QDialog):
 
     def resizeEvent(self, event):  # type: ignore[override]
         super().resizeEvent(event)
+        if not self._user_zoomed:
+            self._fit_cell_size()
         self._apply_cell_size()
 
-    def _apply_cell_size(self) -> None:
-        if not self._cell_buttons or self._grid_container is None:
+    def _fit_cell_size(self) -> None:
+        if self._grid_scroll is None:
             return
-        w = self._grid_container.width()
-        h = self._grid_container.height()
-        side = compute_cell_size(
+        viewport = self._grid_scroll.viewport()
+        w = viewport.width()
+        h = viewport.height()
+        self._cell_size = compute_cell_size(
             w,
             h,
             self._bbox_rows,
             self._bbox_cols,
-            min_size=6,
+            min_size=DEFAULT_MIN_CELL,
         )
+
+    def _apply_cell_size(self) -> None:
+        if not self._cell_buttons or self._grid_container is None:
+            return
+        side = self._cell_size
         for btn in self._cell_buttons:
             btn.setFixedSize(side, side)
+        if self._bbox_rows > 0 and self._bbox_cols > 0:
+            self._grid_container.setFixedSize(
+                self._bbox_cols * side,
+                self._bbox_rows * side,
+            )
+
+    def _on_wheel_zoom(self, delta: int) -> None:
+        if delta == 0:
+            return
+        self._user_zoomed = True
+        self._cell_size = apply_wheel_zoom(self._cell_size, delta)
+        self._apply_cell_size()
 
     def _on_set_color(self) -> None:
         if self._button_group is None:
@@ -682,6 +720,18 @@ class TagPinsDialog(QDialog):
 
     def eventFilter(self, obj, event):  # type: ignore[override]
         et = event.type()
+        if (
+            et == QEvent.Type.Wheel
+            and self._grid_scroll is not None
+            and obj is self._grid_scroll.viewport()
+        ):
+            if isinstance(event, QWheelEvent):
+                delta = event.angleDelta().y()
+                if delta != 0:
+                    self._on_wheel_zoom(delta)
+                    event.accept()
+                    return True
+            return False
         if et == QEvent.Type.MouseButtonPress and isinstance(event, QMouseEvent):
             btn_id = event.button()
             if btn_id not in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton):
