@@ -26,6 +26,7 @@ from lightconductor.application.commands import (
     DeleteTagTypeCommand,
     EditRangeCommand,
 )
+from lightconductor.application.grid_sizing import compute_cell_size
 from lightconductor.application.project_state import (
     TagTypeAdded,
     TagTypeRemoved,
@@ -487,16 +488,19 @@ class TopologyDialog(QDialog):
         layout = QVBoxLayout(self)
         self.counterLabel = QLabel("")
         layout.addWidget(self.counterLabel)
-        gridWidget = QWidget()
-        gridLayout = QVBoxLayout(gridWidget)
+        self._gridWidget = QWidget()
+        gridLayout = QVBoxLayout(self._gridWidget)
+        gridLayout.setContentsMargins(0, 0, 0, 0)
+        gridLayout.setSpacing(0)
         for r in range(self.rows):
             rowWidget = QWidget()
             rowLayout = QHBoxLayout(rowWidget)
+            rowLayout.setContentsMargins(0, 0, 0, 0)
+            rowLayout.setSpacing(0)
             for c in range(self.cols):
                 index = r * self.cols + c
                 btn = QPushButton("")
                 btn.setCheckable(True)
-                btn.setFixedSize(36, 36)
                 has_no_led = self.led_cells is not None and index not in self.led_cells
                 if index in self.occupied:
                     btn.setEnabled(False)
@@ -515,7 +519,7 @@ class TopologyDialog(QDialog):
                 self.buttons[index] = btn
                 rowLayout.addWidget(btn)
             gridLayout.addWidget(rowWidget)
-        layout.addWidget(gridWidget)
+        layout.addWidget(self._gridWidget)
 
         okBtn = QPushButton("OK")
         okBtn.clicked.connect(self.accept)
@@ -523,6 +527,25 @@ class TopologyDialog(QDialog):
         layout.addWidget(okBtn)
 
         self.syncButtons()
+        # Reasonable initial dialog size; resizeEvent recomputes cells.
+        initial_side = 32
+        initial_w = max(240, self.cols * initial_side + 40)
+        initial_h = max(180, self.rows * initial_side + 120)
+        self.resize(initial_w, initial_h)
+        self._apply_cell_size()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._apply_cell_size()
+
+    def _apply_cell_size(self):
+        if not self.buttons:
+            return
+        w = self._gridWidget.width()
+        h = self._gridWidget.height()
+        side = compute_cell_size(w, h, self.rows, self.cols, min_size=6)
+        for btn in self.buttons.values():
+            btn.setFixedSize(side, side)
 
     def toggleCell(self, index):
         if index in self.occupied:
