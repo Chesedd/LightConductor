@@ -1,7 +1,8 @@
 from PyQt6.QtCore import QRectF, Qt
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtWidgets import QSizePolicy, QWidget
 
+from lightconductor.application.grid_sizing import compute_cell_size
 from lightconductor.application.led_preview import (
     _safe_int,
     render_canvas_at,
@@ -18,15 +19,21 @@ from lightconductor.application.project_state import (
     TagUpdated,
 )
 
-MIN_CELL_PX = 4
-MAX_CELL_PX = 20
+MIN_CELL_PX = 6
 TARGET_CELL_PX_2D = 10
 STRIP_ROW_HEIGHT_PX = 28
 BORDER_PX = 1
 
 
 class LedGridView(QWidget):
-    def __init__(self, state=None, master_id=None, slave_id=None, parent=None):
+    def __init__(
+        self,
+        state=None,
+        master_id=None,
+        slave_id=None,
+        parent=None,
+        resizable=False,
+    ):
         super().__init__(parent)
         self._state = state
         self._master_id = master_id
@@ -34,6 +41,7 @@ class LedGridView(QWidget):
         self._current_time = 0.0
         self._buffer = []
         self._strip_mode = True
+        self._resizable = bool(resizable)
 
         self.setFixedHeight(STRIP_ROW_HEIGHT_PX)
         self.setMinimumWidth(100)
@@ -72,8 +80,13 @@ class LedGridView(QWidget):
             return None
 
     def _apply_sizing_from_slave(self, slave):
-        """Update fixed height based on slave grid. Called from
-        _recompute after _resolve_slave."""
+        """Update height based on slave grid. Called from _recompute
+        after _resolve_slave. Strip-mode keeps a 28px legacy fixed
+        height. Grid-mode: when ``resizable`` is True the widget is
+        allowed to expand vertically so the caller (e.g. the popout
+        window) can scale cells via ``compute_cell_size``; otherwise
+        the legacy fixed-height layout is preserved for embedded
+        dialogs."""
         if slave is None:
             self._strip_mode = True
             self.setFixedHeight(STRIP_ROW_HEIGHT_PX)
@@ -84,9 +97,19 @@ class LedGridView(QWidget):
             self.setFixedHeight(STRIP_ROW_HEIGHT_PX)
         else:
             self._strip_mode = False
-            self.setFixedHeight(
-                rows * TARGET_CELL_PX_2D + 2 * BORDER_PX,
-            )
+            if self._resizable:
+                self.setMinimumHeight(
+                    rows * MIN_CELL_PX + 2 * BORDER_PX,
+                )
+                self.setMaximumHeight(16777215)
+                self.setSizePolicy(
+                    QSizePolicy.Policy.Expanding,
+                    QSizePolicy.Policy.Expanding,
+                )
+            else:
+                self.setFixedHeight(
+                    rows * TARGET_CELL_PX_2D + 2 * BORDER_PX,
+                )
 
     def _recompute(self):
         slave = self._resolve_slave()
@@ -122,6 +145,14 @@ class LedGridView(QWidget):
             ),
         ):
             self._recompute()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # Ensure repaint so compute_cell_size re-runs against the new
+        # available area. Qt schedules a paintEvent automatically on
+        # resize, but the explicit update() mirrors the 9.1 pattern
+        # and guards against subclass-layering surprises.
+        self.update()
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -174,13 +205,14 @@ class LedGridView(QWidget):
                     )
                     painter.fillRect(rect, QBrush(color))
             else:
-                cell_size = min(
-                    inside_w / cols,
-                    inside_h / rows,
-                )
-                cell_size = max(
-                    float(MIN_CELL_PX),
-                    min(cell_size, float(MAX_CELL_PX)),
+                cell_size = float(
+                    compute_cell_size(
+                        int(inside_w),
+                        int(inside_h),
+                        int(rows),
+                        int(cols),
+                        min_size=MIN_CELL_PX,
+                    ),
                 )
                 cell_pen = QPen(QColor("#0d0d0d"))
                 cell_pen.setWidth(1)
