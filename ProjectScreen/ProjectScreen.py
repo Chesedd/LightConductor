@@ -63,7 +63,7 @@ from lightconductor.presentation.project_session_controller import (
 )
 from ProjectScreen.PlateLogic.LedPreviewWindow import LedPreviewWindow
 from ProjectScreen.PlateLogic.MasterBox import MasterBox
-from ProjectScreen.PlateLogic.TagEditorWindow import TagEditorWindow
+from ProjectScreen.PlateLogic.TagPinsDialog import TagPinsDialog
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +136,7 @@ class ProjectWindow(QMainWindow):
         self._active_slave = None
         self._tag_clipboard = None
         self._preview_window: LedPreviewWindow | None = None
-        self._tag_editor_window: TagEditorWindow | None = None
+        self._tag_pins_window: TagPinsDialog | None = None
         self._unsubscribe_dirty = self.state.subscribe(
             self._on_state_event_dirty,
         )
@@ -235,17 +235,17 @@ class ProjectWindow(QMainWindow):
         already open. Mirrors ``showLedPreviewWindow``: the window is
         ``WA_DeleteOnClose`` and its ``destroyed`` signal clears the
         reference here so the next click rebuilds fresh."""
-        if self._tag_editor_window is not None:
-            self._tag_editor_window.raise_()
-            self._tag_editor_window.activateWindow()
+        if self._tag_pins_window is not None:
+            self._tag_pins_window.raise_()
+            self._tag_pins_window.activateWindow()
             return
-        window = TagEditorWindow(self, parent=self)
-        self._tag_editor_window = window
-        window.destroyed.connect(self._on_tag_editor_window_destroyed)
+        window = TagPinsDialog(project_window=self, parent=self)
+        self._tag_pins_window = window
+        window.destroyed.connect(self._on_tag_pins_window_destroyed)
         window.show()
 
-    def _on_tag_editor_window_destroyed(self, _obj=None):
-        self._tag_editor_window = None
+    def _on_tag_pins_window_destroyed(self, _obj=None):
+        self._tag_pins_window = None
 
     def _focus_in_text_input(self) -> bool:
         fw = QApplication.focusWidget()
@@ -653,7 +653,7 @@ class ProjectWindow(QMainWindow):
             wave.addExistingTag(tag_dict, widget_type)
 
     def update_color_presets(self, presets):
-        """Called by TagDialog when the user adds/removes a color
+        """Called by TagPinsDialog when the user adds/removes a color
         preset. Mutates self.settings and persists to settings.json.
         Silent on IO errors (logged only).
         """

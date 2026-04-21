@@ -178,6 +178,7 @@ class TagPinsDragTests(unittest.TestCase):
         if topology is None:
             topology = [0, 1, 2, 3, 4, 5]
         return TagPinsDialog(
+            project_window=None,
             topology=topology,
             slave_grid_columns=cols,
             current_colors=[],

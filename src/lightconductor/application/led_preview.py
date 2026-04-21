@@ -138,7 +138,7 @@ def render_canvas_with_overlay(
     """Render slave state at `time_seconds`, then overlay a
     hypothetical tag of type `overlay_type_name` whose
     (colors, action) the caller is currently editing (e.g. in
-    TagDialog). Matches the semantics the user would see after
+    TagPinsDialog). Matches the semantics the user would see after
     committing the tag and leaving the cursor at T.
 
     If canvas size <= 0, returns []. If the slave does not

@@ -1,9 +1,9 @@
-"""Tests for the popout Tag editor window (Phase 10).
+"""Tests for the unified Tag editor popout (Phase 10.1).
 
-Headless-Qt tests that drive :class:`TagEditorWindow` directly against
-a minimal ``ProjectWindow``-shaped stub. The fakes mirror what
+Headless-Qt tests that drive :class:`TagPinsDialog` directly against a
+minimal ``ProjectWindow``-shaped stub. The fakes mirror what
 ``set_active_slave`` and :mod:`ProjectScreen.TagLogic.TagManager`
-expose at runtime — enough for the window to rebind its preview,
+expose at runtime — enough for the window to rebind its grid + preview,
 enable/disable the ``Place tag`` button, and push an
 ``AddOrReplaceTagCommand`` through the real ``CommandStack``. Visual
 confirmation (real window surface, preview colors, dropdown toggles)
@@ -40,8 +40,8 @@ from lightconductor.domain.models import (  # noqa: E402
     Slave,
     TagType,
 )
-from ProjectScreen.PlateLogic.TagEditorWindow import (  # noqa: E402
-    TagEditorWindow,
+from ProjectScreen.PlateLogic.TagPinsDialog import (  # noqa: E402
+    TagPinsDialog,
 )
 
 _app: QApplication | None = None
@@ -114,24 +114,24 @@ class MiniProjectWindow(QMainWindow):
         self.state = ProjectState()
         self.commands = CommandStack(self.state)
         self._active_slave: FakeSlaveBox | None = None
-        self._tag_editor_window: TagEditorWindow | None = None
+        self._tag_pins_window: TagPinsDialog | None = None
 
     def set_active_slave(self, slave: FakeSlaveBox | None) -> None:
         self._active_slave = slave
         self.activeSlaveChanged.emit(slave)
 
     def showTagEditorWindow(self) -> None:
-        if self._tag_editor_window is not None:
-            self._tag_editor_window.raise_()
-            self._tag_editor_window.activateWindow()
+        if self._tag_pins_window is not None:
+            self._tag_pins_window.raise_()
+            self._tag_pins_window.activateWindow()
             return
-        window = TagEditorWindow(self, parent=self)
-        self._tag_editor_window = window
+        window = TagPinsDialog(project_window=self, parent=self)
+        self._tag_pins_window = window
         window.destroyed.connect(self._on_destroyed)
         window.show()
 
     def _on_destroyed(self, _obj: object = None) -> None:
-        self._tag_editor_window = None
+        self._tag_pins_window = None
 
 
 def _seed(
@@ -164,7 +164,7 @@ def _seed(
 
 class _WidgetCurType:
     """Stand-in for the widget-side ``TagType`` produced by
-    :class:`TagManager`. The editor only reads ``name``, ``topology``,
+    :class:`TagManager`. The dialog only reads ``name``, ``topology``,
     and ``table`` off ``curType``."""
 
     def __init__(self, name: str, topology: list[int], table: int = 2) -> None:
@@ -173,7 +173,7 @@ class _WidgetCurType:
         self.table = table
 
 
-class TagEditorWindowTests(unittest.TestCase):
+class TagPinsWindowTests(unittest.TestCase):
     def setUp(self) -> None:
         _ensure_app()
         self.pw = MiniProjectWindow()
@@ -188,7 +188,7 @@ class TagEditorWindowTests(unittest.TestCase):
         )
 
     def tearDown(self) -> None:
-        win = self.pw._tag_editor_window
+        win = self.pw._tag_pins_window
         if win is not None:
             win.close()
             QApplication.processEvents()
@@ -200,36 +200,35 @@ class TagEditorWindowTests(unittest.TestCase):
     def test_opens_with_expected_widgets(self) -> None:
         self.pw.set_active_slave(self.slave)
         self.pw.showTagEditorWindow()
-        win = self.pw._tag_editor_window
+        win = self.pw._tag_pins_window
         self.assertIsNotNone(win)
         assert win is not None
         self.assertEqual(["On", "Off"], [win.state_bar().itemText(i) for i in range(2)])
         self.assertTrue(win.place_button().isVisible())
-        self.assertTrue(win.edit_colors_button().isVisible())
 
     def test_second_click_raises_existing_window(self) -> None:
         self.pw.showTagEditorWindow()
-        first = self.pw._tag_editor_window
+        first = self.pw._tag_pins_window
         self.pw.showTagEditorWindow()
-        second = self.pw._tag_editor_window
+        second = self.pw._tag_pins_window
         self.assertIs(first, second)
 
     def test_close_clears_reference_and_reopen_is_fresh(self) -> None:
         self.pw.showTagEditorWindow()
-        first = self.pw._tag_editor_window
+        first = self.pw._tag_pins_window
         assert first is not None
         first.close()
         for _ in range(5):
             QApplication.processEvents()
-        self.assertIsNone(self.pw._tag_editor_window)
+        self.assertIsNone(self.pw._tag_pins_window)
         self.pw.showTagEditorWindow()
-        second = self.pw._tag_editor_window
+        second = self.pw._tag_pins_window
         self.assertIsNotNone(second)
         self.assertIsNot(first, second)
 
     def test_place_disabled_when_no_active_slave(self) -> None:
         self.pw.showTagEditorWindow()
-        win = self.pw._tag_editor_window
+        win = self.pw._tag_pins_window
         assert win is not None
         self.assertFalse(win.place_button().isEnabled())
 
@@ -242,13 +241,13 @@ class TagEditorWindowTests(unittest.TestCase):
         )
         self.pw.set_active_slave(slave_no_type)
         self.pw.showTagEditorWindow()
-        win = self.pw._tag_editor_window
+        win = self.pw._tag_pins_window
         assert win is not None
         self.assertFalse(win.place_button().isEnabled())
 
     def test_active_slave_change_enables_place(self) -> None:
         self.pw.showTagEditorWindow()
-        win = self.pw._tag_editor_window
+        win = self.pw._tag_pins_window
         assert win is not None
         self.assertFalse(win.place_button().isEnabled())
         self.pw.set_active_slave(self.slave)
@@ -257,7 +256,7 @@ class TagEditorWindowTests(unittest.TestCase):
     def test_cur_type_cleared_disables_place(self) -> None:
         self.pw.set_active_slave(self.slave)
         self.pw.showTagEditorWindow()
-        win = self.pw._tag_editor_window
+        win = self.pw._tag_pins_window
         assert win is not None
         self.assertTrue(win.place_button().isEnabled())
         self.slave.wave.manager.set_cur_type(None)
@@ -266,7 +265,7 @@ class TagEditorWindowTests(unittest.TestCase):
     def test_state_dropdown_flips_action_on(self) -> None:
         self.pw.set_active_slave(self.slave)
         self.pw.showTagEditorWindow()
-        win = self.pw._tag_editor_window
+        win = self.pw._tag_pins_window
         assert win is not None
         win.state_bar().setCurrentText("Off")
         self.assertFalse(win._action_on)
@@ -276,7 +275,7 @@ class TagEditorWindowTests(unittest.TestCase):
     def test_place_tag_creates_domain_tag(self) -> None:
         self.pw.set_active_slave(self.slave)
         self.pw.showTagEditorWindow()
-        win = self.pw._tag_editor_window
+        win = self.pw._tag_pins_window
         assert win is not None
         self.assertEqual([], self._tags())
         win.place_button().click()
@@ -288,7 +287,7 @@ class TagEditorWindowTests(unittest.TestCase):
     def test_place_tag_twice_at_same_time_replaces_atomically(self) -> None:
         self.pw.set_active_slave(self.slave)
         self.pw.showTagEditorWindow()
-        win = self.pw._tag_editor_window
+        win = self.pw._tag_pins_window
         assert win is not None
 
         win.state_bar().setCurrentText("On")
@@ -302,10 +301,8 @@ class TagEditorWindowTests(unittest.TestCase):
         second_tags = self._tags()
         self.assertEqual(1, len(second_tags))
         self.assertIsNot(original, second_tags[0])
-        # Off stores bool False.
         self.assertFalse(bool(second_tags[0].action))
 
-        # One undo restores the original atomically.
         self.pw.commands.undo()
         restored = self._tags()
         self.assertEqual(1, len(restored))
