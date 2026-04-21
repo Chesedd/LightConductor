@@ -63,6 +63,7 @@ from lightconductor.presentation.project_session_controller import (
 )
 from ProjectScreen.PlateLogic.LedPreviewWindow import LedPreviewWindow
 from ProjectScreen.PlateLogic.MasterBox import MasterBox
+from ProjectScreen.PlateLogic.TagEditorWindow import TagEditorWindow
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +136,7 @@ class ProjectWindow(QMainWindow):
         self._active_slave = None
         self._tag_clipboard = None
         self._preview_window: LedPreviewWindow | None = None
+        self._tag_editor_window: TagEditorWindow | None = None
         self._unsubscribe_dirty = self.state.subscribe(
             self._on_state_event_dirty,
         )
@@ -227,6 +229,23 @@ class ProjectWindow(QMainWindow):
 
     def _on_preview_window_destroyed(self, _obj=None):
         self._preview_window = None
+
+    def showTagEditorWindow(self):
+        """Open the singleton Tag editor window, or raise/focus it if
+        already open. Mirrors ``showLedPreviewWindow``: the window is
+        ``WA_DeleteOnClose`` and its ``destroyed`` signal clears the
+        reference here so the next click rebuilds fresh."""
+        if self._tag_editor_window is not None:
+            self._tag_editor_window.raise_()
+            self._tag_editor_window.activateWindow()
+            return
+        window = TagEditorWindow(self, parent=self)
+        self._tag_editor_window = window
+        window.destroyed.connect(self._on_tag_editor_window_destroyed)
+        window.show()
+
+    def _on_tag_editor_window_destroyed(self, _obj=None):
+        self._tag_editor_window = None
 
     def _focus_in_text_input(self) -> bool:
         fw = QApplication.focusWidget()
@@ -557,6 +576,10 @@ class ProjectWindow(QMainWindow):
         previewButton = QPushButton("Show LED preview")
         previewButton.clicked.connect(self.showLedPreviewWindow)
         controlsLayout.addWidget(previewButton)
+
+        tagEditorButton = QPushButton("Tag editor")
+        tagEditorButton.clicked.connect(self.showTagEditorWindow)
+        controlsLayout.addWidget(tagEditorButton)
 
         showButton = QPushButton("Start show")
         showButton.clicked.connect(self.startShow)
