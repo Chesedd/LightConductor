@@ -284,6 +284,53 @@ class TagPinsWindowTests(unittest.TestCase):
         self.assertEqual(1.0, tags[0].time_seconds)
         self.assertTrue(bool(tags[0].action))
 
+    def test_active_slave_changed_same_slave_does_not_rebind(self) -> None:
+        """Re-emitting activeSlaveChanged with the same slave must not
+        wipe in-progress per-LED color edits. Without the identity
+        guard, ``_apply_active_slave`` → ``_rebind_from_current_type``
+        → ``_install_topology`` resets ``colors`` to defaults."""
+        self.pw.set_active_slave(self.slave)
+        self.pw.showTagEditorWindow()
+        win = self.pw._tag_pins_window
+        assert win is not None
+        win.colors[0] = [255, 0, 0]
+
+        calls: list[object] = []
+        original = win._apply_active_slave
+
+        def spy(slave: object) -> None:
+            calls.append(slave)
+            original(slave)
+
+        win._apply_active_slave = spy  # type: ignore[assignment]
+        self.pw.activeSlaveChanged.emit(self.slave)
+
+        self.assertEqual([], calls)
+        self.assertEqual([255, 0, 0], win.colors[0])
+
+    def test_active_slave_changed_different_slave_does_rebind(self) -> None:
+        """A different slave must trigger ``_apply_active_slave`` and
+        rebuild the grid with the new topology's defaults — any
+        in-progress edits on the prior slave are intentionally lost."""
+        self.pw.set_active_slave(self.slave)
+        self.pw.showTagEditorWindow()
+        win = self.pw._tag_pins_window
+        assert win is not None
+        win.colors[0] = [255, 0, 0]
+
+        _seed(self.pw.state, "m2", "s2", "beta")
+        cur_type_b = _WidgetCurType("beta", [0, 1])
+        slave_b = FakeSlaveBox(
+            master_id="m2",
+            slave_id="s2",
+            title="Beta",
+            cur_type=cur_type_b,
+        )
+        self.pw.set_active_slave(slave_b)
+
+        self.assertIs(slave_b, win.active_slave())
+        self.assertEqual([255, 255, 255], win.colors[0])
+
     def test_place_tag_twice_at_same_time_replaces_atomically(self) -> None:
         self.pw.set_active_slave(self.slave)
         self.pw.showTagEditorWindow()

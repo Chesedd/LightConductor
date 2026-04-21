@@ -227,6 +227,30 @@ class LedPreviewWindowTests(unittest.TestCase):
         self.slave_a.wave.positionUpdate.emit(2.5, "0:02.500")
         self.assertEqual(2.5, win.grid_view()._current_time)
 
+    def test_active_slave_unchanged_no_rewire(self) -> None:
+        """Re-emitting activeSlaveChanged with the same slave must skip
+        the disconnect + reconnect churn on ``wave.positionUpdate``.
+        Spied via ``_apply_active_slave`` call count."""
+        self.pw.set_active_slave(self.slave_a)
+        self.pw.showLedPreviewWindow()
+        win = self.pw._preview_window
+        assert win is not None
+
+        calls: list[object] = []
+        original = win._apply_active_slave
+
+        def spy(slave: object) -> None:
+            calls.append(slave)
+            original(slave)
+
+        win._apply_active_slave = spy  # type: ignore[assignment]
+        self.pw.activeSlaveChanged.emit(self.slave_a)
+
+        self.assertEqual([], calls)
+        # Connection unchanged: positionUpdate still routes through.
+        self.slave_a.wave.positionUpdate.emit(3.5, "0:03.500")
+        self.assertEqual(3.5, win.grid_view()._current_time)
+
     def test_slave_change_disconnects_prior_position_update(self) -> None:
         """After switching slaves, position ticks from the old slave
         must not bleed into the popout any more."""
