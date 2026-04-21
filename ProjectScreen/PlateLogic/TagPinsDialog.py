@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
 )
 
 from AssistanceTools.ColorPicker import ColorPicker
+from lightconductor.application.grid_sizing import compute_cell_size
 from lightconductor.application.topology_bbox import compute_topology_bbox
 from ProjectScreen.TagLogic.TagScreen import ColorButton
 
@@ -128,17 +129,21 @@ class TagPinsDialog(QDialog):
         body.addWidget(left_widget)
 
         right_col = QVBoxLayout()
+        right_col.setContentsMargins(0, 0, 0, 0)
+        right_col.setSpacing(0)
+        self._cell_buttons: list[ColorButton] = []
         self._button_group = QButtonGroup()
         self._button_group.setExclusive(True)
         self._buttons_by_pos = {}
         for r in range(self._bbox_rows):
             row_w = QWidget()
             row_layout = QHBoxLayout(row_w)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(0)
             for c in range(self._bbox_cols):
                 bbox_idx = r * self._bbox_cols + c
                 pos = self._bbox_to_topo_pos[bbox_idx]
                 btn = ColorButton()
-                btn.setFixedSize(20, 20)
                 btn.setCheckable(True)
                 if pos == -1:
                     cell_idx = (self._min_row + r) * self._slave_cols + (
@@ -162,11 +167,13 @@ class TagPinsDialog(QDialog):
                     btn.setColor(self.colors[pos])
                     self._button_group.addButton(btn)
                     self._buttons_by_pos[pos] = btn
+                self._cell_buttons.append(btn)
                 row_layout.addWidget(btn)
             right_col.addWidget(row_w)
 
         right_widget = QWidget()
         right_widget.setLayout(right_col)
+        self._grid_widget = right_widget
         body.addWidget(right_widget)
 
         body_widget = QWidget()
@@ -185,6 +192,32 @@ class TagPinsDialog(QDialog):
         root.addWidget(btns_widget)
 
         self._refresh_preview()
+
+        # Reasonable initial dialog size; resizeEvent recomputes cells.
+        initial_side = 28
+        initial_w = max(420, self._bbox_cols * initial_side + 320)
+        initial_h = max(360, self._bbox_rows * initial_side + 280)
+        self.resize(initial_w, initial_h)
+        self._apply_cell_size()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._apply_cell_size()
+
+    def _apply_cell_size(self):
+        if not self._cell_buttons:
+            return
+        w = self._grid_widget.width()
+        h = self._grid_widget.height()
+        side = compute_cell_size(
+            w,
+            h,
+            self._bbox_rows,
+            self._bbox_cols,
+            min_size=6,
+        )
+        for btn in self._cell_buttons:
+            btn.setFixedSize(side, side)
 
     def _on_set_color(self):
         btn = self._button_group.checkedButton()
