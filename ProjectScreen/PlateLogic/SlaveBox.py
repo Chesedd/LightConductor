@@ -22,7 +22,6 @@ from lightconductor.application.duplicate import (
 from lightconductor.config import save_settings
 from ProjectScreen.PlateLogic.DeleteDialog import DeleteDialog
 from ProjectScreen.PlateLogic.RenameDialog import RenameDialog
-from ProjectScreen.PlateLogic.TagDialog import TagDialog
 from ProjectScreen.PlateLogic.TagGroupPatternDialog import TagGroupPatternDialog
 from ProjectScreen.TagLogic.TagScreen import TagInfoScreen
 from ProjectScreen.TagLogic.WaveMiniMap import WaveMiniMap
@@ -122,14 +121,11 @@ class SlaveBox(DropBox):
         self.addWidget(self.mainWidget)
 
     def initTagWaveButtons(self):
-        addButton = QPushButton("Add tag")
-        addButton.clicked.connect(self.createTag)
         addGroupButton = QPushButton("Add tag group")
         addGroupButton.clicked.connect(self.createTagGroup)
         tagWaveButtons = QWidget()
         tagWaveButtons.layout = QVBoxLayout(tagWaveButtons)
         tagWaveButtons.layout.addWidget(self.wave.chooseBox)
-        tagWaveButtons.layout.addWidget(addButton)
         tagWaveButtons.layout.addWidget(addGroupButton)
 
         return tagWaveButtons
@@ -163,48 +159,6 @@ class SlaveBox(DropBox):
     def addTagState(self, tagType):
         state = TagState(tagType)
         self.tagsLayout.addWidget(state)
-
-    def createTag(self):
-        curType = self.wave.manager.curType
-        if curType is None:
-            return
-        slave = None
-        if self._state is not None and self._master_id is not None:
-            try:
-                slave = self._state.master(self._master_id).slaves[self.boxID]
-            except KeyError:
-                slave = None
-        current_time = 0.0
-        try:
-            current_time = float(self.wave._renderer.selectedLine.value())
-        except Exception:
-            current_time = 0.0
-        led_count = int(getattr(slave, "led_count", 0) or 0) if slave else 0
-        settings = None
-        on_presets_changed = None
-        if self._project_window is not None:
-            settings = getattr(self._project_window, "settings", None)
-            on_presets_changed = getattr(
-                self._project_window,
-                "update_color_presets",
-                None,
-            )
-        slave_grid_columns = int(getattr(slave, "grid_columns", 0) or 0) if slave else 0
-        dialog = TagDialog(
-            curType.row,
-            curType.table,
-            curType.topology,
-            self,
-            slave=slave,
-            type_name=curType.name,
-            current_time=current_time,
-            led_count=led_count,
-            settings=settings,
-            on_presets_changed=on_presets_changed,
-            slave_grid_columns=slave_grid_columns,
-        )
-        dialog.tagCreated.connect(self.wave.addTag)
-        dialog.exec()
 
     def createTagGroup(self):
         curType = self.wave.manager.curType

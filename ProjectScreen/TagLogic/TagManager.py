@@ -43,6 +43,13 @@ logger = logging.getLogger(__name__)
 
 class TagManager(QWidget):
     newTypeCreate = pyqtSignal(TagType)
+    # Emitted when ``curType`` changes — either via the user picking a
+    # different TagButton (``setNewType``) or because the current type
+    # was removed (``_handle_tag_type_removed``). Payload is the new
+    # ``curType`` (a widget-side ``TagType`` or ``None``). Consumed by
+    # the popout Tag editor window so it can rebind its preview /
+    # colors to whatever type the active slave is now pointed at.
+    currentTypeChanged = pyqtSignal(object)
 
     def __init__(
         self,
@@ -273,6 +280,7 @@ class TagManager(QWidget):
         self.types.pop(type_name, None)
         if self.curType is not None and self.curType.name == type_name:
             self.curType = None
+            self.currentTypeChanged.emit(None)
 
     def _handle_tag_type_updated(self, event):
         type_name = event.type_name
@@ -314,6 +322,7 @@ class TagManager(QWidget):
 
     def setNewType(self):
         self.curType = self.buttons.checkedButton().tagType
+        self.currentTypeChanged.emit(self.curType)
 
 
 class editDialog(SimpleDialog):

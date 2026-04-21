@@ -87,6 +87,80 @@ class AddTagCommand:
 
 
 @dataclass(slots=True)
+class AddOrReplaceTagCommand:
+    """Add a tag at ``tag.time_seconds``; if a sibling tag of the same
+    ``(master_id, slave_id, type_name)`` already sits on that exact
+    ``time_seconds`` (float equality), remove it first and reinsert the
+    new one in its place.
+
+    Undo restores the replaced tag if one existed, or just removes the
+    newly-added tag otherwise. The replace is atomic: both mutations
+    happen inside a single ``execute`` call and are reversed by a
+    single ``undo`` call.
+
+    Scope is intentionally limited to the same ``type_name`` — a
+    different TagType with a coincidentally identical timestamp is
+    left untouched.
+    """
+
+    master_id: str
+    slave_id: str
+    type_name: str
+    tag: Tag
+    _applied_index: Optional[int] = field(default=None, init=False)
+    _replaced_old_tag: Optional[Tag] = field(default=None, init=False)
+    _replaced_old_index: Optional[int] = field(default=None, init=False)
+
+    def execute(self, state: ProjectState) -> None:
+        tags = (
+            state.master(self.master_id)
+            .slaves[self.slave_id]
+            .tag_types[self.type_name]
+            .tags
+        )
+        collision_index: Optional[int] = None
+        for i, existing in enumerate(tags):
+            if existing.time_seconds == self.tag.time_seconds:
+                collision_index = i
+                break
+        if collision_index is not None:
+            self._replaced_old_index = collision_index
+            self._replaced_old_tag = tags[collision_index]
+            state.remove_tag(
+                self.master_id,
+                self.slave_id,
+                self.type_name,
+                collision_index,
+            )
+        self._applied_index = state.add_tag(
+            self.master_id,
+            self.slave_id,
+            self.type_name,
+            self.tag,
+        )
+
+    def undo(self, state: ProjectState) -> None:
+        if self._applied_index is None:
+            raise RuntimeError("undo called before execute")
+        state.remove_tag(
+            self.master_id,
+            self.slave_id,
+            self.type_name,
+            self._applied_index,
+        )
+        if self._replaced_old_tag is not None:
+            state.add_tag(
+                self.master_id,
+                self.slave_id,
+                self.type_name,
+                self._replaced_old_tag,
+            )
+        self._applied_index = None
+        self._replaced_old_tag = None
+        self._replaced_old_index = None
+
+
+@dataclass(slots=True)
 class DeleteTagCommand:
     master_id: str
     slave_id: str

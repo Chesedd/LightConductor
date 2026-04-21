@@ -10,6 +10,7 @@ if str(SRC) not in sys.path:
 
 from lightconductor.application.commands import (
     AddMasterCommand,
+    AddOrReplaceTagCommand,
     AddSlaveCommand,
     AddTagCommand,
     AddTagTypeCommand,
@@ -838,6 +839,124 @@ def test_edit_tag_undo_before_execute_raises_runtime_error(state):
         "tt1",
         tag_index=0,
         new_time_seconds=1.0,
+    )
+
+    with pytest.raises(RuntimeError):
+        cmd.undo(state)
+
+
+# ---------------------------------------------------------------------------
+# AddOrReplaceTagCommand
+# ---------------------------------------------------------------------------
+
+
+def test_add_or_replace_tag_adds_when_no_collision(state):
+    _seed(state, [0.0, 2.0])
+    new_tag = _tag(time_seconds=1.0)
+    cmd = AddOrReplaceTagCommand("m1", "s1", "tt1", new_tag)
+
+    cmd.execute(state)
+
+    tags = _tags(state)
+    assert [t.time_seconds for t in tags] == [0.0, 1.0, 2.0]
+    assert tags[1] is new_tag
+    assert cmd._replaced_old_tag is None
+
+
+def test_add_or_replace_tag_replaces_on_exact_time_collision(state):
+    _seed(state, [0.0, 1.0, 2.0])
+    tags_before = _tags(state)
+    first = tags_before[0]
+    third = tags_before[2]
+    victim = tags_before[1]
+    new_tag = _tag(time_seconds=1.0, action=False)
+    cmd = AddOrReplaceTagCommand("m1", "s1", "tt1", new_tag)
+
+    cmd.execute(state)
+
+    tags = _tags(state)
+    assert [t.time_seconds for t in tags] == [0.0, 1.0, 2.0]
+    assert tags[0] is first
+    assert tags[1] is new_tag
+    assert tags[2] is third
+    assert cmd._replaced_old_tag is victim
+    assert cmd._replaced_old_index == 1
+
+
+def test_add_or_replace_tag_undo_restores_original(state):
+    _seed(state, [0.0, 1.0, 2.0])
+    original = _tags(state)[1]
+    new_tag = _tag(time_seconds=1.0, action=False)
+    cmd = AddOrReplaceTagCommand("m1", "s1", "tt1", new_tag)
+    cmd.execute(state)
+
+    cmd.undo(state)
+
+    tags = _tags(state)
+    assert [t.time_seconds for t in tags] == [0.0, 1.0, 2.0]
+    assert tags[1] is original
+    assert cmd._applied_index is None
+    assert cmd._replaced_old_tag is None
+
+
+def test_add_or_replace_tag_undo_after_pure_add_removes_only_new(state):
+    _seed(state, [0.0, 2.0])
+    new_tag = _tag(time_seconds=1.0)
+    cmd = AddOrReplaceTagCommand("m1", "s1", "tt1", new_tag)
+    cmd.execute(state)
+
+    cmd.undo(state)
+
+    assert [t.time_seconds for t in _tags(state)] == [0.0, 2.0]
+
+
+def test_add_or_replace_tag_two_consecutive_undo_returns_to_empty(state):
+    first = _tag(time_seconds=1.0, action=True)
+    second = _tag(time_seconds=1.0, action=False)
+    cmd_a = AddOrReplaceTagCommand("m1", "s1", "tt1", first)
+    cmd_b = AddOrReplaceTagCommand("m1", "s1", "tt1", second)
+
+    cmd_a.execute(state)
+    cmd_b.execute(state)
+
+    tags = _tags(state)
+    assert len(tags) == 1
+    assert tags[0] is second
+    assert cmd_b._replaced_old_tag is first
+
+    cmd_b.undo(state)
+    tags = _tags(state)
+    assert len(tags) == 1
+    assert tags[0] is first
+
+    cmd_a.undo(state)
+    assert _tags(state) == []
+
+
+def test_add_or_replace_tag_different_type_same_time_not_replaced(state):
+    state.add_tag_type("m1", "s1", _tag_type("tt2", pin="1", color=[2, 2, 2]))
+    state.add_tag("m1", "s1", "tt1", _tag(time_seconds=1.0, action=True))
+    original_tt1 = state.master("m1").slaves["s1"].tag_types["tt1"].tags[0]
+    new_tag = _tag(time_seconds=1.0, action=False)
+
+    cmd = AddOrReplaceTagCommand("m1", "s1", "tt2", new_tag)
+    cmd.execute(state)
+
+    tt1_tags = state.master("m1").slaves["s1"].tag_types["tt1"].tags
+    tt2_tags = state.master("m1").slaves["s1"].tag_types["tt2"].tags
+    assert len(tt1_tags) == 1
+    assert tt1_tags[0] is original_tt1
+    assert len(tt2_tags) == 1
+    assert tt2_tags[0] is new_tag
+    assert cmd._replaced_old_tag is None
+
+
+def test_add_or_replace_tag_undo_before_execute_raises_runtime_error(state):
+    cmd = AddOrReplaceTagCommand(
+        "m1",
+        "s1",
+        "tt1",
+        _tag(time_seconds=1.0),
     )
 
     with pytest.raises(RuntimeError):
