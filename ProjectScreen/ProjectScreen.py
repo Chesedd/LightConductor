@@ -61,6 +61,7 @@ from lightconductor.presentation.project_controller import ProjectScreenControll
 from lightconductor.presentation.project_session_controller import (
     ProjectSessionController,
 )
+from ProjectScreen.PlateLogic.LedPreviewWindow import LedPreviewWindow
 from ProjectScreen.PlateLogic.MasterBox import MasterBox
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,12 @@ class newMasterDialog(SimpleDialog):
 
 
 class ProjectWindow(QMainWindow):
+    # Emitted whenever ``set_active_slave`` is called. Subscribers
+    # (currently LedPreviewWindow) use this to re-wire their views
+    # to the newly-active slave without needing per-slave signal
+    # connections on the project window itself.
+    activeSlaveChanged = pyqtSignal(object)
+
     def __init__(self, project_data):
         super().__init__()
         self.settings = load_settings()
@@ -127,6 +134,7 @@ class ProjectWindow(QMainWindow):
         self._base_window_title: str = ""
         self._active_slave = None
         self._tag_clipboard = None
+        self._preview_window: LedPreviewWindow | None = None
         self._unsubscribe_dirty = self.state.subscribe(
             self._on_state_event_dirty,
         )
@@ -201,6 +209,24 @@ class ProjectWindow(QMainWindow):
 
     def set_active_slave(self, slave):
         self._active_slave = slave
+        self.activeSlaveChanged.emit(slave)
+
+    def showLedPreviewWindow(self):
+        """Open the popout LED preview, or raise/focus it if already
+        open. One instance per project window; closing destroys it
+        (WA_DeleteOnClose) and clears the reference via the
+        ``destroyed`` signal."""
+        if self._preview_window is not None:
+            self._preview_window.raise_()
+            self._preview_window.activateWindow()
+            return
+        window = LedPreviewWindow(self, parent=self)
+        self._preview_window = window
+        window.destroyed.connect(self._on_preview_window_destroyed)
+        window.show()
+
+    def _on_preview_window_destroyed(self, _obj=None):
+        self._preview_window = None
 
     def _focus_in_text_input(self) -> bool:
         fw = QApplication.focusWidget()
@@ -527,6 +553,10 @@ class ProjectWindow(QMainWindow):
         exportButton = QPushButton("Export score")
         exportButton.clicked.connect(self.exportScore)
         controlsLayout.addWidget(exportButton)
+
+        previewButton = QPushButton("Show LED preview")
+        previewButton.clicked.connect(self.showLedPreviewWindow)
+        controlsLayout.addWidget(previewButton)
 
         showButton = QPushButton("Start show")
         showButton.clicked.connect(self.startShow)
