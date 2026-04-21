@@ -1,5 +1,7 @@
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import QEvent, Qt, pyqtSignal
+from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtWidgets import (
+    QApplication,
     QButtonGroup,
     QDialog,
     QHBoxLayout,
@@ -57,6 +59,14 @@ class TagPinsDialog(QDialog):
             c = cell % self._slave_cols - self._min_col
             bbox_idx = r * self._bbox_cols + c
             self._bbox_to_topo_pos[bbox_idx] = pos
+
+        # Drag-paint state. mode is "PAINT" | "CLEAR" | None. _drag_color
+        # is captured once on press so mid-drag color-picker changes
+        # don't affect the in-flight stroke.
+        self._drag_active: bool = False
+        self._drag_mode: str | None = None
+        self._drag_visited: set[int] = set()
+        self._drag_color: list[int] = [0, 0, 0]
 
         self._build_ui()
 
@@ -167,6 +177,7 @@ class TagPinsDialog(QDialog):
                     btn.setColor(self.colors[pos])
                     self._button_group.addButton(btn)
                     self._buttons_by_pos[pos] = btn
+                    btn.installEventFilter(self)
                 self._cell_buttons.append(btn)
                 row_layout.addWidget(btn)
             right_col.addWidget(row_w)
@@ -298,3 +309,76 @@ class TagPinsDialog(QDialog):
     def _on_ok(self):
         self.colorsChanged.emit(list(self.colors))
         self.accept()
+
+    # --- Drag-paint -----------------------------------------------------
+
+    def _drag_begin(self, pos: int, button: str) -> None:
+        """Start a drag. Left button paints with the current color
+        picker value; right button clears to [0, 0, 0]."""
+        self._drag_active = True
+        self._drag_mode = "PAINT" if button == "left" else "CLEAR"
+        self._drag_visited = set()
+        if self._drag_mode == "PAINT":
+            self._drag_color = list(self._color_picker.rgb)
+        else:
+            self._drag_color = [0, 0, 0]
+        self._drag_apply(pos)
+
+    def _drag_apply(self, pos: int) -> None:
+        if not self._drag_active or self._drag_mode is None:
+            return
+        if pos in self._drag_visited:
+            return
+        self._drag_visited.add(pos)
+        btn = self._buttons_by_pos.get(pos)
+        if btn is None:
+            return
+        btn.setColor(list(self._drag_color))
+        self.colors[pos] = list(self._drag_color)
+        self._refresh_preview()
+
+    def _drag_end(self) -> None:
+        self._drag_active = False
+        self._drag_mode = None
+        self._drag_visited = set()
+
+    def _pos_at_global(self, global_pos) -> int | None:
+        w = QApplication.widgetAt(global_pos)
+        for pos, btn in self._buttons_by_pos.items():
+            if btn is w:
+                return pos
+        return None
+
+    def eventFilter(self, obj, event):  # type: ignore[override]
+        et = event.type()
+        if et == QEvent.Type.MouseButtonPress and isinstance(event, QMouseEvent):
+            btn_id = event.button()
+            if btn_id not in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton):
+                return super().eventFilter(obj, event)
+            for pos, b in self._buttons_by_pos.items():
+                if b is obj:
+                    which = "left" if btn_id == Qt.MouseButton.LeftButton else "right"
+                    self._drag_begin(pos, which)
+                    # Right-button single-click acts as "clear". Qt
+                    # does not emit `clicked` for right-press, so no
+                    # click-suppression is needed here.
+                    return btn_id == Qt.MouseButton.RightButton
+        elif (
+            et == QEvent.Type.MouseMove
+            and isinstance(event, QMouseEvent)
+            and self._drag_active
+        ):
+            pos = self._pos_at_global(event.globalPosition().toPoint())
+            if pos is not None:
+                self._drag_apply(pos)
+            return False
+        elif (
+            et == QEvent.Type.MouseButtonRelease
+            and isinstance(event, QMouseEvent)
+            and self._drag_active
+            and event.button()
+            in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton)
+        ):
+            self._drag_end()
+            return False
+        return super().eventFilter(obj, event)
