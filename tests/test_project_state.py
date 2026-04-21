@@ -11,6 +11,7 @@ if str(SRC) not in sys.path:
 from lightconductor.application.project_state import (
     MasterAdded,
     MasterRemoved,
+    MasterUpdated,
     ProjectState,
     SlaveAdded,
     SlaveRemoved,
@@ -114,6 +115,43 @@ def test_remove_master_emits_master_removed(state):
     assert state.has_master("m1") is False
     assert len(events) == 1
     assert isinstance(events[0], MasterRemoved)
+    assert events[0].master_id == "m1"
+
+
+def test_update_master_ip_mutates_ip_and_emits_master_updated(state):
+    master = _master("m1")
+    master.ip = "10.0.0.1"
+    state.add_master(master)
+    events = _capture(state)
+
+    state.update_master_ip("m1", "10.0.0.99")
+
+    assert state.master("m1").ip == "10.0.0.99"
+    assert len(events) == 1
+    assert isinstance(events[0], MasterUpdated)
+    assert events[0].master_id == "m1"
+
+
+def test_update_master_ip_missing_master_raises_key_error(state):
+    events = _capture(state)
+
+    with pytest.raises(KeyError):
+        state.update_master_ip("nope", "10.0.0.1")
+
+    assert events == []
+
+
+def test_update_master_ip_same_value_still_emits_master_updated(state):
+    master = _master("m1")
+    master.ip = "10.0.0.1"
+    state.add_master(master)
+    events = _capture(state)
+
+    state.update_master_ip("m1", "10.0.0.1")
+
+    assert state.master("m1").ip == "10.0.0.1"
+    assert len(events) == 1
+    assert isinstance(events[0], MasterUpdated)
     assert events[0].master_id == "m1"
 
 

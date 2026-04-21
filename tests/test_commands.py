@@ -22,9 +22,11 @@ from lightconductor.application.commands import (
     EditTagCommand,
     MoveTagCommand,
     TopologyCollisionError,
+    UpdateMasterIpCommand,
 )
 from lightconductor.application.project_state import (
     MasterAdded,
+    MasterUpdated,
     ProjectState,
     SlaveAdded,
     SlaveRemoved,
@@ -961,3 +963,69 @@ def test_add_or_replace_tag_undo_before_execute_raises_runtime_error(state):
 
     with pytest.raises(RuntimeError):
         cmd.undo(state)
+
+
+# ---------------------------------------------------------------------------
+# UpdateMasterIpCommand
+# ---------------------------------------------------------------------------
+
+
+def test_update_master_ip_execute_changes_ip_and_emits_master_updated(state):
+    state.master("m1").ip = "10.0.0.1"
+    events = _capture(state)
+    cmd = UpdateMasterIpCommand(master_id="m1", new_ip="10.0.0.2")
+
+    cmd.execute(state)
+
+    assert state.master("m1").ip == "10.0.0.2"
+    assert len(events) == 1
+    assert isinstance(events[0], MasterUpdated)
+    assert events[0].master_id == "m1"
+
+
+def test_update_master_ip_undo_restores_old_ip_and_emits(state):
+    state.master("m1").ip = "10.0.0.1"
+    cmd = UpdateMasterIpCommand(master_id="m1", new_ip="10.0.0.2")
+    cmd.execute(state)
+    events = _capture(state)
+
+    cmd.undo(state)
+
+    assert state.master("m1").ip == "10.0.0.1"
+    assert len(events) == 1
+    assert isinstance(events[0], MasterUpdated)
+    assert events[0].master_id == "m1"
+
+
+def test_update_master_ip_redo_after_undo_reapplies_new_ip(state):
+    state.master("m1").ip = "10.0.0.1"
+    cmd = UpdateMasterIpCommand(master_id="m1", new_ip="10.0.0.2")
+    cmd.execute(state)
+    cmd.undo(state)
+
+    cmd.execute(state)
+
+    assert state.master("m1").ip == "10.0.0.2"
+
+
+def test_update_master_ip_execute_unknown_master_raises_key_error(state):
+    cmd = UpdateMasterIpCommand(master_id="missing", new_ip="10.0.0.2")
+
+    with pytest.raises(KeyError):
+        cmd.execute(state)
+
+
+def test_update_master_ip_two_consecutive_push_undo_cycles_consistent(state):
+    state.master("m1").ip = "10.0.0.1"
+    cmd_a = UpdateMasterIpCommand(master_id="m1", new_ip="10.0.0.2")
+    cmd_b = UpdateMasterIpCommand(master_id="m1", new_ip="10.0.0.3")
+
+    cmd_a.execute(state)
+    cmd_b.execute(state)
+    assert state.master("m1").ip == "10.0.0.3"
+
+    cmd_b.undo(state)
+    assert state.master("m1").ip == "10.0.0.2"
+
+    cmd_a.undo(state)
+    assert state.master("m1").ip == "10.0.0.1"

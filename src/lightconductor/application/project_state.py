@@ -37,6 +37,11 @@ class MasterRemoved:
 
 
 @dataclass(frozen=True, slots=True)
+class MasterUpdated:
+    master_id: str
+
+
+@dataclass(frozen=True, slots=True)
 class SlaveAdded:
     master_id: str
     slave_id: str
@@ -97,6 +102,7 @@ ProjectStateEvent = Union[
     StateReplaced,
     MasterAdded,
     MasterRemoved,
+    MasterUpdated,
     SlaveAdded,
     SlaveRemoved,
     TagTypeAdded,
@@ -163,6 +169,15 @@ class ProjectState:
             raise KeyError(master_id)
         del self._masters[master_id]
         self._emit(MasterRemoved(master_id=master_id))
+
+    def update_master_ip(self, master_id: str, new_ip: str) -> None:
+        """Set the master's IP and emit MasterUpdated. Emits even when
+        ``new_ip`` equals the current value — matches the convention
+        used by ``update_tag_type`` (always emit; consumers deduplicate
+        if they care). Raises KeyError if the master is missing."""
+        master = self._masters[master_id]
+        master.ip = new_ip
+        self._emit(MasterUpdated(master_id=master_id))
 
     def add_slave(self, master_id: str, slave: Slave) -> None:
         """Raises KeyError if master missing, ValueError on duplicate slave id."""
