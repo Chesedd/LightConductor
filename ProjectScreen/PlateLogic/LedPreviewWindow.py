@@ -100,6 +100,11 @@ class LedPreviewWindow(QDialog):
             return None
 
     def _on_active_slave_changed(self, slave: Any) -> None:
+        # Defensive identity guard: avoids the disconnect + reconnect
+        # churn on positionUpdate when the signal re-fires with the
+        # same slave (e.g. from a future regression of the emit site).
+        if slave is self._active_slave:
+            return
         self._apply_active_slave(slave)
 
     def _apply_active_slave(self, slave: Any) -> None:

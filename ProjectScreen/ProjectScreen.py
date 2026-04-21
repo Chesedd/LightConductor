@@ -210,6 +210,13 @@ class ProjectWindow(QMainWindow):
         self.addAction(pasteTagAction)
 
     def set_active_slave(self, slave):
+        # Idempotent: SlaveBox.wave emits waveActivated on any wave
+        # interaction (including playhead moves), so this method can be
+        # called repeatedly with the same slave. Emitting on every call
+        # caused subscribers (TagPinsDialog) to rebuild their grids and
+        # wipe in-progress edits.
+        if slave is self._active_slave:
+            return
         self._active_slave = slave
         self.activeSlaveChanged.emit(slave)
 

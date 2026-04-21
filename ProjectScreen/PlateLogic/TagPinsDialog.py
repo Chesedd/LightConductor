@@ -344,6 +344,11 @@ class TagPinsDialog(QDialog):
     # ---- Active slave / current type wiring -------------------------------
 
     def _on_active_slave_changed(self, slave: Any) -> None:
+        # Defensive identity guard: even if upstream loses its
+        # idempotency, re-applying the same slave would tear down the
+        # grid and lose in-progress color edits.
+        if slave is self._active_slave:
+            return
         self._apply_active_slave(slave)
 
     def _apply_active_slave(self, slave: Any) -> None:
