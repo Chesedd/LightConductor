@@ -1,9 +1,10 @@
 import logging
 
 import pyqtgraph as pg
-from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtGui import QAction, QColor
+from PyQt6.QtCore import QEvent, Qt, pyqtSignal
+from PyQt6.QtGui import QAction, QColor, QMouseEvent
 from PyQt6.QtWidgets import (
+    QApplication,
     QButtonGroup,
     QCheckBox,
     QComboBox,
@@ -485,6 +486,18 @@ class TopologyDialog(QDialog):
             self.order = self.order[: self.max_selection]
         self.buttons = {}
 
+        # Drag-paint state: mode is "ADD", "REMOVE", or None. Visited
+        # cells are deduped per-drag so revisiting a cell doesn't
+        # double-toggle it.
+        self._drag_active: bool = False
+        self._drag_mode: str | None = None
+        self._drag_visited: set[int] = set()
+        # Set when a drag's press cell is applied via the event-filter
+        # pipeline. The subsequent Qt `clicked` signal on the press
+        # cell would otherwise re-invoke toggleCell and undo the drag,
+        # so toggleCell consumes and clears this flag.
+        self._suppress_next_click: bool = False
+
         layout = QVBoxLayout(self)
         self.counterLabel = QLabel("")
         layout.addWidget(self.counterLabel)
@@ -516,6 +529,7 @@ class TopologyDialog(QDialog):
                     )
                 else:
                     btn.clicked.connect(lambda checked, i=index: self.toggleCell(i))
+                    btn.installEventFilter(self)
                 self.buttons[index] = btn
                 rowLayout.addWidget(btn)
             gridLayout.addWidget(rowWidget)
@@ -548,6 +562,9 @@ class TopologyDialog(QDialog):
             btn.setFixedSize(side, side)
 
     def toggleCell(self, index):
+        if self._suppress_next_click:
+            self._suppress_next_click = False
+            return
         if index in self.occupied:
             return
         if self.led_cells is not None and index not in self.led_cells:
@@ -559,6 +576,93 @@ class TopologyDialog(QDialog):
                 return
             self.order.append(index)
         self.syncButtons()
+
+    # --- Drag-paint -----------------------------------------------------
+
+    def _cell_eligible(self, index: int) -> bool:
+        if index in self.occupied:
+            return False
+        if self.led_cells is not None and index not in self.led_cells:
+            return False
+        return True
+
+    def _drag_begin(self, index: int) -> None:
+        """Start a drag. Mode is ADD if press cell is free, REMOVE if
+        press cell is already in the topology, NONE for disabled cells."""
+        if not self._cell_eligible(index):
+            self._drag_active = False
+            self._drag_mode = None
+            self._drag_visited = set()
+            return
+        self._drag_active = True
+        self._drag_mode = "REMOVE" if index in self.order else "ADD"
+        self._drag_visited = set()
+        self._suppress_next_click = True
+        self._drag_apply(index)
+
+    def _drag_apply(self, index: int) -> None:
+        if not self._drag_active or self._drag_mode is None:
+            return
+        if index in self._drag_visited:
+            return
+        self._drag_visited.add(index)
+        if not self._cell_eligible(index):
+            return
+        if self._drag_mode == "ADD":
+            if index in self.order:
+                return
+            if len(self.order) >= self.max_selection:
+                return
+            self.order.append(index)
+        else:  # REMOVE
+            if index not in self.order:
+                return
+            self.order.remove(index)
+        self.syncButtons()
+
+    def _drag_end(self) -> None:
+        self._drag_active = False
+        self._drag_mode = None
+        self._drag_visited = set()
+
+    def _index_at_global(self, global_pos) -> int | None:
+        """Return the cell index under the given global screen pos,
+        or None if the position is not over any live button."""
+        w = QApplication.widgetAt(global_pos)
+        for idx, btn in self.buttons.items():
+            if btn is w:
+                return idx
+        return None
+
+    def eventFilter(self, obj, event):  # type: ignore[override]
+        et = event.type()
+        if (
+            et == QEvent.Type.MouseButtonPress
+            and isinstance(event, QMouseEvent)
+            and event.button() == Qt.MouseButton.LeftButton
+        ):
+            for idx, btn in self.buttons.items():
+                if btn is obj:
+                    self._drag_begin(idx)
+                    return False
+        elif (
+            et == QEvent.Type.MouseMove
+            and isinstance(event, QMouseEvent)
+            and self._drag_active
+        ):
+            idx = self._index_at_global(event.globalPosition().toPoint())
+            if idx is not None:
+                self._drag_apply(idx)
+            return False
+        elif (
+            et == QEvent.Type.MouseButtonRelease
+            and isinstance(event, QMouseEvent)
+            and event.button() == Qt.MouseButton.LeftButton
+            and self._drag_active
+        ):
+            self._drag_end()
+            return False
+        return super().eventFilter(obj, event)
 
     def syncButtons(self):
         for index, btn in self.buttons.items():

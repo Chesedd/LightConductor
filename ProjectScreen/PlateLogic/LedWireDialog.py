@@ -1,5 +1,7 @@
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import QEvent, Qt, pyqtSignal
+from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtWidgets import (
+    QApplication,
     QDialog,
     QHBoxLayout,
     QLabel,
@@ -61,6 +63,14 @@ class LedWireDialog(QDialog):
         self._order: list[int] = existing
 
         self._buttons: dict[int, QPushButton] = {}
+        # Drag-paint state. mode is "WIRE_ADD" | "WIRE_REMOVE" | None.
+        # _snapshot holds the pre-drag order so we can roll back on
+        # validation failure.
+        self._drag_active: bool = False
+        self._drag_mode: str | None = None
+        self._drag_visited: set[int] = set()
+        self._drag_snapshot: list[int] = []
+        self._suppress_next_click: bool = False
         self._build_ui()
         self._sync_buttons()
 
@@ -85,6 +95,7 @@ class LedWireDialog(QDialog):
                 btn.clicked.connect(
                     lambda _checked=False, i=index: self._toggle_cell(i),
                 )
+                btn.installEventFilter(self)
                 self._buttons[index] = btn
                 row_layout.addWidget(btn)
             grid_layout.addWidget(row_w)
@@ -128,6 +139,9 @@ class LedWireDialog(QDialog):
             btn.setFixedSize(side, side)
 
     def _toggle_cell(self, index):
+        if self._suppress_next_click:
+            self._suppress_next_click = False
+            return
         if index in self._order:
             self._order = remove_from_wire(self._order, index)
         else:
@@ -135,6 +149,102 @@ class LedWireDialog(QDialog):
                 return
             self._order = add_to_wire(self._order, index)
         self._sync_buttons()
+
+    # --- Drag-paint -----------------------------------------------------
+
+    def _drag_begin(self, index: int, shift: bool) -> None:
+        """Start a drag. Shift-press removes cells from the wire;
+        otherwise cells are assigned consecutive wire indices in the
+        order the cursor visits them."""
+        self._drag_active = True
+        self._drag_mode = "WIRE_REMOVE" if shift else "WIRE_ADD"
+        self._drag_visited = set()
+        self._drag_snapshot = list(self._order)
+        self._suppress_next_click = True
+        self._drag_apply(index)
+
+    def _drag_apply(self, index: int) -> None:
+        if not self._drag_active or self._drag_mode is None:
+            return
+        if index in self._drag_visited:
+            return
+        self._drag_visited.add(index)
+        if self._drag_mode == "WIRE_ADD":
+            if index in self._order:
+                return
+            if len(self._order) >= self._led_count:
+                return
+            self._order = add_to_wire(self._order, index)
+        else:  # WIRE_REMOVE
+            if index not in self._order:
+                return
+            self._order = remove_from_wire(self._order, index)
+        self._sync_buttons()
+
+    def _drag_end(self) -> None:
+        """Finalize drag. If the result fails validation, restore the
+        pre-drag snapshot and show the same warning as OK-time invalid
+        wire."""
+        if not self._drag_active:
+            return
+        self._drag_active = False
+        self._drag_mode = None
+        self._drag_visited = set()
+        canvas = self._canvas_rows * self._canvas_cols
+        errors = validate_wire_assignment(
+            self._order,
+            canvas,
+            len(self._order),
+        )
+        if errors:
+            self._order = list(self._drag_snapshot)
+            self._sync_buttons()
+            QMessageBox.warning(
+                self,
+                "Invalid wire",
+                "\n".join(errors),
+            )
+        self._drag_snapshot = []
+
+    def _index_at_global(self, global_pos) -> int | None:
+        w = QApplication.widgetAt(global_pos)
+        for idx, btn in self._buttons.items():
+            if btn is w:
+                return idx
+        return None
+
+    def eventFilter(self, obj, event):  # type: ignore[override]
+        et = event.type()
+        if (
+            et == QEvent.Type.MouseButtonPress
+            and isinstance(event, QMouseEvent)
+            and event.button() == Qt.MouseButton.LeftButton
+        ):
+            for idx, btn in self._buttons.items():
+                if btn is obj:
+                    shift = bool(
+                        event.modifiers() & Qt.KeyboardModifier.ShiftModifier,
+                    )
+                    self._drag_begin(idx, shift)
+                    return False
+        elif (
+            et == QEvent.Type.MouseMove
+            and isinstance(event, QMouseEvent)
+            and self._drag_active
+        ):
+            idx = self._index_at_global(event.globalPosition().toPoint())
+            if idx is not None:
+                self._drag_apply(idx)
+            return False
+        elif (
+            et == QEvent.Type.MouseButtonRelease
+            and isinstance(event, QMouseEvent)
+            and event.button() == Qt.MouseButton.LeftButton
+            and self._drag_active
+        ):
+            self._drag_end()
+            return False
+        return super().eventFilter(obj, event)
 
     def _sync_buttons(self):
         for index, btn in self._buttons.items():
