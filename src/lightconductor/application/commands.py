@@ -331,6 +331,30 @@ class AddMasterCommand:
 
 
 @dataclass(slots=True)
+class UpdateMasterIpCommand:
+    """Reversible edit of a master's IP address. Captures the prior
+    value on ``execute`` so ``undo`` can restore it. Matches the
+    existing command pattern — mutations go through
+    ``ProjectState.update_master_ip``, which emits ``MasterUpdated``
+    on both execute and undo."""
+
+    master_id: str
+    new_ip: str
+    _old_ip: Optional[str] = field(default=None, init=False)
+
+    def execute(self, state: ProjectState) -> None:
+        master = state.master(self.master_id)
+        self._old_ip = master.ip
+        state.update_master_ip(self.master_id, self.new_ip)
+
+    def undo(self, state: ProjectState) -> None:
+        if self._old_ip is None:
+            raise RuntimeError("undo called before execute")
+        state.update_master_ip(self.master_id, self._old_ip)
+        self._old_ip = None
+
+
+@dataclass(slots=True)
 class AddSlaveCommand:
     master_id: str
     slave: Slave

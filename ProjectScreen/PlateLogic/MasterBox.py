@@ -20,6 +20,7 @@ from AssistanceTools.SimpleDialog import SimpleDialog
 from lightconductor.application.commands import (
     AddSlaveCommand,
     DeleteSlaveCommand,
+    UpdateMasterIpCommand,
 )
 from lightconductor.application.device_templates import (
     build_apply_template_composite,
@@ -152,6 +153,37 @@ class newSlaveDialog(SimpleDialog):
             "led_cells": list(wire),
         }
         self.slaveCreated.emit(data)
+        self.accept()
+
+
+class editMasterIpDialog(SimpleDialog):
+    """Single-field dialog for editing a Master's IP address. Emits
+    ``masterIpChanged(str)`` on OK when the value is non-empty and
+    differs from ``current_ip``. Raw-string field with no IPv4
+    validation — matches the creation-flow policy."""
+
+    masterIpChanged = pyqtSignal(str)
+
+    def __init__(self, current_ip: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._current_ip = current_ip
+        self.uiCreate()
+
+    def uiCreate(self) -> None:
+        self.mainLayout = QVBoxLayout(self)
+
+        self.masterIpBar = self.LabelAndLine("Master IP")
+        self.masterIpBar.setText(self._current_ip)
+
+        okButton = self.OkAndCancel()
+        okButton.clicked.connect(self.onOkClicked)
+
+    def onOkClicked(self) -> None:
+        new_ip = self.masterIpBar.text().strip()
+        if not new_ip:
+            return
+        if new_ip != self._current_ip:
+            self.masterIpChanged.emit(new_ip)
         self.accept()
 
 
@@ -380,6 +412,9 @@ class MasterBox(DropBox):
         duplicateAction = QAction("Duplicate master", self)
         duplicateAction.triggered.connect(self._on_duplicate_master)
         menu.addAction(duplicateAction)
+        editIpAction = QAction("Edit IP...", self)
+        editIpAction.triggered.connect(self._on_edit_master_ip)
+        menu.addAction(editIpAction)
         templates = self._available_templates()
         if templates:
             submenu = menu.addMenu("Add slave from template")
@@ -403,6 +438,41 @@ class MasterBox(DropBox):
             disabled.setEnabled(False)
             menu.addAction(disabled)
         menu.exec(event.globalPos())
+
+    def _on_edit_master_ip(self):
+        if self._state is None or self._commands is None:
+            return
+        dialog = editMasterIpDialog(self.masterIp, self)
+        new_ip: list[str] = []
+        dialog.masterIpChanged.connect(new_ip.append)
+        if dialog.exec() != QDialog.DialogCode.Accepted or not new_ip:
+            return
+        try:
+            self._commands.push(
+                UpdateMasterIpCommand(
+                    master_id=self.boxID,
+                    new_ip=new_ip[0],
+                )
+            )
+        except KeyError:
+            logger.warning(
+                "state missing master %s during edit-ip",
+                self.boxID,
+            )
+        except Exception:
+            logger.exception(
+                "UpdateMasterIpCommand push failed",
+            )
+
+    def setMasterIp(self, new_ip: str) -> None:
+        """Apply an externally-driven IP change: refresh the internal
+        field and the header label. The ping worker reads
+        ``self.masterIp`` live on each probe, so no further wiring is
+        needed; we also kick a one-shot probe so the status indicator
+        reflects the new host without waiting for the next tick."""
+        self.masterIp = new_ip
+        self.toggleButton.setText(f"▼ {self.title} (ip: {new_ip})")
+        QTimer.singleShot(0, self._start_ping_probe)
 
     def _on_duplicate_master(self):
         if self._state is None or self._commands is None:

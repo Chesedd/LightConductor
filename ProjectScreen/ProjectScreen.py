@@ -32,7 +32,11 @@ from lightconductor.application.commands import (
 )
 from lightconductor.application.compiled_show import CompileShowsForMastersUseCase
 from lightconductor.application.project_search import compute_visibility
-from lightconductor.application.project_state import ProjectState, StateReplaced
+from lightconductor.application.project_state import (
+    MasterUpdated,
+    ProjectState,
+    StateReplaced,
+)
 from lightconductor.application.score_export import (
     build_score_records,
     render_csv,
@@ -146,6 +150,9 @@ class ProjectWindow(QMainWindow):
         # building the new subtree before we query visibility.
         self._search_unsubscribe = self.state.subscribe(
             self._on_state_event_search,
+        )
+        self._master_updated_unsubscribe = self.state.subscribe(
+            self._on_state_event_master_updated,
         )
         self._autosave_timer = QTimer(self)
         self._autosave_timer.setInterval(
@@ -1012,6 +1019,22 @@ class ProjectWindow(QMainWindow):
             return
         self._set_dirty(True)
 
+    def _on_state_event_master_updated(self, event):
+        """Route MasterUpdated events to the relevant MasterBox so its
+        header label (and ping target) reflect the edited IP. Generic
+        're-read master' dispatch — future non-IP fields on Master
+        would hook in here too."""
+        if not isinstance(event, MasterUpdated):
+            return
+        box = self.masters.get(event.master_id)
+        if box is None:
+            return
+        try:
+            master = self.state.master(event.master_id)
+        except KeyError:
+            return
+        box.setMasterIp(master.ip)
+
     def _set_dirty(self, value: bool):
         if self._dirty == value:
             return
@@ -1067,6 +1090,10 @@ class ProjectWindow(QMainWindow):
             pass
         try:
             self._search_unsubscribe()
+        except Exception:
+            pass
+        try:
+            self._master_updated_unsubscribe()
         except Exception:
             pass
         super().closeEvent(event)
