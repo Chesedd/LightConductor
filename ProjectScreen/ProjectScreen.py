@@ -68,6 +68,7 @@ from lightconductor.presentation.project_session_controller import (
 from ProjectScreen.PlateLogic.LedPreviewWindow import LedPreviewWindow
 from ProjectScreen.PlateLogic.MasterBox import MasterBox
 from ProjectScreen.PlateLogic.TagPinsDialog import TagPinsDialog
+from ProjectScreen.TagLogic.TagTimelineController import SNAP_GRANULARITY_SECONDS
 
 logger = logging.getLogger(__name__)
 
@@ -297,7 +298,7 @@ class ProjectWindow(QMainWindow):
             return
         raw_time = max(0.0, float(wave._renderer.selectedLine.value()))
         beats = getattr(wave._renderer, "beat_times", None) if beat_snap else None
-        time_val = snap_to_nearest_beat(raw_time, beats, 0.1)
+        time_val = snap_to_nearest_beat(raw_time, beats, SNAP_GRANULARITY_SECONDS)
         dur = float(getattr(wave._renderer, "duration", 0.0) or 0.0)
         if dur > 0.0 and time_val > dur:
             time_val = dur

@@ -207,15 +207,15 @@ class MigrationTests(unittest.TestCase):
 
         result = migrate_to_current(envelope)
 
-        self.assertEqual(result["schema_version"], 3)
+        self.assertEqual(result["schema_version"], CURRENT_SCHEMA_VERSION)
         slaves = result["masters"]["m1"]["slaves"]
         self.assertEqual(slaves["s1"]["led_cells"], [0, 1, 2, 3])
         self.assertEqual(slaves["s2"]["led_cells"], [])
         validate(result)
 
-    def test_migrate_legacy_v0_goes_to_v3(self):
+    def test_migrate_legacy_v0_goes_to_current(self):
         # v0 legacy dict (no schema_version) must chain through
-        # v1 → v2 → v3 and arrive with led_cells populated.
+        # v1 → v2 → v3 → v4 and arrive with led_cells populated.
         legacy = {
             "m1": {
                 "name": "M",
@@ -235,14 +235,15 @@ class MigrationTests(unittest.TestCase):
 
         result = migrate_to_current(legacy)
 
-        self.assertEqual(result["schema_version"], 3)
+        self.assertEqual(result["schema_version"], CURRENT_SCHEMA_VERSION)
         slave = result["masters"]["m1"]["slaves"]["s1"]
         self.assertEqual(slave["led_cells"], [0, 1, 2, 3, 4, 5])
         validate(result)
 
-    def test_migrate_v3_envelope_passes_through_unchanged(self):
+    def test_migrate_v3_envelope_chains_to_v4(self):
         # A v3 envelope with non-sequential led_cells must be
-        # preserved verbatim by migrate_to_current.
+        # forwarded to v4 unchanged in led_cells, only the version
+        # bumped.
         envelope = {
             "schema_version": 3,
             "masters": {
@@ -270,7 +271,153 @@ class MigrationTests(unittest.TestCase):
 
         slave = result["masters"]["m1"]["slaves"]["s1"]
         self.assertEqual(slave["led_cells"], [3, 1, 0, 2])
-        self.assertEqual(result["schema_version"], 3)
+        self.assertEqual(result["schema_version"], CURRENT_SCHEMA_VERSION)
+
+
+class MigrationV4Tests(unittest.TestCase):
+    """v3 → v4: tag.time snapped to nearest 0.02s multiple, with
+    collision-on-collapse handling per (master, slave, tag_type)."""
+
+    def _v3_envelope_with_tags(self, tags_by_type):
+        # tags_by_type maps tag_type_name -> list of (key, time) tuples
+        tag_types = {}
+        for type_name, entries in tags_by_type.items():
+            tags = {
+                str(k): {"time": t, "action": True, "colors": []} for k, t in entries
+            }
+            tag_types[type_name] = _minimal_tag_type(tags=tags)
+        slave = _minimal_slave(tag_types=tag_types)
+        return {
+            "schema_version": 3,
+            "masters": {"m1": _minimal_master(slaves={"s1": slave})},
+        }
+
+    def test_v4_snap_exact_grid_value_unchanged(self):
+        envelope = self._v3_envelope_with_tags({"front": [(0, 1.3)]})
+        result = migrate_to_current(envelope)
+        self.assertEqual(result["schema_version"], 4)
+        tags = result["masters"]["m1"]["slaves"]["s1"]["tagTypes"]["front"]["tags"]
+        self.assertAlmostEqual(tags["0"]["time"], 1.30, places=6)
+
+    def test_v4_snap_zero_unchanged(self):
+        envelope = self._v3_envelope_with_tags({"front": [(0, 0.0)]})
+        result = migrate_to_current(envelope)
+        tags = result["masters"]["m1"]["slaves"]["s1"]["tagTypes"]["front"]["tags"]
+        self.assertEqual(tags["0"]["time"], 0.0)
+
+    def test_v4_snap_off_grid_value_lands_on_grid(self):
+        # 1.31 / 0.02 = 65.5 → banker's rounding → 66 (even) → 1.32.
+        envelope = self._v3_envelope_with_tags({"front": [(0, 1.31)]})
+        result = migrate_to_current(envelope)
+        tags = result["masters"]["m1"]["slaves"]["s1"]["tagTypes"]["front"]["tags"]
+        self.assertAlmostEqual(tags["0"]["time"], 1.32, places=6)
+
+    def test_v4_existing_v0_grid_tags_collide_per_type(self):
+        # 1.00 and 1.01 both round to 1.00; second tag is dropped.
+        envelope = self._v3_envelope_with_tags({"front": [(0, 1.00), (1, 1.01)]})
+        result = migrate_to_current(envelope)
+        tags = result["masters"]["m1"]["slaves"]["s1"]["tagTypes"]["front"]["tags"]
+        self.assertEqual(len(tags), 1)
+        self.assertIn("0", tags)
+        self.assertAlmostEqual(tags["0"]["time"], 1.00, places=6)
+
+    def test_v4_collisions_scoped_to_same_tag_type_per_slave(self):
+        # Same time on different slaves under the same master must
+        # NOT collide.
+        slave_a = _minimal_slave(
+            tag_types={
+                "front": _minimal_tag_type(
+                    tags={"0": {"time": 1.0, "action": True, "colors": []}}
+                )
+            }
+        )
+        slave_b = _minimal_slave(
+            tag_types={
+                "front": _minimal_tag_type(
+                    tags={"0": {"time": 1.0, "action": True, "colors": []}}
+                )
+            }
+        )
+        slave_b["id"] = "s2"
+        envelope = {
+            "schema_version": 3,
+            "masters": {"m1": _minimal_master(slaves={"s1": slave_a, "s2": slave_b})},
+        }
+        result = migrate_to_current(envelope)
+        slaves = result["masters"]["m1"]["slaves"]
+        self.assertEqual(len(slaves["s1"]["tagTypes"]["front"]["tags"]), 1)
+        self.assertEqual(len(slaves["s2"]["tagTypes"]["front"]["tags"]), 1)
+
+    def test_v4_full_chain_from_v0(self):
+        # Pre-v1 dict with a tag at 1.05 (off-grid for 0.02) must
+        # chain v0 → v1 → v2 → v3 → v4 and snap to 1.06.
+        legacy = {
+            "m1": {
+                "name": "M",
+                "id": "m1",
+                "ip": "10.0.0.1",
+                "slaves": {
+                    "s1": {
+                        "name": "S1",
+                        "pin": "1",
+                        "led_count": 4,
+                        "id": "s1",
+                        "tagTypes": {
+                            "front": {
+                                "color": [0, 0, 0],
+                                "pin": "3",
+                                "segment_start": 0,
+                                "segment_size": 4,
+                                "row": 1,
+                                "table": 1,
+                                "topology": [0, 1, 2, 3],
+                                "tags": {
+                                    "0": {
+                                        "time": 1.05,
+                                        "action": True,
+                                        "colors": [],
+                                    }
+                                },
+                            }
+                        },
+                    }
+                },
+            }
+        }
+        result = migrate_to_current(legacy)
+        self.assertEqual(result["schema_version"], CURRENT_SCHEMA_VERSION)
+        tag = result["masters"]["m1"]["slaves"]["s1"]["tagTypes"]["front"]["tags"]["0"]
+        # round(1.05 / 0.02) = round(52.5) = 52 (banker's) → 1.04
+        self.assertAlmostEqual(tag["time"], 1.04, places=6)
+        validate(result)
+
+    def test_v4_envelope_passes_through_unchanged(self):
+        envelope = {
+            "schema_version": 4,
+            "masters": {
+                "m1": _minimal_master(
+                    slaves={
+                        "s1": _minimal_slave(
+                            tag_types={
+                                "front": _minimal_tag_type(
+                                    tags={
+                                        "0": {
+                                            "time": 0.42,
+                                            "action": False,
+                                            "colors": [],
+                                        }
+                                    }
+                                )
+                            }
+                        )
+                    }
+                )
+            },
+        }
+        result = migrate_to_current(envelope)
+        tag = result["masters"]["m1"]["slaves"]["s1"]["tagTypes"]["front"]["tags"]["0"]
+        self.assertEqual(tag["time"], 0.42)
+        self.assertEqual(result["schema_version"], 4)
 
 
 class WrapUnwrapTests(unittest.TestCase):
