@@ -6,7 +6,7 @@ slave configurations. Consumed by ProjectWindow (save), MasterBox
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional
 
 from lightconductor.application.commands import (
     AddSlaveCommand,
@@ -98,23 +98,57 @@ def slave_from_template(
     return unpack_slave(slave_config_copy)
 
 
+def _next_free_int_pin(
+    existing_pins: Iterable[str],
+) -> Optional[str]:
+    """Return the smallest non-negative integer (as str) not present in
+    ``existing_pins`` after parsing each entry as an int. Returns None
+    if any entry in ``existing_pins`` is not a valid integer string —
+    caller should fall back to leaving the pin as-is. Empty input
+    yields ``"0"``."""
+    occupied: set[int] = set()
+    for raw in existing_pins:
+        try:
+            occupied.add(int(raw))
+        except (TypeError, ValueError):
+            return None
+    candidate = 0
+    while candidate in occupied:
+        candidate += 1
+    return str(candidate)
+
+
 def build_apply_template_composite(
     template: Dict[str, Any],
     target_master_id: str,
     new_slave_id: str,
     new_slave_name: Optional[str] = None,
+    existing_pins: Optional[Iterable[str]] = None,
 ) -> CompositeCommand:
     """Construct a CompositeCommand that creates a new slave from the
     template under target_master_id. Children:
       1. AddSlaveCommand with empty tag_types.
       2. AddTagTypeCommand per tag_type in the template (all with
          empty tags).
-    No AddTagCommand children — templates carry no tags."""
+    No AddTagCommand children — templates carry no tags.
+
+    When ``existing_pins`` is provided and the template's pin already
+    appears in that set, the new slave's pin is reassigned to the next
+    free non-negative integer via ``_next_free_int_pin``. If any
+    existing pin is non-integer, reassignment is skipped and the
+    template pin is used verbatim — letting ``ProjectState.add_slave``
+    surface a ``DuplicateSlavePinError`` to the caller."""
     full = slave_from_template(
         template,
         new_slave_id,
         new_slave_name,
     )
+    if existing_pins is not None:
+        existing_list = list(existing_pins)
+        if str(full.pin) in existing_list:
+            reassigned = _next_free_int_pin(existing_list)
+            if reassigned is not None:
+                full.pin = reassigned
     tag_types_in_order = list(full.tag_types.items())
     slave_shell = Slave(
         id=full.id,
