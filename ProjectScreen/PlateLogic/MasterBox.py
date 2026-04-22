@@ -511,10 +511,20 @@ class MasterBox(DropBox):
             "%Y%m%d%H%M%S%f",
         )
         try:
+            target_master = self._state.master(self.boxID)
+        except KeyError:
+            logger.warning(
+                "state missing master %s during apply-template",
+                self.boxID,
+            )
+            return
+        existing_pins = [str(s.pin) for s in target_master.slaves.values()]
+        try:
             composite = build_apply_template_composite(
                 template=template,
                 target_master_id=self.boxID,
                 new_slave_id=new_slave_id,
+                existing_pins=existing_pins,
             )
         except ValueError:
             logger.exception(

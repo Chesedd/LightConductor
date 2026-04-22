@@ -15,6 +15,7 @@ from lightconductor.application.commands import (
     CompositeCommand,
 )
 from lightconductor.application.device_templates import (
+    _next_free_int_pin,
     build_apply_template_composite,
     slave_from_template,
     template_from_slave,
@@ -293,6 +294,112 @@ class BuildApplyTemplateCompositeTests(unittest.TestCase):
             set(state.master("M1").slaves.keys()),
             before_slave_ids,
         )
+
+
+class NextFreeIntPinTests(unittest.TestCase):
+    def test_empty_input_yields_zero(self):
+        self.assertEqual(_next_free_int_pin([]), "0")
+
+    def test_contiguous_from_zero_yields_next(self):
+        self.assertEqual(_next_free_int_pin(["0", "1", "2"]), "3")
+
+    def test_fills_lowest_gap(self):
+        self.assertEqual(_next_free_int_pin(["1", "3"]), "0")
+
+    def test_non_integer_entry_returns_none(self):
+        self.assertIsNone(_next_free_int_pin(["0", "abc"]))
+
+    def test_contiguous_longer_range(self):
+        self.assertEqual(
+            _next_free_int_pin(["0", "1", "2", "3"]),
+            "4",
+        )
+
+    def test_duplicates_are_tolerated(self):
+        self.assertEqual(_next_free_int_pin(["0", "0", "1"]), "2")
+
+
+class ApplyTemplatePinReassignmentTests(unittest.TestCase):
+    def test_apply_template_reassigns_pin_when_conflict(self):
+        state = ProjectState()
+        state.add_master(Master(id="M1", name="Stage"))
+        source = _make_slave_with_tags()
+        state.add_slave("M1", source)
+
+        template = template_from_slave(source, "tpl-reassign")
+        target_master = state.master("M1")
+        existing_pins = [str(s.pin) for s in target_master.slaves.values()]
+        composite = build_apply_template_composite(
+            template=template,
+            target_master_id="M1",
+            new_slave_id="s-new",
+            existing_pins=existing_pins,
+        )
+
+        stack = CommandStack(state)
+        stack.push(composite)
+
+        master = state.master("M1")
+        self.assertIn("s-new", master.slaves)
+        pins = {s.pin for s in master.slaves.values()}
+        self.assertEqual(len(pins), len(master.slaves))
+        self.assertNotEqual(master.slaves["s-new"].pin, str(source.pin))
+        self.assertEqual(master.slaves["s-new"].pin, "1")
+
+    def test_apply_template_keeps_pin_when_no_conflict(self):
+        state = ProjectState()
+        state.add_master(Master(id="M1", name="Empty"))
+        source = _make_slave_with_tags()
+
+        template = template_from_slave(source, "tpl-keep")
+        target_master = state.master("M1")
+        existing_pins = [str(s.pin) for s in target_master.slaves.values()]
+        composite = build_apply_template_composite(
+            template=template,
+            target_master_id="M1",
+            new_slave_id="s-new",
+            existing_pins=existing_pins,
+        )
+
+        stack = CommandStack(state)
+        stack.push(composite)
+
+        master = state.master("M1")
+        self.assertEqual(master.slaves["s-new"].pin, str(source.pin))
+
+    def test_apply_template_non_int_existing_pins_falls_back(self):
+        state = ProjectState()
+        state.add_master(Master(id="M1", name="Exotic"))
+        exotic = Slave(
+            id="s-exotic",
+            name="Exotic",
+            pin="gpio-3",
+            led_count=1,
+            tag_types={},
+        )
+        colliding = Slave(
+            id="s-collide",
+            name="Collide",
+            pin="0",
+            led_count=1,
+            tag_types={},
+        )
+        state.add_slave("M1", exotic)
+        state.add_slave("M1", colliding)
+        source = _make_slave_with_tags()  # pin "0"
+
+        template = template_from_slave(source, "tpl-fallback")
+        target_master = state.master("M1")
+        existing_pins = [str(s.pin) for s in target_master.slaves.values()]
+        composite = build_apply_template_composite(
+            template=template,
+            target_master_id="M1",
+            new_slave_id="s-new",
+            existing_pins=existing_pins,
+        )
+
+        with self.assertRaises(DuplicateSlavePinError):
+            composite.execute(state)
 
 
 if __name__ == "__main__":
