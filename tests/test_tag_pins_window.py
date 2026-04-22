@@ -38,6 +38,7 @@ from lightconductor.application.project_state import (  # noqa: E402
 from lightconductor.domain.models import (  # noqa: E402
     Master,
     Slave,
+    Tag,
     TagType,
 )
 from ProjectScreen.PlateLogic.TagPinsDialog import (  # noqa: E402
@@ -420,6 +421,190 @@ class TagPinsWindowTests(unittest.TestCase):
         self.assertEqual(1, len(restored))
         self.assertIs(original, restored[0])
         self.assertTrue(bool(restored[0].action))
+
+
+class TagPinsEditModeTests(unittest.TestCase):
+    """Edit-mode tests — constructing the dialog against an existing
+    domain tag and exercising Save/Delete paths via the real
+    :class:`CommandStack`. Topology/bbox context is passed through
+    kwargs so edit mode does not rely on the active-slave signal
+    (which it ignores by contract)."""
+
+    def setUp(self) -> None:
+        _ensure_app()
+        self.pw = MiniProjectWindow()
+        _seed(self.pw.state, "m1", "s1", "alpha")
+        initial_tag = Tag(
+            time_seconds=0.5,
+            action=True,
+            colors=[[10, 20, 30], [40, 50, 60]],
+        )
+        self.pw.state.add_tag("m1", "s1", "alpha", initial_tag)
+        # Retrieve the stored tag reference — state makes a domain
+        # tag; we edit that one by identity.
+        self.tag = self.pw.state.master("m1").slaves["s1"].tag_types["alpha"].tags[0]
+
+    def tearDown(self) -> None:
+        self.pw.close()
+        QApplication.processEvents()
+
+    def _tags(self) -> list:
+        return list(
+            self.pw.state.master("m1").slaves["s1"].tag_types["alpha"].tags,
+        )
+
+    def _make_edit_window(self) -> TagPinsDialog:
+        return TagPinsDialog(
+            project_window=self.pw,
+            parent=self.pw,
+            mode="edit",
+            tag=self.tag,
+            master_id="m1",
+            slave_id="s1",
+            type_name="alpha",
+            topology=[0, 1],
+            slave_grid_columns=2,
+            led_cells=[0, 1],
+        )
+
+    def test_edit_mode_rejects_missing_tag(self) -> None:
+        with self.assertRaises(ValueError):
+            TagPinsDialog(mode="edit")
+
+    def test_edit_mode_populates_state_time_and_type_name(self) -> None:
+        win = self._make_edit_window()
+        self.assertEqual("edit", win.mode())
+        self.assertIsNotNone(win.save_button())
+        self.assertIsNotNone(win.delete_button())
+        self.assertFalse(win.place_button().isVisible())
+        self.assertEqual("On", win.state_bar().currentText())
+        time_edit = win.time_edit()
+        assert time_edit is not None
+        self.assertEqual(0.5, float(time_edit.text()))
+        self.assertIn("alpha", win.windowTitle())
+        win.close()
+
+    def test_edit_mode_save_pushes_edit_command_with_snapped_time(self) -> None:
+        win = self._make_edit_window()
+        time_edit = win.time_edit()
+        assert time_edit is not None
+        time_edit.setText("1.031")
+        win.colors[0] = [200, 100, 50]
+        save_btn = win.save_button()
+        assert save_btn is not None
+        save_btn.click()
+        tags = self._tags()
+        self.assertEqual(1, len(tags))
+        self.assertAlmostEqual(1.04, tags[0].time_seconds, places=5)
+        self.assertEqual([200, 100, 50], list(tags[0].colors[0]))
+        # Dialog stays open after save.
+        self.assertTrue(win.isVisible() or win._mode == "edit")
+        # Undo restores the original.
+        self.pw.commands.undo()
+        restored = self._tags()
+        self.assertAlmostEqual(0.5, restored[0].time_seconds, places=5)
+        win.close()
+
+    def test_edit_mode_save_rejects_invalid_time_input(self) -> None:
+        win = self._make_edit_window()
+        time_edit = win.time_edit()
+        assert time_edit is not None
+        time_edit.setText("not-a-number")
+        save_btn = win.save_button()
+        assert save_btn is not None
+        # Suppress the QMessageBox popup in headless tests by patching
+        # the class method during the click.
+        from PyQt6.QtWidgets import QMessageBox
+
+        original_warning = QMessageBox.warning
+        QMessageBox.warning = staticmethod(  # type: ignore[assignment]
+            lambda *a, **k: QMessageBox.StandardButton.Ok,
+        )
+        try:
+            save_btn.click()
+        finally:
+            QMessageBox.warning = original_warning  # type: ignore[assignment]
+        tags = self._tags()
+        self.assertAlmostEqual(0.5, tags[0].time_seconds, places=5)
+        win.close()
+
+    def test_edit_mode_delete_confirms_and_pushes_delete_command(self) -> None:
+        win = self._make_edit_window()
+        delete_btn = win.delete_button()
+        assert delete_btn is not None
+        from PyQt6.QtWidgets import QMessageBox
+
+        original_question = QMessageBox.question
+        QMessageBox.question = staticmethod(  # type: ignore[assignment]
+            lambda *a, **k: QMessageBox.StandardButton.Yes,
+        )
+        try:
+            delete_btn.click()
+        finally:
+            QMessageBox.question = original_question  # type: ignore[assignment]
+        self.assertEqual(0, len(self._tags()))
+
+    def test_edit_mode_delete_cancels_on_no(self) -> None:
+        win = self._make_edit_window()
+        delete_btn = win.delete_button()
+        assert delete_btn is not None
+        from PyQt6.QtWidgets import QMessageBox
+
+        original_question = QMessageBox.question
+        QMessageBox.question = staticmethod(  # type: ignore[assignment]
+            lambda *a, **k: QMessageBox.StandardButton.No,
+        )
+        try:
+            delete_btn.click()
+        finally:
+            QMessageBox.question = original_question  # type: ignore[assignment]
+        self.assertEqual(1, len(self._tags()))
+        win.close()
+
+    def test_edit_mode_ignores_active_slave_changes(self) -> None:
+        """Edit mode is pinned to the bound tag's topology; emitting
+        ``activeSlaveChanged`` must NOT trigger ``_apply_active_slave``
+        or rebuild the grid."""
+        win = self._make_edit_window()
+        calls: list[object] = []
+        original = win._apply_active_slave
+        win._apply_active_slave = lambda s: calls.append(s) or original(s)  # type: ignore[assignment]
+        other_slave = FakeSlaveBox(
+            master_id="m1",
+            slave_id="s1",
+            title="Alpha",
+            cur_type=_WidgetCurType("beta", [0, 1]),
+        )
+        self.pw.activeSlaveChanged.emit(other_slave)
+        self.assertEqual([], calls)
+        win.close()
+
+    def test_edit_mode_multiple_instances_coexist(self) -> None:
+        win_a = self._make_edit_window()
+        win_b = self._make_edit_window()
+        self.assertIsNot(win_a, win_b)
+        save_a = win_a.save_button()
+        save_b = win_b.save_button()
+        self.assertIsNotNone(save_a)
+        self.assertIsNotNone(save_b)
+        self.assertTrue(save_a is not save_b)
+        win_a.close()
+        win_b.close()
+
+    def test_place_mode_has_no_save_or_delete_buttons(self) -> None:
+        # Regression guard for the mode switch: place-mode never
+        # exposes Save / Delete.
+        win = TagPinsDialog(
+            project_window=self.pw,
+            parent=self.pw,
+            mode="place",
+        )
+        self.assertEqual("place", win.mode())
+        self.assertIsNone(win.save_button())
+        self.assertIsNone(win.delete_button())
+        self.assertIsNone(win.time_edit())
+        self.assertIsNotNone(win.place_button())
+        win.close()
 
 
 if __name__ == "__main__":

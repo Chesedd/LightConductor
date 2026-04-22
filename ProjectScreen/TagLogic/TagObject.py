@@ -66,12 +66,15 @@ class Tag(InfiniteLine):
         # Snapshot origin times if a group-drag is about to start.
         if controller is not None and self.movable:
             controller.notify_drag_started(self)
-        # Preserve the existing single-tag info-panel behavior
-        # for plain clicks. On extend-clicks, still set the
-        # TagInfoScreen to this tag — user's last-clicked tag
-        # is the panel subject.
-        if self.manager is not None and self.manager.tagScreen is not None:
-            self.manager.tagScreen.setTag(self)
+        # Open a fresh popout edit dialog for this tag. Multiple
+        # edit windows may coexist; each is tracked on the project
+        # window so project close tears them all down.
+        if self.manager is not None:
+            project_window = getattr(self.manager, "_project_window", None)
+            if project_window is not None and hasattr(
+                project_window, "openTagEditWindow"
+            ):
+                project_window.openTagEditWindow(self)
         super().mousePressEvent(event)
 
     def hoverEnterEvent(self, event):
