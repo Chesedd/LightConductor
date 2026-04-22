@@ -17,7 +17,7 @@ from lightconductor.application.project_state import (
 from lightconductor.domain.models import Tag as DomainTag
 from ProjectScreen.TagLogic.TagObject import Tag
 
-_SNAP_GRANULARITY_SECONDS = 0.1
+SNAP_GRANULARITY_SECONDS = 0.02
 
 
 logger = logging.getLogger(__name__)
@@ -295,7 +295,7 @@ class TagTimelineController:
         snapped = snap_to_nearest_beat(
             raw_time,
             beats,
-            _SNAP_GRANULARITY_SECONDS,
+            SNAP_GRANULARITY_SECONDS,
         )
         dur = float(getattr(self._renderer, "duration", 0.0) or 0.0)
         if dur > 0.0 and snapped > dur:
@@ -398,7 +398,7 @@ class TagTimelineController:
             snapped = snap_to_nearest_beat(
                 raw,
                 beats,
-                _SNAP_GRANULARITY_SECONDS,
+                SNAP_GRANULARITY_SECONDS,
             )
             if dur > 0.0 and snapped > dur:
                 snapped = dur

@@ -7,7 +7,13 @@ from typing import Any, Dict, Iterable, Tuple, cast
 
 logger = logging.getLogger(__name__)
 
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 4
+
+# Intentionally duplicated with
+# ProjectScreen.TagLogic.TagTimelineController.SNAP_GRANULARITY_SECONDS:
+# the schema module must be self-contained. If the UI constant ever
+# changes, migration math must not silently follow.
+_V4_SNAP_GRANULARITY = 0.02
 
 
 class SchemaValidationError(ValueError):
@@ -126,16 +132,89 @@ def _migrate_v2_to_v3(envelope: Dict[str, Any]) -> Dict[str, Any]:
     return envelope
 
 
+def _migrate_v3_to_v4(envelope: Dict[str, Any]) -> Dict[str, Any]:
+    """Snap every tag.time to the nearest _V4_SNAP_GRANULARITY (0.02s).
+
+    Walks masters → slaves → tagTypes → tags. For each tag, rounds
+    its `time` field to the nearest multiple of 0.02. Existing
+    0.1-grid tags land cleanly because 0.1 is an integer multiple
+    of 0.02. After rounding, if two tags within the same
+    (master, slave, tag_type) collapse to the same time, the first
+    one in iteration order is kept; subsequent collisions are
+    dropped with a per-drop warning. Bumps envelope schema_version
+    to 4. Returns the mutated envelope.
+    """
+    masters = envelope.get("masters")
+    if not isinstance(masters, dict):
+        envelope["schema_version"] = 4
+        return envelope
+    for master_id, master in masters.items():
+        if not isinstance(master, dict):
+            continue
+        slaves = master.get("slaves")
+        if not isinstance(slaves, dict):
+            continue
+        for slave_id, slave in slaves.items():
+            if not isinstance(slave, dict):
+                continue
+            tag_types = slave.get("tagTypes")
+            if not isinstance(tag_types, dict):
+                continue
+            for tag_type_name, tag_type in tag_types.items():
+                if not isinstance(tag_type, dict):
+                    continue
+                tags = tag_type.get("tags")
+                if not isinstance(tags, dict):
+                    continue
+                seen: Dict[float, Any] = {}
+                kept: Dict[Any, Any] = {}
+                for tag_key, tag in tags.items():
+                    if not isinstance(tag, dict) or "time" not in tag:
+                        kept[tag_key] = tag
+                        continue
+                    original = tag["time"]
+                    try:
+                        original_f = float(original)
+                    except (TypeError, ValueError):
+                        kept[tag_key] = tag
+                        continue
+                    snapped = round(
+                        round(original_f / _V4_SNAP_GRANULARITY) * _V4_SNAP_GRANULARITY,
+                        6,
+                    )
+                    if snapped in seen:
+                        existing_time = seen[snapped]
+                        logger.warning(
+                            "v3→v4 migration dropped colliding tag: "
+                            "master_id=%s slave_id=%s tag_type=%s "
+                            "original_time=%s snapped_time=%s "
+                            "existing_time=%s",
+                            master_id,
+                            slave_id,
+                            tag_type_name,
+                            original,
+                            snapped,
+                            existing_time,
+                        )
+                        continue
+                    tag["time"] = snapped
+                    seen[snapped] = snapped
+                    kept[tag_key] = tag
+                tag_type["tags"] = kept
+    envelope["schema_version"] = 4
+    return envelope
+
+
 def migrate_to_current(data: Any) -> Dict[str, Any]:
     """Apply migrations until data reaches CURRENT_SCHEMA_VERSION.
 
     Migration chain:
       - v0 (dict without schema_version): wrap in a v1 envelope,
-        then apply v1→v2 grid-field migration, then v2→v3 led_cells
-        migration.
-      - v1: apply v1→v2, then v2→v3.
-      - v2: apply v2→v3 led_cells migration.
-      - v3 (current): returned as-is.
+        then chain v1→v2 → v2→v3 → v3→v4.
+      - v1: chain v1→v2 → v2→v3 → v3→v4.
+      - v2: chain v2→v3 → v3→v4.
+      - v3: chain v3→v4 (snap tag times to 0.02s grid).
+      - v4 (current): returned as-is.
 
     If `data` carries a version higher than CURRENT_SCHEMA_VERSION,
     SchemaValidationError is raised (prevent older code from
@@ -153,6 +232,7 @@ def migrate_to_current(data: Any) -> Dict[str, Any]:
         _coerce_legacy_tag_actions(envelope)
         _migrate_v1_to_v2(envelope)
         _migrate_v2_to_v3(envelope)
+        _migrate_v3_to_v4(envelope)
         return envelope
     version = data["schema_version"]
     if not isinstance(version, int) or isinstance(version, bool):
@@ -168,10 +248,16 @@ def migrate_to_current(data: Any) -> Dict[str, Any]:
         _coerce_legacy_tag_actions(data)
         _migrate_v1_to_v2(data)
         _migrate_v2_to_v3(data)
+        _migrate_v3_to_v4(data)
         return data
     if version == 2:
         _coerce_legacy_tag_actions(data)
         _migrate_v2_to_v3(data)
+        _migrate_v3_to_v4(data)
+        return data
+    if version == 3:
+        _coerce_legacy_tag_actions(data)
+        _migrate_v3_to_v4(data)
         return data
     if version == CURRENT_SCHEMA_VERSION:
         _coerce_legacy_tag_actions(data)

@@ -11,6 +11,7 @@ if str(SRC) not in sys.path:
 
 from lightconductor.domain.models import Master, Slave, Tag, TagType
 from lightconductor.infrastructure.project_file_backup import backup_path
+from lightconductor.infrastructure.project_schema import CURRENT_SCHEMA_VERSION
 from lightconductor.infrastructure.project_session_storage import (
     ProjectSessionStorage,
 )
@@ -72,7 +73,7 @@ class MastersStorageTests(unittest.TestCase):
         raw = json.loads(
             (self.root / "proj_A" / "data.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(raw["schema_version"], 3)
+        self.assertEqual(raw["schema_version"], CURRENT_SCHEMA_VERSION)
         self.assertIn("masters", raw)
         self.assertIn("m1", raw["masters"])
 
