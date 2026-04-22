@@ -32,29 +32,42 @@ def detect_beats(audio: Any, sr: Any) -> Any:
 
 
 def snap_to_nearest_beat(
-    time_seconds: float, beat_times: Any, fallback_granularity: float
+    time_seconds: float,
+    beat_times: Any,
+    fallback_granularity: float,
+    beat_tolerance: float = 0.05,
 ) -> float:
-    """Snap time_seconds to the nearest element of beat_times.
+    """Snap time_seconds with magnetic-beat behavior.
 
-    If beat_times is empty or None, fall back to
+    The fallback grid is always computed first as
     round(time_seconds / fallback_granularity) * fallback_granularity
-    rounded to 6 decimals. Otherwise uses np.searchsorted to pick the closer
-    of the two neighbors (ties go to the earlier beat). Handles
-    time_seconds below beat_times[0] and above beat_times[-1].
+    rounded to 6 decimals. When beat_times is empty or None the fallback
+    is returned immediately. Otherwise the nearest element of beat_times
+    is located via np.searchsorted (ties go to the earlier beat, values
+    outside [beat_times[0], beat_times[-1]] fall to the boundary beat).
+    If that nearest beat is within beat_tolerance seconds of time_seconds,
+    the beat is returned; otherwise the grid-snapped fallback is used.
     Returns a plain float.
     """
+    fallback_snap = round(time_seconds / fallback_granularity) * fallback_granularity
+    fallback_snap = float(round(fallback_snap, 6))
+
     if beat_times is None or len(beat_times) == 0:
-        snapped = round(time_seconds / fallback_granularity) * fallback_granularity
-        return float(round(snapped, 6))
+        return fallback_snap
 
     if time_seconds <= beat_times[0]:
-        return float(beat_times[0])
-    if time_seconds >= beat_times[-1]:
-        return float(beat_times[-1])
+        nearest_beat = float(beat_times[0])
+    elif time_seconds >= beat_times[-1]:
+        nearest_beat = float(beat_times[-1])
+    else:
+        idx = int(np.searchsorted(beat_times, time_seconds))
+        left = float(beat_times[idx - 1])
+        right = float(beat_times[idx])
+        if (time_seconds - left) <= (right - time_seconds):
+            nearest_beat = left
+        else:
+            nearest_beat = right
 
-    idx = int(np.searchsorted(beat_times, time_seconds))
-    left = float(beat_times[idx - 1])
-    right = float(beat_times[idx])
-    if (time_seconds - left) <= (right - time_seconds):
-        return left
-    return right
+    if abs(time_seconds - nearest_beat) <= beat_tolerance:
+        return nearest_beat
+    return fallback_snap
