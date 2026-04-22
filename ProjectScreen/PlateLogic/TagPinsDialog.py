@@ -17,7 +17,7 @@ exercise drag without any project-window wiring.
 
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 
 from PyQt6.QtCore import QEvent, QPoint, Qt
 from PyQt6.QtGui import QMouseEvent, QWheelEvent
@@ -29,6 +29,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
@@ -36,7 +37,11 @@ from PyQt6.QtWidgets import (
 )
 
 from AssistanceTools.ColorPicker import ColorPicker
-from lightconductor.application.commands import AddOrReplaceTagCommand
+from lightconductor.application.commands import (
+    AddOrReplaceTagCommand,
+    DeleteTagCommand,
+    EditTagCommand,
+)
 from lightconductor.application.grid_sizing import compute_cell_size
 from lightconductor.application.grid_zoom import (
     DEFAULT_MIN_CELL,
@@ -46,9 +51,51 @@ from lightconductor.application.pattern_service import PatternService
 from lightconductor.application.topology_bbox import compute_topology_bbox
 from lightconductor.domain.models import Tag as DomainTag
 from ProjectScreen.TagLogic.LedGridView import LedGridView
-from ProjectScreen.TagLogic.TagScreen import ColorButton
+
+SNAP_GRANULARITY_SECONDS = 0.02
 
 _pattern_service = PatternService()
+
+
+class ColorButton(QPushButton):
+    """Per-LED color cell used by the Tag editor grid. Migrated from
+    the deleted ``ProjectScreen.TagLogic.TagScreen`` module; this
+    dialog is the only remaining consumer."""
+
+    def __init__(self, text: str = "", parent: Any = None) -> None:
+        super().__init__(text, parent)
+        self.rgb: List[int] = [0, 0, 0]
+        self.setStyleSheet(
+            """
+            QPushButton {
+                background-color: black;
+            }
+            QPushButton:checked {
+                border: 2px solid #ff9900;
+                padding: 11px;
+            }
+            QPushButton:disabled {
+                background-color: #2f2f2f;
+                border: 1px dashed #7a7a7a;
+            }
+            """
+        )
+
+    def setColor(self, rgb: List[int]) -> None:
+        self.rgb = list(rgb)
+        self.setStyleSheet(
+            "QPushButton {"
+            f"background-color: rgb({rgb[0]}, {rgb[1]}, {rgb[2]});"
+            "}"
+            "QPushButton:checked {"
+            "border: 2px solid #ff9900;"
+            "padding: 11px;"
+            "}"
+            "QPushButton:disabled {"
+            "background-color: #2f2f2f;"
+            "border: 1px dashed #7a7a7a;"
+            "}"
+        )
 
 
 class TagPinsDialog(QDialog):
@@ -62,6 +109,11 @@ class TagPinsDialog(QDialog):
         project_window: Any = None,
         parent: Any = None,
         *,
+        mode: Literal["place", "edit"] = "place",
+        tag: Optional[DomainTag] = None,
+        master_id: Optional[str] = None,
+        slave_id: Optional[str] = None,
+        type_name: Optional[str] = None,
         topology: Optional[List[int]] = None,
         slave_grid_columns: Optional[int] = None,
         current_colors: Optional[List[List[int]]] = None,
@@ -70,10 +122,21 @@ class TagPinsDialog(QDialog):
         on_presets_changed: Any = None,
     ) -> None:
         super().__init__(parent if parent is not None else project_window)
+        if mode not in ("place", "edit"):
+            raise ValueError(f"invalid mode: {mode!r}")
+        if mode == "edit" and tag is None:
+            raise ValueError("edit mode requires a tag")
+        self._mode: Literal["place", "edit"] = mode
+        self._edit_tag: Optional[DomainTag] = tag
+        self._edit_master_id: Optional[str] = master_id
+        self._edit_slave_id: Optional[str] = slave_id
+        self._edit_type_name: Optional[str] = type_name
         self._project_window = project_window
         self._active_slave: Any = None
         self._connected_manager: Any = None
-        self._action_on: bool = True
+        # Edit-mode pre-populates from the bound tag; place-mode
+        # starts with "On".
+        self._action_on: bool = bool(tag.action) if tag is not None else True
 
         self._settings = settings
         self._on_presets_changed = on_presets_changed
@@ -120,7 +183,7 @@ class TagPinsDialog(QDialog):
 
         self._build_ui()
 
-        if project_window is not None:
+        if project_window is not None and self._mode == "place":
             signal = getattr(project_window, "activeSlaveChanged", None)
             if signal is not None:
                 signal.connect(self._on_active_slave_changed)
@@ -134,6 +197,24 @@ class TagPinsDialog(QDialog):
                 )
             self._build_presets_bar()
             self._apply_active_slave(getattr(project_window, "_active_slave", None))
+        elif self._mode == "edit":
+            # Pinned to the bound tag's topology for the window's
+            # lifetime; no active-slave or current-type following.
+            if project_window is not None:
+                if self._settings is None:
+                    self._settings = getattr(project_window, "settings", None)
+                if self._on_presets_changed is None:
+                    self._on_presets_changed = getattr(
+                        project_window,
+                        "update_color_presets",
+                        None,
+                    )
+            self._build_presets_bar()
+            self._apply_edit_mode(
+                topology=list(topology or []),
+                slave_grid_columns=int(slave_grid_columns or 1),
+                led_cells=led_cells,
+            )
         else:
             self._build_presets_bar()
             if topology is not None:
@@ -163,9 +244,24 @@ class TagPinsDialog(QDialog):
         state_row = QWidget()
         state_layout = QHBoxLayout(state_row)
         state_layout.setContentsMargins(0, 0, 0, 0)
-        state_layout.addWidget(QLabel("Состояние"))
+        if self._mode == "edit":
+            type_label = QLabel(f"Type: {self._edit_type_name or ''}")
+            state_layout.addWidget(type_label)
+            state_layout.addWidget(QLabel("Time"))
+            self._time_edit: Optional[QLineEdit] = QLineEdit()
+            initial_time = (
+                self._edit_tag.time_seconds if self._edit_tag is not None else 0.0
+            )
+            self._time_edit.setText(f"{float(initial_time):.3f}")
+            self._time_edit.setFixedWidth(80)
+            state_layout.addWidget(self._time_edit)
+        else:
+            self._time_edit = None
+            state_layout.addWidget(QLabel("Состояние"))
         self._state_bar = QComboBox()
         self._state_bar.addItems(["On", "Off"])
+        if self._mode == "edit" and self._edit_tag is not None:
+            self._state_bar.setCurrentText("On" if self._edit_tag.action else "Off")
         self._state_bar.currentTextChanged.connect(self._on_state_changed)
         state_layout.addWidget(self._state_bar)
         root.addWidget(state_row)
@@ -236,12 +332,30 @@ class TagPinsDialog(QDialog):
         self._hint_label.setStyleSheet("color: #888;")
         root.addWidget(self._hint_label)
 
-        self._place_btn = QPushButton("Place tag")
-        self._place_btn.clicked.connect(self._on_place_tag_clicked)
-        root.addWidget(self._place_btn)
+        if self._mode == "edit":
+            self._place_btn = QPushButton("Place tag")  # unused in edit mode
+            self._place_btn.setVisible(False)
+            self._save_btn: Optional[QPushButton] = QPushButton("Save")
+            self._save_btn.clicked.connect(self._on_save_clicked)
+            self._delete_btn: Optional[QPushButton] = QPushButton("Delete tag")
+            self._delete_btn.clicked.connect(self._on_delete_clicked)
+            edit_row = QHBoxLayout()
+            edit_row.addWidget(self._save_btn)
+            edit_row.addWidget(self._delete_btn)
+            edit_row_widget = QWidget()
+            edit_row_widget.setLayout(edit_row)
+            root.addWidget(edit_row_widget)
+        else:
+            self._save_btn = None
+            self._delete_btn = None
+            self._place_btn = QPushButton("Place tag")
+            self._place_btn.clicked.connect(self._on_place_tag_clicked)
+            root.addWidget(self._place_btn)
+            self._place_btn.setEnabled(False)
 
-        self._place_btn.setEnabled(False)
-        self._set_color_controls_enabled(False)
+        self._set_color_controls_enabled(
+            self._mode == "edit" and self._action_on,
+        )
 
         initial_w = 520
         initial_h = 480
@@ -575,6 +689,144 @@ class TagPinsDialog(QDialog):
         )
         self._refresh_preview()
 
+    # ---- Edit mode --------------------------------------------------------
+
+    def _apply_edit_mode(
+        self,
+        *,
+        topology: List[int],
+        slave_grid_columns: int,
+        led_cells: Optional[Any],
+    ) -> None:
+        tag = self._edit_tag
+        initial_colors = (
+            [list(c) for c in tag.colors] if tag is not None and tag.colors else None
+        )
+        self._install_topology(
+            topology=topology,
+            slave_grid_columns=slave_grid_columns,
+            led_cells=led_cells,
+            current_colors=initial_colors,
+        )
+        self._set_color_controls_enabled(self._action_on and bool(topology))
+        type_name = self._edit_type_name or ""
+        time_s = float(tag.time_seconds) if tag is not None else 0.0
+        if type_name:
+            self.setWindowTitle(f"Edit tag · {type_name} · {time_s:.2f}s")
+        else:
+            self.setWindowTitle(f"Edit tag · {time_s:.2f}s")
+
+    def _tag_index_in_state(self) -> Optional[int]:
+        """Locate the bound tag's current index in project state by
+        object identity. Returns ``None`` if state is unreachable or
+        the tag has been removed."""
+        if (
+            self._project_window is None
+            or self._edit_tag is None
+            or self._edit_master_id is None
+            or self._edit_slave_id is None
+            or self._edit_type_name is None
+        ):
+            return None
+        state = getattr(self._project_window, "state", None)
+        if state is None:
+            return None
+        try:
+            tags = (
+                state.master(self._edit_master_id)
+                .slaves[self._edit_slave_id]
+                .tag_types[self._edit_type_name]
+                .tags
+            )
+        except KeyError:
+            return None
+        for i, t in enumerate(tags):
+            if t is self._edit_tag:
+                return i
+        return None
+
+    def _on_save_clicked(self) -> None:
+        if self._mode != "edit" or self._edit_tag is None:
+            return
+        if self._time_edit is None:
+            return
+        raw = self._time_edit.text().strip()
+        try:
+            parsed = float(raw)
+        except ValueError:
+            QMessageBox.warning(
+                self,
+                "Invalid time",
+                f"Cannot parse time value: {raw!r}",
+            )
+            return
+        snapped = max(
+            0.0,
+            round(parsed / SNAP_GRANULARITY_SECONDS) * SNAP_GRANULARITY_SECONDS,
+        )
+        idx = self._tag_index_in_state()
+        if idx is None:
+            QMessageBox.warning(
+                self,
+                "Save failed",
+                "The tag is no longer in the project.",
+            )
+            return
+        if self._action_on:
+            colors = [list(c) for c in self.colors]
+        else:
+            colors = [[0, 0, 0] for _ in self.colors]
+        commands = getattr(self._project_window, "commands", None)
+        if commands is None:
+            return
+        commands.push(
+            EditTagCommand(
+                master_id=str(self._edit_master_id),
+                slave_id=str(self._edit_slave_id),
+                type_name=str(self._edit_type_name),
+                tag_index=idx,
+                new_time_seconds=float(snapped),
+                new_action=bool(self._action_on),
+                new_colors=colors,
+            )
+        )
+        self._time_edit.setText(f"{snapped:.3f}")
+        type_name = self._edit_type_name or ""
+        if type_name:
+            self.setWindowTitle(f"Edit tag · {type_name} · {snapped:.2f}s")
+        else:
+            self.setWindowTitle(f"Edit tag · {snapped:.2f}s")
+
+    def _on_delete_clicked(self) -> None:
+        if self._mode != "edit" or self._edit_tag is None:
+            return
+        reply = QMessageBox.question(
+            self,
+            "Delete tag",
+            "Delete this tag?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        idx = self._tag_index_in_state()
+        if idx is None:
+            self.close()
+            return
+        commands = getattr(self._project_window, "commands", None)
+        if commands is None:
+            self.close()
+            return
+        commands.push(
+            DeleteTagCommand(
+                master_id=str(self._edit_master_id),
+                slave_id=str(self._edit_slave_id),
+                type_name=str(self._edit_type_name),
+                tag_index=idx,
+            )
+        )
+        self.close()
+
     # ---- Cell sizing & color editing --------------------------------------
 
     def resizeEvent(self, event):  # type: ignore[override]
@@ -826,3 +1078,15 @@ class TagPinsDialog(QDialog):
 
     def place_button(self) -> QPushButton:
         return self._place_btn
+
+    def save_button(self) -> Optional[QPushButton]:
+        return self._save_btn
+
+    def delete_button(self) -> Optional[QPushButton]:
+        return self._delete_btn
+
+    def time_edit(self) -> Optional[QLineEdit]:
+        return self._time_edit
+
+    def mode(self) -> str:
+        return self._mode
