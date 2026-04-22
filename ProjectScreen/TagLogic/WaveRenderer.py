@@ -79,7 +79,7 @@ class WaveRenderer:
             xMax=self.duration,
             yMin=-1,
             yMax=1,
-            minXRange=0.05,
+            minXRange=0.01,
             maxXRange=self.duration,
         )
 

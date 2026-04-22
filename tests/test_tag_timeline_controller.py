@@ -38,3 +38,22 @@ def test_drag_snap_uses_002_grid_in_fallback() -> None:
     assert snap_to_nearest_beat(1.30, empty, SNAP_GRANULARITY_SECONDS) == 1.30
     # 0.0 is on-grid trivially.
     assert snap_to_nearest_beat(0.0, empty, SNAP_GRANULARITY_SECONDS) == 0.0
+
+
+def test_drag_snap_lands_on_002_grid_when_no_nearby_beat() -> None:
+    """Simulates a drag finish when beats exist but none are within the
+    0.05 tolerance of the drop point: the tag should land on the 0.02
+    grid, not on the distant beat."""
+    beats = np.array([1.0, 2.0], dtype=float)
+    # 1.5 is 0.5 from the nearest beat, well outside 0.05 tolerance.
+    snapped = snap_to_nearest_beat(1.5, beats, SNAP_GRANULARITY_SECONDS)
+    assert snapped == 1.5
+
+
+def test_drag_snap_magnetizes_to_beat_within_tolerance() -> None:
+    """Simulates a drag finish that drops within 0.05 s of a beat: the
+    tag should magnetize to the beat rather than the 0.02 grid."""
+    beats = np.array([1.0, 2.0], dtype=float)
+    # 1.03 is 0.03 from beat 1.0 (within default 0.05 tolerance).
+    snapped = snap_to_nearest_beat(1.03, beats, SNAP_GRANULARITY_SECONDS)
+    assert snapped == 1.0
