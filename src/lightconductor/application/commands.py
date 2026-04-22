@@ -360,6 +360,12 @@ class AddSlaveCommand:
     slave: Slave
 
     def execute(self, state: ProjectState) -> None:
+        # ``state.add_slave`` raises ``DuplicateSlavePinError`` (a
+        # ``ValueError`` subclass) when ``self.slave.pin`` collides
+        # with an existing slave in the target master. The exception
+        # propagates unchanged so ``CompositeCommand`` can roll back
+        # prior children; callers (UI, use-cases) are responsible for
+        # catching it and surfacing a user-visible message.
         state.add_slave(self.master_id, self.slave)
 
     def undo(self, state: ProjectState) -> None:

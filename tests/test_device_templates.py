@@ -19,7 +19,10 @@ from lightconductor.application.device_templates import (
     slave_from_template,
     template_from_slave,
 )
-from lightconductor.application.project_state import ProjectState
+from lightconductor.application.project_state import (
+    DuplicateSlavePinError,
+    ProjectState,
+)
 from lightconductor.domain.models import Master, Slave, Tag, TagType
 
 
@@ -259,6 +262,37 @@ class BuildApplyTemplateCompositeTests(unittest.TestCase):
         master_after = state.master("M1")
         self.assertNotIn("s-new", master_after.slaves)
         self.assertEqual(master_after.slaves, {})
+
+    def test_apply_template_to_source_master_with_same_pin_rolls_back(self):
+        # Save-as-template then apply-to-same-master: the template
+        # carries the source slave's pin verbatim, so the composite
+        # must raise DuplicateSlavePinError and leave the master's
+        # slave count unchanged (no orphan from a half-applied
+        # composite).
+        state = ProjectState()
+        state.add_master(Master(id="M1", name="Stage"))
+        source = _make_slave_with_tags()
+        state.add_slave("M1", source)
+        before_slave_ids = set(state.master("M1").slaves.keys())
+
+        template = template_from_slave(source, "tpl-self-apply")
+        composite = build_apply_template_composite(
+            template=template,
+            target_master_id="M1",
+            new_slave_id="s-new",
+        )
+
+        with self.assertRaises(DuplicateSlavePinError) as ctx:
+            composite.execute(state)
+
+        self.assertEqual(ctx.exception.master_id, "M1")
+        self.assertEqual(ctx.exception.pin, str(source.pin))
+        self.assertEqual(ctx.exception.existing_slave_id, source.id)
+        self.assertEqual(ctx.exception.new_slave_id, "s-new")
+        self.assertEqual(
+            set(state.master("M1").slaves.keys()),
+            before_slave_ids,
+        )
 
 
 if __name__ == "__main__":

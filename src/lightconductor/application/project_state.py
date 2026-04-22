@@ -114,6 +114,39 @@ ProjectStateEvent = Union[
 ]
 
 
+class DuplicateSlavePinError(ValueError):
+    """Raised by ``ProjectState.add_slave`` when the incoming slave's
+    ``pin`` collides with an existing slave's ``pin`` under the same
+    master. Enforcing this at mutation time (rather than only at
+    save-time validation) lets ``CompositeCommand`` roll back atomically
+    when the conflict is produced mid-composite — e.g. applying a
+    device template whose slave pin matches one already present in the
+    target master.
+
+    Scope matches ``ValidationService._check_duplicate_slave_pins``:
+    comparison is within the single target master, and the pin value
+    is stringified (so empty / whitespace strings participate in
+    uniqueness, to stay consistent with the validator)."""
+
+    def __init__(
+        self,
+        master_id: str,
+        pin: str,
+        existing_slave_id: str,
+        new_slave_id: str,
+    ) -> None:
+        self.master_id = master_id
+        self.pin = pin
+        self.existing_slave_id = existing_slave_id
+        self.new_slave_id = new_slave_id
+        super().__init__(
+            f"Duplicate slave pin {pin!r} in master "
+            f"{master_id!r}: already used by slave "
+            f"{existing_slave_id!r} (attempted add: "
+            f"{new_slave_id!r})"
+        )
+
+
 class ProjectState:
     def __init__(self) -> None:
         self._masters: Dict[str, Master] = {}
@@ -180,10 +213,23 @@ class ProjectState:
         self._emit(MasterUpdated(master_id=master_id))
 
     def add_slave(self, master_id: str, slave: Slave) -> None:
-        """Raises KeyError if master missing, ValueError on duplicate slave id."""
+        """Raises KeyError if master missing, ValueError on duplicate
+        slave id, and ``DuplicateSlavePinError`` if another slave in
+        the same master already uses ``slave.pin``. The pin check runs
+        before mutation and before the event emission, so a failed add
+        leaves no state change and fires no event."""
         master = self._masters[master_id]
         if slave.id in master.slaves:
             raise ValueError(f"slave already present: {slave.id!r}")
+        new_pin_key = str(slave.pin)
+        for existing_id, existing in master.slaves.items():
+            if str(existing.pin) == new_pin_key:
+                raise DuplicateSlavePinError(
+                    master_id=master_id,
+                    pin=new_pin_key,
+                    existing_slave_id=existing_id,
+                    new_slave_id=slave.id,
+                )
         master.slaves[slave.id] = slave
         self._emit(SlaveAdded(master_id=master_id, slave_id=slave.id))
 
