@@ -24,6 +24,7 @@ if str(SRC) not in sys.path:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from PyQt6.QtCore import QPoint  # noqa: E402
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
 from ProjectScreen.TagLogic.TagManager import TopologyDialog  # noqa: E402
@@ -108,6 +109,55 @@ class TopologyDialogZoomTests(unittest.TestCase):
         d._drag_apply(3)
         d._drag_end()
         self.assertEqual([0, 1, 2, 3], d.order)
+
+
+class TopologyDialogPanTests(unittest.TestCase):
+    def setUp(self) -> None:
+        _ensure_app()
+
+    def _make(
+        self,
+        rows: int = 4,
+        cols: int = 4,
+        max_selection: int = 8,
+    ) -> TopologyDialog:
+        return TopologyDialog(
+            slave_grid_rows=rows,
+            slave_grid_columns=cols,
+            max_selection=max_selection,
+        )
+
+    def test_middle_drag_shifts_vertical_scrollbar(self) -> None:
+        d = self._make()
+        vbar = d._scroll.verticalScrollBar()
+        vbar.setRange(0, 200)
+        vbar.setValue(100)
+        d._pan_begin(QPoint(0, 0))
+        self.assertTrue(d._pan_active)
+        # Cursor moves 50 px down → vertical scrollbar value = v0 - 50.
+        d._pan_apply(QPoint(0, 50))
+        self.assertEqual(50, vbar.value())
+
+    def test_middle_release_resets_pan_state(self) -> None:
+        d = self._make()
+        d._pan_begin(QPoint(10, 10))
+        self.assertTrue(d._pan_active)
+        d._pan_end()
+        self.assertFalse(d._pan_active)
+        self.assertIsNone(d._pan_start_global)
+
+    def test_middle_drag_does_not_flip_cells(self) -> None:
+        """Middle-button pan must never advance the left-button
+        drag-paint state machine — panning over cells leaves
+        ``order`` untouched and ``_drag_active`` False."""
+        d = self._make(rows=3, cols=3, max_selection=9)
+        self.assertEqual([], d.order)
+        d._pan_begin(QPoint(0, 0))
+        d._pan_apply(QPoint(20, 20))
+        d._pan_apply(QPoint(40, 40))
+        d._pan_end()
+        self.assertEqual([], d.order)
+        self.assertFalse(d._drag_active)
 
 
 if __name__ == "__main__":

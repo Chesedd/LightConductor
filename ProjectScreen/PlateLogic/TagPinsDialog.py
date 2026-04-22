@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any, List, Optional
 
-from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtCore import QEvent, QPoint, Qt
 from PyQt6.QtGui import QMouseEvent, QWheelEvent
 from PyQt6.QtWidgets import (
     QApplication,
@@ -105,6 +105,13 @@ class TagPinsDialog(QDialog):
         self._cell_size: int = 24
         self._user_zoomed: bool = False
         self._grid_scroll: Optional[QScrollArea] = None
+
+        # Middle-button pan state. Active only while the middle
+        # button is held. Orthogonal to left-button drag-paint and
+        # the right-button drag-clear gesture.
+        self._pan_active: bool = False
+        self._pan_start_global: Optional[QPoint] = None
+        self._pan_scroll_start: tuple[int, int] = (0, 0)
 
         self.setModal(False)
         self.setWindowFlag(Qt.WindowType.Window, True)
@@ -732,6 +739,28 @@ class TagPinsDialog(QDialog):
                     event.accept()
                     return True
             return False
+        if (
+            et == QEvent.Type.MouseButtonPress
+            and isinstance(event, QMouseEvent)
+            and event.button() == Qt.MouseButton.MiddleButton
+        ):
+            self._pan_begin(event.globalPosition().toPoint())
+            return True
+        if (
+            et == QEvent.Type.MouseMove
+            and isinstance(event, QMouseEvent)
+            and self._pan_active
+        ):
+            self._pan_apply(event.globalPosition().toPoint())
+            return True
+        if (
+            et == QEvent.Type.MouseButtonRelease
+            and isinstance(event, QMouseEvent)
+            and event.button() == Qt.MouseButton.MiddleButton
+            and self._pan_active
+        ):
+            self._pan_end()
+            return True
         if et == QEvent.Type.MouseButtonPress and isinstance(event, QMouseEvent):
             btn_id = event.button()
             if btn_id not in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton):
@@ -760,6 +789,32 @@ class TagPinsDialog(QDialog):
             self._drag_end()
             return False
         return super().eventFilter(obj, event)
+
+    # ---- Middle-button pan ------------------------------------------------
+
+    def _pan_begin(self, global_pos: QPoint) -> None:
+        if self._grid_scroll is None:
+            return
+        self._pan_active = True
+        self._pan_start_global = global_pos
+        hbar = self._grid_scroll.horizontalScrollBar()
+        vbar = self._grid_scroll.verticalScrollBar()
+        self._pan_scroll_start = (hbar.value(), vbar.value())
+        self._grid_scroll.viewport().setCursor(Qt.CursorShape.ClosedHandCursor)
+
+    def _pan_apply(self, global_pos: QPoint) -> None:
+        if self._grid_scroll is None or self._pan_start_global is None:
+            return
+        delta = global_pos - self._pan_start_global
+        h0, v0 = self._pan_scroll_start
+        self._grid_scroll.horizontalScrollBar().setValue(h0 - delta.x())
+        self._grid_scroll.verticalScrollBar().setValue(v0 - delta.y())
+
+    def _pan_end(self) -> None:
+        self._pan_active = False
+        self._pan_start_global = None
+        if self._grid_scroll is not None:
+            self._grid_scroll.viewport().unsetCursor()
 
     # ---- Testing accessors ------------------------------------------------
 

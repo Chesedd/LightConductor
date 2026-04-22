@@ -22,6 +22,7 @@ if str(SRC) not in sys.path:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from PyQt6.QtCore import QPoint  # noqa: E402
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
 from ProjectScreen.PlateLogic.LedWireDialog import LedWireDialog  # noqa: E402
@@ -98,6 +99,36 @@ class LedWireDialogZoomTests(unittest.TestCase):
         for _ in range(40):
             d._on_wheel_zoom(-120)
         self.assertEqual(6, d._cell_size)
+
+
+class LedWireDialogPanTests(unittest.TestCase):
+    def setUp(self) -> None:
+        _ensure_app()
+
+    def _make(self) -> LedWireDialog:
+        return LedWireDialog(canvas_rows=4, canvas_cols=4, led_count=8)
+
+    def test_middle_drag_shifts_horizontal_scrollbar(self) -> None:
+        d = self._make()
+        hbar = d._scroll.horizontalScrollBar()
+        # Simulate a zoomed, scrollable state regardless of headless
+        # viewport geometry: give the scrollbar a non-trivial range
+        # and initial offset.
+        hbar.setRange(0, 200)
+        hbar.setValue(100)
+        d._pan_begin(QPoint(0, 0))
+        self.assertTrue(d._pan_active)
+        # Cursor moves 50 px right → scrollbar value = h0 - 50.
+        d._pan_apply(QPoint(50, 0))
+        self.assertEqual(50, hbar.value())
+
+    def test_middle_release_resets_pan_state(self) -> None:
+        d = self._make()
+        d._pan_begin(QPoint(10, 10))
+        self.assertTrue(d._pan_active)
+        d._pan_end()
+        self.assertFalse(d._pan_active)
+        self.assertIsNone(d._pan_start_global)
 
 
 if __name__ == "__main__":
