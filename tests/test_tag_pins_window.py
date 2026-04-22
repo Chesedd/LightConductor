@@ -28,7 +28,7 @@ if str(ROOT) not in sys.path:
 
 from types import SimpleNamespace  # noqa: E402
 
-from PyQt6.QtCore import QObject, pyqtSignal  # noqa: E402
+from PyQt6.QtCore import QObject, QPoint, pyqtSignal  # noqa: E402
 from PyQt6.QtWidgets import QApplication, QMainWindow  # noqa: E402
 
 from lightconductor.application.commands import CommandStack  # noqa: E402
@@ -366,6 +366,35 @@ class TagPinsWindowTests(unittest.TestCase):
         win.resize(200, 200)
         QApplication.processEvents()
         self.assertEqual(pinned, win._cell_size)
+
+    def test_middle_drag_shifts_horizontal_scrollbar(self) -> None:
+        """Middle-button pan is active only while the button is held
+        and maps cursor-right motion to a leftward scroll (h0 - dx).
+        Simulated with a seeded range since offscreen layout gives the
+        small 1x2 grid a zero scrollbar range."""
+        self.pw.set_active_slave(self.slave)
+        self.pw.showTagEditorWindow()
+        win = self.pw._tag_pins_window
+        assert win is not None
+        assert win._grid_scroll is not None
+        hbar = win._grid_scroll.horizontalScrollBar()
+        hbar.setRange(0, 200)
+        hbar.setValue(100)
+        win._pan_begin(QPoint(0, 0))
+        self.assertTrue(win._pan_active)
+        win._pan_apply(QPoint(50, 0))
+        self.assertEqual(50, hbar.value())
+
+    def test_middle_release_resets_pan_state(self) -> None:
+        self.pw.set_active_slave(self.slave)
+        self.pw.showTagEditorWindow()
+        win = self.pw._tag_pins_window
+        assert win is not None
+        win._pan_begin(QPoint(10, 10))
+        self.assertTrue(win._pan_active)
+        win._pan_end()
+        self.assertFalse(win._pan_active)
+        self.assertIsNone(win._pan_start_global)
 
     def test_place_tag_twice_at_same_time_replaces_atomically(self) -> None:
         self.pw.set_active_slave(self.slave)

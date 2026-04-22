@@ -1,4 +1,4 @@
-from PyQt6.QtCore import QEvent, Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QPoint, Qt, pyqtSignal
 from PyQt6.QtGui import QMouseEvent, QWheelEvent
 from PyQt6.QtWidgets import (
     QApplication,
@@ -87,6 +87,11 @@ class LedWireDialog(QDialog):
         # manual size sticks.
         self._cell_size: int = 32
         self._user_zoomed: bool = False
+        # Middle-button pan state. Active only while the middle
+        # button is held. Orthogonal to left-button drag-paint.
+        self._pan_active: bool = False
+        self._pan_start_global: QPoint | None = None
+        self._pan_scroll_start: tuple[int, int] = (0, 0)
         self._build_ui()
         self._sync_buttons()
 
@@ -265,6 +270,28 @@ class LedWireDialog(QDialog):
         if (
             et == QEvent.Type.MouseButtonPress
             and isinstance(event, QMouseEvent)
+            and event.button() == Qt.MouseButton.MiddleButton
+        ):
+            self._pan_begin(event.globalPosition().toPoint())
+            return True
+        if (
+            et == QEvent.Type.MouseMove
+            and isinstance(event, QMouseEvent)
+            and self._pan_active
+        ):
+            self._pan_apply(event.globalPosition().toPoint())
+            return True
+        if (
+            et == QEvent.Type.MouseButtonRelease
+            and isinstance(event, QMouseEvent)
+            and event.button() == Qt.MouseButton.MiddleButton
+            and self._pan_active
+        ):
+            self._pan_end()
+            return True
+        if (
+            et == QEvent.Type.MouseButtonPress
+            and isinstance(event, QMouseEvent)
             and event.button() == Qt.MouseButton.LeftButton
         ):
             for idx, btn in self._buttons.items():
@@ -292,6 +319,29 @@ class LedWireDialog(QDialog):
             self._drag_end()
             return False
         return super().eventFilter(obj, event)
+
+    # --- Middle-button pan ---------------------------------------------
+
+    def _pan_begin(self, global_pos: QPoint) -> None:
+        self._pan_active = True
+        self._pan_start_global = global_pos
+        hbar = self._scroll.horizontalScrollBar()
+        vbar = self._scroll.verticalScrollBar()
+        self._pan_scroll_start = (hbar.value(), vbar.value())
+        self._scroll.viewport().setCursor(Qt.CursorShape.ClosedHandCursor)
+
+    def _pan_apply(self, global_pos: QPoint) -> None:
+        if self._pan_start_global is None:
+            return
+        delta = global_pos - self._pan_start_global
+        h0, v0 = self._pan_scroll_start
+        self._scroll.horizontalScrollBar().setValue(h0 - delta.x())
+        self._scroll.verticalScrollBar().setValue(v0 - delta.y())
+
+    def _pan_end(self) -> None:
+        self._pan_active = False
+        self._pan_start_global = None
+        self._scroll.viewport().unsetCursor()
 
     def _sync_buttons(self):
         for index, btn in self._buttons.items():
