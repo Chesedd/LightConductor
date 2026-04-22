@@ -25,6 +25,7 @@ from lightconductor.application.commands import (
     UpdateMasterIpCommand,
 )
 from lightconductor.application.project_state import (
+    DuplicateSlavePinError,
     MasterAdded,
     MasterUpdated,
     ProjectState,
@@ -513,6 +514,47 @@ def test_add_slave_execute_emits_slave_added_event(state):
     assert len(slave_added) == 1
     assert slave_added[0].master_id == "m1"
     assert slave_added[0].slave_id == "s2"
+
+
+def test_composite_first_child_duplicate_pin_leaves_state_unchanged(state):
+    # Fixture seeds s1 with pin="0". A composite whose first child
+    # is AddSlaveCommand with a conflicting pin must fail on the
+    # first execute; no later child (AddTagTypeCommand) should run.
+    before_slaves = set(state.master("m1").slaves.keys())
+    before_tts = set(state.master("m1").slaves["s1"].tag_types.keys())
+    conflict = AddSlaveCommand("m1", _slave("s2", pin="0"))
+    unrelated_tt = AddTagTypeCommand("m1", "s1", _tag_type(name="tt2", pin="5"))
+    composite = CompositeCommand(children=[conflict, unrelated_tt])
+
+    with pytest.raises(DuplicateSlavePinError):
+        composite.execute(state)
+
+    assert set(state.master("m1").slaves.keys()) == before_slaves
+    assert set(state.master("m1").slaves["s1"].tag_types.keys()) == before_tts
+
+
+def test_composite_second_child_duplicate_pin_rolls_back_first(state):
+    # Fixture seeds s1 with pin="0". First child succeeds (s2,
+    # pin="7"); second child's AddSlaveCommand tries pin="7" again
+    # on s3, raising DuplicateSlavePinError. CompositeCommand must
+    # roll back the first child (undoing the s2 add) and re-raise.
+    first = AddSlaveCommand("m1", _slave("s2", pin="7"))
+    conflict = AddSlaveCommand("m1", _slave("s3", pin="7"))
+    composite = CompositeCommand(children=[first, conflict])
+    events = _capture(state)
+
+    with pytest.raises(DuplicateSlavePinError):
+        composite.execute(state)
+
+    assert "s2" not in state.master("m1").slaves
+    assert "s3" not in state.master("m1").slaves
+    assert set(state.master("m1").slaves.keys()) == {"s1"}
+    added = [ev for ev in events if isinstance(ev, SlaveAdded) and ev.slave_id == "s2"]
+    removed = [
+        ev for ev in events if isinstance(ev, SlaveRemoved) and ev.slave_id == "s2"
+    ]
+    assert len(added) == 1
+    assert len(removed) == 1
 
 
 # ---------------------------------------------------------------------------

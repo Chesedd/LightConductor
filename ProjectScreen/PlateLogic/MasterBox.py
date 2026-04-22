@@ -29,6 +29,7 @@ from lightconductor.application.duplicate import (
     build_duplicate_master_composite,
 )
 from lightconductor.application.host_reachability import PingStatus
+from lightconductor.application.project_state import DuplicateSlavePinError
 from lightconductor.domain.models import Slave as DomainSlave
 from ProjectScreen.PlateLogic.MasterPingWorker import MasterPingWorker
 from ProjectScreen.PlateLogic.SlaveBox import SlaveBox
@@ -522,6 +523,23 @@ class MasterBox(DropBox):
             return
         try:
             self._commands.push(composite)
+        except DuplicateSlavePinError as exc:
+            logger.error(
+                "Apply template rejected: slave pin %r already used "
+                "in master %r by slave %r",
+                exc.pin,
+                exc.master_id,
+                exc.existing_slave_id,
+            )
+            QMessageBox.warning(
+                self,
+                "Cannot apply template",
+                (
+                    f"Slave pin {exc.pin!r} is already used in this "
+                    f"master. Edit the template's pin or apply it to "
+                    f"a different master."
+                ),
+            )
         except Exception:
             logger.exception(
                 "Apply template composite push failed",

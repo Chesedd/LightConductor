@@ -329,20 +329,21 @@ class BuildDuplicateSlaveCompositeTests(unittest.TestCase):
 
     def test_execute_duplicates_slave_with_subtree(self):
         state = _build_state_with_one_master()
+        state.add_master(Master(id="m_dst", name="Stage 2"))
         source = state.master("m_src").slaves["s_src_1"]
 
         composite = build_duplicate_slave_composite(
             source=source,
-            target_master_id="m_src",
+            target_master_id="m_dst",
             existing_slave_names=[
-                s.name for s in state.master("m_src").slaves.values()
+                s.name for s in state.master("m_dst").slaves.values()
             ],
             id_factory=_counter_id_factory(),
         )
         stack = CommandStack(state)
         stack.push(composite)
 
-        master = state.master("m_src")
+        master = state.master("m_dst")
         self.assertIn("id000001", master.slaves)
         dup = master.slaves["id000001"]
         self.assertEqual(dup.name, "Left (copy)")
@@ -360,25 +361,26 @@ class BuildDuplicateSlaveCompositeTests(unittest.TestCase):
 
     def test_undo_removes_duplicated_slave_and_subtree(self):
         state = _build_state_with_one_master()
+        state.add_master(Master(id="m_dst", name="Stage 2"))
         source = state.master("m_src").slaves["s_src_1"]
-        slaves_before = set(state.master("m_src").slaves)
+        slaves_before = set(state.master("m_dst").slaves)
 
         composite = build_duplicate_slave_composite(
             source=source,
-            target_master_id="m_src",
+            target_master_id="m_dst",
             existing_slave_names=[
-                s.name for s in state.master("m_src").slaves.values()
+                s.name for s in state.master("m_dst").slaves.values()
             ],
             id_factory=_counter_id_factory(),
         )
         stack = CommandStack(state)
         stack.push(composite)
-        self.assertIn("id000001", state.master("m_src").slaves)
+        self.assertIn("id000001", state.master("m_dst").slaves)
 
         stack.undo()
 
         self.assertEqual(
-            set(state.master("m_src").slaves),
+            set(state.master("m_dst").slaves),
             slaves_before,
         )
         # Source still has its tags.
@@ -408,12 +410,13 @@ class BuildDuplicateSlaveCompositeTests(unittest.TestCase):
 
     def test_duplicated_slave_shares_no_tag_refs_with_source(self):
         state = _build_state_with_one_master()
+        state.add_master(Master(id="m_dst", name="Stage 2"))
         source = state.master("m_src").slaves["s_src_1"]
         composite = build_duplicate_slave_composite(
             source=source,
-            target_master_id="m_src",
+            target_master_id="m_dst",
             existing_slave_names=[
-                s.name for s in state.master("m_src").slaves.values()
+                s.name for s in state.master("m_dst").slaves.values()
             ],
             id_factory=_counter_id_factory(),
         )
@@ -421,7 +424,7 @@ class BuildDuplicateSlaveCompositeTests(unittest.TestCase):
         stack.push(composite)
 
         src_alpha = source.tag_types["alpha"].tags
-        dup_alpha = state.master("m_src").slaves["id000001"].tag_types["alpha"].tags
+        dup_alpha = state.master("m_dst").slaves["id000001"].tag_types["alpha"].tags
         for src_tag, dup_tag in zip(src_alpha, dup_alpha, strict=True):
             self.assertIsNot(src_tag, dup_tag)
 

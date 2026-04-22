@@ -9,6 +9,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from lightconductor.application.project_state import (
+    DuplicateSlavePinError,
     MasterAdded,
     MasterRemoved,
     MasterUpdated,
@@ -193,6 +194,44 @@ def test_add_slave_duplicate_id_raises_value_error(state):
         state.add_slave("m1", _slave("s1", name="dup"))
 
     assert events == []
+
+
+def test_add_slave_duplicate_pin_raises_duplicate_slave_pin_error(state):
+    state.add_master(_master("m1"))
+    state.add_slave("m1", _slave("s1", pin="7"))
+
+    with pytest.raises(DuplicateSlavePinError) as excinfo:
+        state.add_slave("m1", _slave("s2", name="dup-pin", pin="7"))
+
+    err = excinfo.value
+    assert err.master_id == "m1"
+    assert err.pin == "7"
+    assert err.existing_slave_id == "s1"
+    assert err.new_slave_id == "s2"
+    assert isinstance(err, ValueError)
+    assert "s2" not in state.master("m1").slaves
+
+
+def test_add_slave_duplicate_pin_does_not_emit_slave_added(state):
+    state.add_master(_master("m1"))
+    state.add_slave("m1", _slave("s1", pin="7"))
+    events = _capture(state)
+
+    with pytest.raises(DuplicateSlavePinError):
+        state.add_slave("m1", _slave("s2", pin="7"))
+
+    assert [ev for ev in events if isinstance(ev, SlaveAdded)] == []
+
+
+def test_add_slave_same_pin_across_different_masters_succeeds(state):
+    state.add_master(_master("m1"))
+    state.add_master(_master("m2", name="Master 2"))
+    state.add_slave("m1", _slave("s1", pin="7"))
+
+    state.add_slave("m2", _slave("s2", pin="7"))
+
+    assert "s1" in state.master("m1").slaves
+    assert "s2" in state.master("m2").slaves
 
 
 def test_remove_slave_missing_raises_key_error(state):
