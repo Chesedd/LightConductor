@@ -177,6 +177,7 @@ class MasterUdpUploadTransport:
         ack_timeout_s: float = DEFAULT_ACK_TIMEOUT_S,
         ack_max_retries: int = DEFAULT_ACK_MAX_RETRIES,
         ack_backoff_delays: Tuple[float, ...] = DEFAULT_ACK_BACKOFF,
+        use_ack: bool = True,
     ):
         self.port = port
         self.chunk_size = chunk_size
@@ -195,6 +196,7 @@ class MasterUdpUploadTransport:
         self.ack_timeout_s = max(0.0, float(ack_timeout_s))
         self.ack_max_retries = max(0, int(ack_max_retries))
         self.ack_backoff_delays = tuple(max(0.0, float(d)) for d in ack_backoff_delays)
+        self.use_ack = bool(use_ack)
 
     def _send_with_retry(
         self,
@@ -268,10 +270,6 @@ class MasterUdpUploadTransport:
         cmd, stale offsets from prior retries, ACKs for other slaves)
         are silently dropped and the wait continues within the current
         attempt's remaining time budget.
-
-        This method is intentionally not yet called from production
-        code; it exists as the foundation for Phase 17.2's upload()
-        integration.
         """
         max_attempts = 1 + self.ack_max_retries
         attempts = 0
@@ -372,17 +370,24 @@ class MasterUdpUploadTransport:
             for host, shows in compiled_by_host.items():
                 addr = (host, self.port)
                 for show in shows:
-                    self._send_with_retry(
-                        sock,
-                        BEGIN_STRUCT.pack(
-                            APP_MAGIC,
-                            CMD_UPLOAD_BEGIN,
-                            show.slave_id,
-                            len(show.blob),
-                            show.crc32,
-                        ),
-                        addr,
+                    begin_packet = BEGIN_STRUCT.pack(
+                        APP_MAGIC,
+                        CMD_UPLOAD_BEGIN,
+                        show.slave_id,
+                        len(show.blob),
+                        show.crc32,
                     )
+                    if self.use_ack:
+                        self._send_with_ack(
+                            sock,
+                            begin_packet,
+                            addr,
+                            expected_cmd=CMD_UPLOAD_BEGIN,
+                            slave_id=show.slave_id,
+                            offset=0,
+                        )
+                    else:
+                        self._send_with_retry(sock, begin_packet, addr)
                     _after_send()
                     time.sleep(self.inter_packet_delay)
 
@@ -399,16 +404,35 @@ class MasterUdpUploadTransport:
                             )
                             + chunk
                         )
-                        self._send_with_retry(sock, packet, addr)
+                        if self.use_ack:
+                            self._send_with_ack(
+                                sock,
+                                packet,
+                                addr,
+                                expected_cmd=CMD_UPLOAD_CHUNK,
+                                slave_id=show.slave_id,
+                                offset=offset,
+                            )
+                        else:
+                            self._send_with_retry(sock, packet, addr)
                         _after_send()
                         offset += len(chunk)
                         time.sleep(self.inter_packet_delay)
 
-                    self._send_with_retry(
-                        sock,
-                        END_STRUCT.pack(APP_MAGIC, CMD_UPLOAD_END, show.slave_id),
-                        addr,
+                    end_packet = END_STRUCT.pack(
+                        APP_MAGIC, CMD_UPLOAD_END, show.slave_id
                     )
+                    if self.use_ack:
+                        self._send_with_ack(
+                            sock,
+                            end_packet,
+                            addr,
+                            expected_cmd=CMD_UPLOAD_END,
+                            slave_id=show.slave_id,
+                            offset=0,
+                        )
+                    else:
+                        self._send_with_retry(sock, end_packet, addr)
                     _after_send()
                     time.sleep(self.inter_packet_delay)
         finally:
@@ -420,6 +444,9 @@ class MasterUdpUploadTransport:
         *,
         progress_callback: Optional[Callable[[int, int], bool]] = None,
     ) -> None:
+        # CMD_START_SHOW is fire-and-forget by wire-protocol design; the
+        # master never emits an ACK for it, so this method deliberately
+        # stays on _send_with_retry regardless of self.use_ack.
         unique_hosts = sorted({host for host in hosts if host})
         total = len(unique_hosts)
         sent = 0

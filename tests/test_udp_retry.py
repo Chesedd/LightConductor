@@ -67,6 +67,7 @@ class UploadRetryBehaviourTests(unittest.TestCase):
             max_retries=2,
             retry_base_delay=0.0,
             socket_factory=factory,
+            use_ack=False,
         )
         transport.upload(_make_compiled(blob=b"abc"))
 
@@ -84,6 +85,7 @@ class UploadRetryBehaviourTests(unittest.TestCase):
             max_retries=2,
             retry_base_delay=0.0,
             socket_factory=factory,
+            use_ack=False,
         )
         transport.upload(_make_compiled(blob=b"abc"))
 
@@ -101,6 +103,7 @@ class UploadRetryBehaviourTests(unittest.TestCase):
             max_retries=2,
             retry_base_delay=0.0,
             socket_factory=factory,
+            use_ack=False,
         )
 
         with self.assertRaises(UploadFailedError) as ctx:
@@ -119,6 +122,7 @@ class UploadRetryBehaviourTests(unittest.TestCase):
             max_retries=1,
             retry_base_delay=0.0,
             socket_factory=factory,
+            use_ack=False,
         )
 
         transport.start_show(["10.0.0.1"])
@@ -136,6 +140,7 @@ class UploadRetryBehaviourTests(unittest.TestCase):
             max_retries=0,
             retry_base_delay=0.0,
             socket_factory=factory,
+            use_ack=False,
         )
 
         with self.assertRaises(UploadFailedError) as ctx:
@@ -152,6 +157,7 @@ class UploadRetryBehaviourTests(unittest.TestCase):
             max_retries=0,
             retry_base_delay=0.0,
             socket_factory=factory,
+            use_ack=False,
         )
 
         with self.assertRaises(UploadFailedError) as ctx:

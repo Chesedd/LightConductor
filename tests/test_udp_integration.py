@@ -101,7 +101,9 @@ def _compiled(
 class UdpIntegrationTests(unittest.TestCase):
     def test_empty_upload_sends_nothing(self):
         with mock_udp_receiver() as recv:
-            transport = MasterUdpUploadTransport(port=recv.port, inter_packet_delay=0.0)
+            transport = MasterUdpUploadTransport(
+                port=recv.port, inter_packet_delay=0.0, use_ack=False
+            )
             transport.upload({})
             time.sleep(0.1)
             self.assertEqual([], recv.snapshot())
@@ -111,7 +113,7 @@ class UdpIntegrationTests(unittest.TestCase):
         slave_id = 7
         with mock_udp_receiver() as recv:
             transport = MasterUdpUploadTransport(
-                port=recv.port, chunk_size=1024, inter_packet_delay=0.0
+                port=recv.port, chunk_size=1024, inter_packet_delay=0.0, use_ack=False
             )
             transport.upload({"127.0.0.1": [_compiled(slave_id, blob)]})
             _drain_receiver(recv, expected_packet_count=3)
@@ -138,6 +140,7 @@ class UdpIntegrationTests(unittest.TestCase):
                 port=recv.port,
                 chunk_size=chunk_size,
                 inter_packet_delay=0.0,
+                use_ack=False,
             )
             transport.upload({"127.0.0.1": [_compiled(slave_id, blob)]})
             _drain_receiver(recv, expected_packet_count=expected_total)
@@ -160,7 +163,7 @@ class UdpIntegrationTests(unittest.TestCase):
         slave_id = 42
         with mock_udp_receiver() as recv:
             transport = MasterUdpUploadTransport(
-                port=recv.port, chunk_size=1024, inter_packet_delay=0.0
+                port=recv.port, chunk_size=1024, inter_packet_delay=0.0, use_ack=False
             )
             transport.upload({"127.0.0.1": [_compiled(slave_id, blob)]})
             _drain_receiver(recv, expected_packet_count=3)
@@ -186,6 +189,7 @@ class UdpIntegrationTests(unittest.TestCase):
                 port=recv.port,
                 chunk_size=chunk_size,
                 inter_packet_delay=0.0,
+                use_ack=False,
             )
             transport.upload({"127.0.0.1": [_compiled(slave_id, blob)]})
             _drain_receiver(recv, expected_packet_count=expected_total)
@@ -209,7 +213,7 @@ class UdpIntegrationTests(unittest.TestCase):
         slave_a, slave_b = 10, 20
         with mock_udp_receiver() as recv:
             transport = MasterUdpUploadTransport(
-                port=recv.port, chunk_size=1024, inter_packet_delay=0.0
+                port=recv.port, chunk_size=1024, inter_packet_delay=0.0, use_ack=False
             )
             transport.upload(
                 {
@@ -237,7 +241,7 @@ class UdpIntegrationTests(unittest.TestCase):
         slave_a, slave_b = 11, 22
         with mock_udp_receiver() as recv:
             transport = MasterUdpUploadTransport(
-                port=recv.port, chunk_size=1024, inter_packet_delay=0.0
+                port=recv.port, chunk_size=1024, inter_packet_delay=0.0, use_ack=False
             )
             transport.upload(
                 {
@@ -258,7 +262,9 @@ class UdpIntegrationTests(unittest.TestCase):
 
     def test_start_show_with_distinct_hosts_deduplicates(self):
         with mock_udp_receiver() as recv:
-            transport = MasterUdpUploadTransport(port=recv.port, inter_packet_delay=0.0)
+            transport = MasterUdpUploadTransport(
+                port=recv.port, inter_packet_delay=0.0, use_ack=False
+            )
             transport.start_show(["127.0.0.1", "127.0.0.1", "127.0.0.1"])
             _drain_receiver(recv, expected_packet_count=1)
             time.sleep(0.1)
@@ -269,7 +275,9 @@ class UdpIntegrationTests(unittest.TestCase):
 
     def test_start_show_empty_hosts_sends_nothing(self):
         with mock_udp_receiver() as recv:
-            transport = MasterUdpUploadTransport(port=recv.port, inter_packet_delay=0.0)
+            transport = MasterUdpUploadTransport(
+                port=recv.port, inter_packet_delay=0.0, use_ack=False
+            )
             transport.start_show([])
             time.sleep(0.1)
             self.assertEqual([], recv.snapshot())
@@ -289,7 +297,7 @@ class UdpIntegrationTests(unittest.TestCase):
 
         with mock_udp_receiver() as recv:
             transport = MasterUdpUploadTransport(
-                port=recv.port, chunk_size=1024, inter_packet_delay=0.0
+                port=recv.port, chunk_size=1024, inter_packet_delay=0.0, use_ack=False
             )
             transport.upload(compiled_by_host)
             _drain_receiver(recv, expected_packet_count=3)
