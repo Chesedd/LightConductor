@@ -38,6 +38,7 @@ from lightconductor.infrastructure.master_udp_upload_transport import (
     AckTimeoutError,
     MasterUdpUploadTransport,
     UploadFailedError,
+    count_upload_packets,
 )
 
 ADDR: Tuple[str, int] = ("10.0.0.1", 43690)
@@ -324,6 +325,229 @@ class UploadAckIntegrationTests(unittest.TestCase):
         self.assertEqual(
             [CMD_UPLOAD_BEGIN, CMD_UPLOAD_CHUNK, CMD_UPLOAD_CHUNK, CMD_UPLOAD_END],
             cmds,
+        )
+
+
+class ChunkRedundancy(unittest.TestCase):
+    """Phase 19.1 — per-chunk UART-redundancy tests.
+
+    The transport is constructed with ``use_ack=False`` by default
+    here so the assertions on raw sendto counts/offsets stay
+    unmuddied by ACK retries. ``test_ack_retry_inside_redundancy_attempt``
+    explicitly exercises the ACK path.
+    """
+
+    def _run(
+        self,
+        transport: MasterUdpUploadTransport,
+        compiled: dict,
+        *,
+        progress_callback: Optional[Callable[[int, int], bool]] = None,
+        patch_select: bool = False,
+    ) -> None:
+        if patch_select:
+            with (
+                mock.patch.object(mut.select, "select", side_effect=_fake_select),
+                mock.patch.object(mut.time, "sleep", side_effect=lambda _d: None),
+            ):
+                transport.upload(compiled, progress_callback=progress_callback)
+        else:
+            with mock.patch.object(mut.time, "sleep", side_effect=lambda _d: None):
+                transport.upload(compiled, progress_callback=progress_callback)
+
+    def _make_no_ack_transport(
+        self,
+        factory: Callable[[], _UploadMockSocket],
+        *,
+        chunk_size: int = 4,
+        chunk_redundancy: int = 1,
+    ) -> MasterUdpUploadTransport:
+        return MasterUdpUploadTransport(
+            port=43690,
+            chunk_size=chunk_size,
+            inter_packet_delay=0.0,
+            max_retries=0,
+            retry_base_delay=0.0,
+            socket_factory=factory,
+            use_ack=False,
+            chunk_redundancy=chunk_redundancy,
+        )
+
+    def test_redundancy_1_is_default_and_matches_current_behavior(self) -> None:
+        factory = _make_mock_socket_factory()
+        transport = self._make_no_ack_transport(factory, chunk_size=4)
+        # Default: no chunk_redundancy passed -> 1.
+        self.assertEqual(1, transport.chunk_redundancy)
+        # 12-byte blob -> 3 chunks of 4 -> BEGIN + 3 CHUNK + END = 5 sends.
+        blob = b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c"
+        self._run(transport, {ADDR[0]: [_compiled(7, blob)]})
+
+        sock = factory.sockets[0]  # type: ignore[attr-defined]
+        self.assertEqual(5, len(sock.sends))
+        cmds = [pkt[4] for pkt, _ in sock.sends]
+        self.assertEqual(
+            [
+                CMD_UPLOAD_BEGIN,
+                CMD_UPLOAD_CHUNK,
+                CMD_UPLOAD_CHUNK,
+                CMD_UPLOAD_CHUNK,
+                CMD_UPLOAD_END,
+            ],
+            cmds,
+        )
+
+    def test_redundancy_2_sends_each_chunk_twice(self) -> None:
+        factory = _make_mock_socket_factory()
+        transport = self._make_no_ack_transport(
+            factory, chunk_size=4, chunk_redundancy=2
+        )
+        blob = b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c"
+        self._run(transport, {ADDR[0]: [_compiled(7, blob)]})
+
+        sock = factory.sockets[0]  # type: ignore[attr-defined]
+        # BEGIN + 3*2 CHUNK + END = 8 sends.
+        self.assertEqual(8, len(sock.sends))
+        cmds = [pkt[4] for pkt, _ in sock.sends]
+        # BEGIN sent exactly once.
+        self.assertEqual(1, cmds.count(CMD_UPLOAD_BEGIN))
+        # END sent exactly once.
+        self.assertEqual(1, cmds.count(CMD_UPLOAD_END))
+        # 6 CHUNK sends in the middle.
+        self.assertEqual(6, cmds.count(CMD_UPLOAD_CHUNK))
+        # Order: BEGIN first, END last, all 6 CHUNK in between.
+        self.assertEqual(CMD_UPLOAD_BEGIN, cmds[0])
+        self.assertEqual(CMD_UPLOAD_END, cmds[-1])
+        self.assertTrue(all(c == CMD_UPLOAD_CHUNK for c in cmds[1:-1]))
+        # Offsets of the six chunk sends: [0, 0, 4, 4, 8, 8].
+        offsets: List[int] = []
+        for pkt, _ in sock.sends[1:-1]:
+            _m, _c, _sid, off, _ln = CHUNK_HEAD_STRUCT.unpack(
+                pkt[: CHUNK_HEAD_STRUCT.size]
+            )
+            offsets.append(off)
+        self.assertEqual([0, 0, 4, 4, 8, 8], offsets)
+
+    def test_redundancy_3_sends_each_chunk_thrice(self) -> None:
+        factory = _make_mock_socket_factory()
+        transport = self._make_no_ack_transport(
+            factory, chunk_size=4, chunk_redundancy=3
+        )
+        # 8-byte blob -> 2 chunks. BEGIN + 2*3 CHUNK + END = 8 sends.
+        blob = b"abcdefgh"
+        self._run(transport, {ADDR[0]: [_compiled(7, blob)]})
+
+        sock = factory.sockets[0]  # type: ignore[attr-defined]
+        self.assertEqual(8, len(sock.sends))
+        cmds = [pkt[4] for pkt, _ in sock.sends]
+        self.assertEqual(1, cmds.count(CMD_UPLOAD_BEGIN))
+        self.assertEqual(1, cmds.count(CMD_UPLOAD_END))
+        self.assertEqual(6, cmds.count(CMD_UPLOAD_CHUNK))
+
+    def test_redundancy_zero_clamped_to_one(self) -> None:
+        transport = MasterUdpUploadTransport(chunk_redundancy=0)
+        self.assertEqual(1, transport.chunk_redundancy)
+
+    def test_redundancy_negative_clamped_to_one(self) -> None:
+        transport = MasterUdpUploadTransport(chunk_redundancy=-5)
+        self.assertEqual(1, transport.chunk_redundancy)
+
+    def test_progress_callback_counts_each_redundancy_send(self) -> None:
+        factory = _make_mock_socket_factory()
+        transport = self._make_no_ack_transport(
+            factory, chunk_size=4, chunk_redundancy=2
+        )
+        blob = b"abcdefgh"  # 2 chunks.
+        observed: List[Tuple[int, int]] = []
+
+        def callback(sent: int, total: int) -> bool:
+            observed.append((sent, total))
+            return True
+
+        self._run(
+            transport,
+            {ADDR[0]: [_compiled(7, blob)]},
+            progress_callback=callback,
+        )
+
+        # Total = BEGIN + 2*2 CHUNK + END = 6.
+        self.assertEqual(
+            [(1, 6), (2, 6), (3, 6), (4, 6), (5, 6), (6, 6)],
+            observed,
+        )
+
+    def test_ack_retry_inside_redundancy_attempt(self) -> None:
+        """N=2; first ACK for the first redundancy copy of chunk@0 is
+        dropped. The transport's internal ACK-retry recovers within
+        that single redundancy attempt; the second redundancy copy
+        proceeds normally; END is reached and the upload completes.
+        """
+        # Drop plan per send (in order): BEGIN ok, CHUNK#1-try1 drop,
+        # CHUNK#1-try2 ok (ACK-retry recovers), CHUNK#1-redundant-copy
+        # ok, END ok = 5 mock-master events.
+        factory = _make_mock_socket_factory(
+            drop_plan=[False, True, False, False, False]
+        )
+        transport = MasterUdpUploadTransport(
+            port=43690,
+            chunk_size=10,
+            inter_packet_delay=0.0,
+            max_retries=0,
+            retry_base_delay=0.0,
+            socket_factory=factory,
+            ack_timeout_s=0.01,
+            ack_max_retries=3,
+            ack_backoff_delays=(0.0, 0.0, 0.0),
+            use_ack=True,
+            chunk_redundancy=2,
+        )
+        blob = b"abcdefghij"  # exactly one chunk.
+        self._run(
+            transport,
+            {ADDR[0]: [_compiled(3, blob)]},
+            patch_select=True,
+        )
+
+        sock = factory.sockets[0]  # type: ignore[attr-defined]
+        # BEGIN + (CHUNK try1 dropped + CHUNK retry) + CHUNK redundant + END
+        # = 5 sendto calls total.
+        self.assertEqual(5, len(sock.sends))
+        cmds = [pkt[4] for pkt, _ in sock.sends]
+        self.assertEqual(
+            [
+                CMD_UPLOAD_BEGIN,
+                CMD_UPLOAD_CHUNK,  # first redundancy copy, ACK dropped
+                CMD_UPLOAD_CHUNK,  # ACK retry of the same copy
+                CMD_UPLOAD_CHUNK,  # second redundancy copy
+                CMD_UPLOAD_END,
+            ],
+            cmds,
+        )
+        # All three CHUNK sends carry offset=0.
+        for i in (1, 2, 3):
+            _m, _c, _sid, off, _ln = CHUNK_HEAD_STRUCT.unpack(
+                sock.sends[i][0][: CHUNK_HEAD_STRUCT.size]
+            )
+            self.assertEqual(0, off)
+
+    def test_count_upload_packets_redundancy_keyword(self) -> None:
+        compiled = {
+            ADDR[0]: [
+                _compiled(1, b"x" * 10),  # 4 chunks @ chunk_size=3
+                _compiled(2, b"x" * 6),   # 2 chunks
+            ],
+        }
+        # Default redundancy=1: per slave 2 + chunks. (2+4) + (2+2) = 10.
+        self.assertEqual(10, count_upload_packets(compiled, 3))
+        # redundancy=3: 2 + chunks*3. (2+12) + (2+6) = 22.
+        self.assertEqual(
+            22, count_upload_packets(compiled, 3, chunk_redundancy=3)
+        )
+        # Non-positive coerces to 1.
+        self.assertEqual(
+            10, count_upload_packets(compiled, 3, chunk_redundancy=0)
+        )
+        self.assertEqual(
+            10, count_upload_packets(compiled, 3, chunk_redundancy=-2)
         )
 
 

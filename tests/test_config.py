@@ -33,6 +33,7 @@ class LoadSettingsTests(unittest.TestCase):
                 "default_master_ip",
                 "udp_port",
                 "udp_chunk_size",
+                "udp_chunk_redundancy",
                 "autosave_interval_seconds",
                 "color_presets",
                 "recent_project_ids",
@@ -291,6 +292,42 @@ class LoadSettingsTests(unittest.TestCase):
         self._write_templates_settings([bad])
         result = load_settings(self.settings_file)
         self.assertEqual(result.device_templates, [])
+
+    def test_udp_chunk_redundancy_defaults_to_2_and_roundtrips(self):
+        # In-process default.
+        self.assertEqual(AppSettings().udp_chunk_redundancy, 2)
+        # Save -> load preserves an explicit value.
+        custom = AppSettings(udp_chunk_redundancy=3)
+        save_settings(custom, self.settings_file)
+        loaded = load_settings(self.settings_file)
+        self.assertEqual(loaded.udp_chunk_redundancy, 3)
+        # Missing key in JSON -> field defaults to 2.
+        self.settings_file.write_text(
+            json.dumps(
+                {
+                    "default_master_ip": "10.0.0.1",
+                    "udp_port": 55555,
+                    "udp_chunk_size": 1024,
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = load_settings(self.settings_file)
+        self.assertEqual(result.udp_chunk_redundancy, 2)
+        # Bool value rejected by _from_dict's bool-is-not-int guard.
+        self.settings_file.write_text(
+            json.dumps(
+                {
+                    "default_master_ip": "10.0.0.1",
+                    "udp_port": 55555,
+                    "udp_chunk_size": 1024,
+                    "udp_chunk_redundancy": True,
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = load_settings(self.settings_file)
+        self.assertEqual(result.udp_chunk_redundancy, 2)
 
 
 if __name__ == "__main__":
