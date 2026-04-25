@@ -540,5 +540,78 @@ class FileIOTests(unittest.TestCase):
         self.assertIsInstance(ctx.exception.__cause__, json.JSONDecodeError)
 
 
+class V4DefensiveBrightnessRepair(unittest.TestCase):
+    """v4 envelopes saved by buggy intermediate Phase 18.1 code may
+    carry `schema_version=4` yet have slaves without a `brightness`
+    field. `migrate_to_current` must idempotently inject the default
+    so the validator does not reject otherwise well-formed files.
+    """
+
+    def _v4_envelope_with_slave(self, slave):
+        return {
+            "schema_version": 4,
+            "masters": {
+                "m1": {
+                    "name": "M",
+                    "id": "m1",
+                    "ip": "10.0.0.1",
+                    "slaves": {"s1": slave},
+                },
+            },
+        }
+
+    def _slave_without_brightness(self):
+        return {
+            "name": "S1",
+            "pin": "1",
+            "led_count": 4,
+            "grid_rows": 1,
+            "grid_columns": 4,
+            "led_cells": [0, 1, 2, 3],
+            "id": "s1",
+            "tagTypes": {},
+        }
+
+    def test_v4_slave_missing_brightness_gets_default_injected(self):
+        envelope = self._v4_envelope_with_slave(self._slave_without_brightness())
+
+        result = migrate_to_current(envelope)
+
+        slave = result["masters"]["m1"]["slaves"]["s1"]
+        self.assertEqual(slave["brightness"], 1.0)
+        validate(result)
+
+    def test_v4_slave_with_brightness_is_unchanged(self):
+        slave = self._slave_without_brightness()
+        slave["brightness"] = 0.37
+        envelope = self._v4_envelope_with_slave(slave)
+
+        result = migrate_to_current(envelope)
+
+        self.assertEqual(
+            result["masters"]["m1"]["slaves"]["s1"]["brightness"], 0.37
+        )
+        validate(result)
+
+    def test_v4_repair_does_not_bump_schema_version(self):
+        envelope = self._v4_envelope_with_slave(self._slave_without_brightness())
+        result = migrate_to_current(envelope)
+        self.assertEqual(result["schema_version"], 4)
+        self.assertEqual(CURRENT_SCHEMA_VERSION, 4)
+
+    def test_v4_repair_via_load_and_migrate_tempfile(self):
+        envelope = self._v4_envelope_with_slave(self._slave_without_brightness())
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "v4_no_brightness.json"
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(envelope, f)
+
+            result = load_and_migrate(path)
+
+        slave = result["masters"]["m1"]["slaves"]["s1"]
+        self.assertEqual(slave["brightness"], 1.0)
+        validate(result)
+
+
 if __name__ == "__main__":
     unittest.main()

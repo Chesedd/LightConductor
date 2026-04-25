@@ -135,6 +135,11 @@ def _migrate_v3_to_v4(envelope: Dict[str, Any]) -> Dict[str, Any]:
     format and slave firmware are unchanged. Default 1.0 preserves
     visual behavior for legacy projects. Bumps envelope schema_version
     to 4. Returns the mutated envelope.
+
+    Idempotent: slaves that already carry a `brightness` value are
+    left untouched, so the function doubles as a v4 field repair when
+    invoked on an envelope already at schema_version 4 (see
+    `migrate_to_current` for the defensive-repair branch).
     """
     masters = envelope.get("masters")
     if not isinstance(masters, dict):
@@ -168,7 +173,10 @@ def migrate_to_current(data: Any) -> Dict[str, Any]:
       - v1: apply v1→v2, v2→v3, v3→v4.
       - v2: apply v2→v3, v3→v4.
       - v3: apply v3→v4 brightness.
-      - v4 (current): returned as-is.
+      - v4 (current): legacy-action coercion, then `_migrate_v3_to_v4`
+        is re-run as a defensive idempotent repair for files saved by
+        buggy intermediate code that bumped `schema_version` to 4
+        without injecting the `brightness` field on slaves.
 
     If `data` carries a version higher than CURRENT_SCHEMA_VERSION,
     SchemaValidationError is raised (prevent older code from
@@ -215,6 +223,7 @@ def migrate_to_current(data: Any) -> Dict[str, Any]:
         return data
     if version == CURRENT_SCHEMA_VERSION:
         _coerce_legacy_tag_actions(data)
+        _migrate_v3_to_v4(data)
         return data
     raise SchemaValidationError(f"unknown schema_version {version}")
 
