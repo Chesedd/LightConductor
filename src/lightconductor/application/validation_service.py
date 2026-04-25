@@ -35,7 +35,8 @@ class ValidationIssue:
                    "led_cells_out_of_canvas",
                    "canvas_too_small_for_leds",
                    "canvas_zero",
-                   "topology_non_led_cell".
+                   "topology_non_led_cell",
+                   "brightness_out_of_range".
         path:      Dotted path pointing to the offending element,
                    e.g. "masters.m1.slaves.s1.tag_types.front".
                    Used for UI highlighting / grouping.
@@ -65,6 +66,7 @@ class ValidationService:
                 issues.extend(self._check_led_cells(slave, slave_path))
                 issues.extend(self._check_topology_cells_have_leds(slave, slave_path))
                 issues.extend(self._check_slave_segments(slave, slave_path))
+                issues.extend(self._check_slave_brightness_range(slave, slave_path))
         return issues
 
     # --- individual checks ---
@@ -301,6 +303,35 @@ class ValidationService:
                         )
                     )
         return issues
+
+    def _check_slave_brightness_range(
+        self,
+        slave: Slave,
+        path: str,
+    ) -> List[ValidationIssue]:
+        """Soft warning if brightness lies outside [0.0, 1.0].
+
+        Compile clamps to the valid range, so out-of-range values
+        never produce garbage bytes. Save and compile are not
+        blocked by this category.
+        """
+        try:
+            brightness = float(getattr(slave, "brightness", 1.0))
+        except (TypeError, ValueError):
+            return []
+        if 0.0 <= brightness <= 1.0:
+            return []
+        return [
+            ValidationIssue(
+                severity=SEVERITY_WARNING,
+                category="brightness_out_of_range",
+                path=path,
+                message=(
+                    f"Brightness {brightness} for slave {slave.name!r} "
+                    f"is outside [0.0, 1.0]; will be clamped on compile"
+                ),
+            )
+        ]
 
     # --- helpers ---
 

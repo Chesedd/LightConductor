@@ -7,7 +7,7 @@ from typing import Any, Dict, Iterable, Tuple, cast
 
 logger = logging.getLogger(__name__)
 
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 4
 
 
 class SchemaValidationError(ValueError):
@@ -27,6 +27,7 @@ _SLAVE_FIELDS: Tuple[Tuple[str, Tuple[type, ...]], ...] = (
     ("led_count", (int,)),
     ("grid_rows", (int,)),
     ("grid_columns", (int,)),
+    ("brightness", (int, float)),
     ("led_cells", (list,)),
     ("id", (str,)),
     ("tagTypes", (dict,)),
@@ -126,16 +127,48 @@ def _migrate_v2_to_v3(envelope: Dict[str, Any]) -> Dict[str, Any]:
     return envelope
 
 
+def _migrate_v3_to_v4(envelope: Dict[str, Any]) -> Dict[str, Any]:
+    """Inject `brightness=1.0` on every slave that lacks the field.
+
+    Phase 18.1: per-slave brightness is now a domain field used as a
+    multiplicative scaler on the palette at compile time. The wire
+    format and slave firmware are unchanged. Default 1.0 preserves
+    visual behavior for legacy projects. Bumps envelope schema_version
+    to 4. Returns the mutated envelope.
+    """
+    masters = envelope.get("masters")
+    if not isinstance(masters, dict):
+        envelope["schema_version"] = 4
+        return envelope
+    migrated = 0
+    for master in masters.values():
+        if not isinstance(master, dict):
+            continue
+        slaves = master.get("slaves")
+        if not isinstance(slaves, dict):
+            continue
+        for slave in slaves.values():
+            if not isinstance(slave, dict):
+                continue
+            if "brightness" not in slave:
+                slave["brightness"] = 1.0
+                migrated += 1
+    if migrated:
+        logger.info("migrated %d slaves to schema v4 with default brightness", migrated)
+    envelope["schema_version"] = 4
+    return envelope
+
+
 def migrate_to_current(data: Any) -> Dict[str, Any]:
     """Apply migrations until data reaches CURRENT_SCHEMA_VERSION.
 
     Migration chain:
       - v0 (dict without schema_version): wrap in a v1 envelope,
-        then apply v1→v2 grid-field migration, then v2→v3 led_cells
-        migration.
-      - v1: apply v1→v2, then v2→v3.
-      - v2: apply v2→v3 led_cells migration.
-      - v3 (current): returned as-is.
+        then v1→v2 grid-field, v2→v3 led_cells, v3→v4 brightness.
+      - v1: apply v1→v2, v2→v3, v3→v4.
+      - v2: apply v2→v3, v3→v4.
+      - v3: apply v3→v4 brightness.
+      - v4 (current): returned as-is.
 
     If `data` carries a version higher than CURRENT_SCHEMA_VERSION,
     SchemaValidationError is raised (prevent older code from
@@ -153,6 +186,7 @@ def migrate_to_current(data: Any) -> Dict[str, Any]:
         _coerce_legacy_tag_actions(envelope)
         _migrate_v1_to_v2(envelope)
         _migrate_v2_to_v3(envelope)
+        _migrate_v3_to_v4(envelope)
         return envelope
     version = data["schema_version"]
     if not isinstance(version, int) or isinstance(version, bool):
@@ -168,10 +202,16 @@ def migrate_to_current(data: Any) -> Dict[str, Any]:
         _coerce_legacy_tag_actions(data)
         _migrate_v1_to_v2(data)
         _migrate_v2_to_v3(data)
+        _migrate_v3_to_v4(data)
         return data
     if version == 2:
         _coerce_legacy_tag_actions(data)
         _migrate_v2_to_v3(data)
+        _migrate_v3_to_v4(data)
+        return data
+    if version == 3:
+        _coerce_legacy_tag_actions(data)
+        _migrate_v3_to_v4(data)
         return data
     if version == CURRENT_SCHEMA_VERSION:
         _coerce_legacy_tag_actions(data)

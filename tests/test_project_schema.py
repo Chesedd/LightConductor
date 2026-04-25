@@ -44,6 +44,7 @@ def _minimal_slave(tag_types=None):
         "led_count": 30,
         "grid_rows": 1,
         "grid_columns": 30,
+        "brightness": 1.0,
         "led_cells": list(range(30)),
         "id": "s1",
         "tagTypes": tag_types if tag_types is not None else {},
@@ -207,7 +208,7 @@ class MigrationTests(unittest.TestCase):
 
         result = migrate_to_current(envelope)
 
-        self.assertEqual(result["schema_version"], 3)
+        self.assertEqual(result["schema_version"], CURRENT_SCHEMA_VERSION)
         slaves = result["masters"]["m1"]["slaves"]
         self.assertEqual(slaves["s1"]["led_cells"], [0, 1, 2, 3])
         self.assertEqual(slaves["s2"]["led_cells"], [])
@@ -235,14 +236,14 @@ class MigrationTests(unittest.TestCase):
 
         result = migrate_to_current(legacy)
 
-        self.assertEqual(result["schema_version"], 3)
+        self.assertEqual(result["schema_version"], CURRENT_SCHEMA_VERSION)
         slave = result["masters"]["m1"]["slaves"]["s1"]
         self.assertEqual(slave["led_cells"], [0, 1, 2, 3, 4, 5])
         validate(result)
 
-    def test_migrate_v3_envelope_passes_through_unchanged(self):
-        # A v3 envelope with non-sequential led_cells must be
-        # preserved verbatim by migrate_to_current.
+    def test_migrate_v3_envelope_chains_to_current(self):
+        # A v3 envelope (no brightness) must keep led_cells verbatim
+        # and gain brightness=1.0 from the v3→v4 migration.
         envelope = {
             "schema_version": 3,
             "masters": {
@@ -270,7 +271,153 @@ class MigrationTests(unittest.TestCase):
 
         slave = result["masters"]["m1"]["slaves"]["s1"]
         self.assertEqual(slave["led_cells"], [3, 1, 0, 2])
-        self.assertEqual(result["schema_version"], 3)
+        self.assertEqual(slave["brightness"], 1.0)
+        self.assertEqual(result["schema_version"], CURRENT_SCHEMA_VERSION)
+
+
+class BrightnessMigrationTests(unittest.TestCase):
+    """v3→v4 schema migration: per-slave `brightness` field."""
+
+    def test_v3_slaves_lacking_brightness_get_default_one(self):
+        envelope = {
+            "schema_version": 3,
+            "masters": {
+                "m1": {
+                    "name": "M",
+                    "id": "m1",
+                    "ip": "10.0.0.1",
+                    "slaves": {
+                        "s1": {
+                            "name": "S1",
+                            "pin": "1",
+                            "led_count": 4,
+                            "grid_rows": 1,
+                            "grid_columns": 4,
+                            "led_cells": [0, 1, 2, 3],
+                            "id": "s1",
+                            "tagTypes": {},
+                        },
+                    },
+                }
+            },
+        }
+
+        result = migrate_to_current(envelope)
+
+        slave = result["masters"]["m1"]["slaves"]["s1"]
+        self.assertEqual(slave["brightness"], 1.0)
+        self.assertEqual(result["schema_version"], CURRENT_SCHEMA_VERSION)
+        validate(result)
+
+    def test_v3_to_v4_bumps_envelope_schema_version(self):
+        envelope = {"schema_version": 3, "masters": {}}
+        result = migrate_to_current(envelope)
+        self.assertEqual(result["schema_version"], CURRENT_SCHEMA_VERSION)
+        self.assertGreaterEqual(CURRENT_SCHEMA_VERSION, 4)
+
+    def test_existing_brightness_preserved_on_migration(self):
+        envelope = {
+            "schema_version": 3,
+            "masters": {
+                "m1": {
+                    "name": "M",
+                    "id": "m1",
+                    "ip": "10.0.0.1",
+                    "slaves": {
+                        "s1": {
+                            "name": "S1",
+                            "pin": "1",
+                            "led_count": 4,
+                            "grid_rows": 1,
+                            "grid_columns": 4,
+                            "led_cells": [0, 1, 2, 3],
+                            "brightness": 0.42,
+                            "id": "s1",
+                            "tagTypes": {},
+                        },
+                    },
+                }
+            },
+        }
+
+        result = migrate_to_current(envelope)
+
+        slave = result["masters"]["m1"]["slaves"]["s1"]
+        self.assertEqual(slave["brightness"], 0.42)
+        validate(result)
+
+    def test_legacy_v0_chain_to_v4_injects_brightness(self):
+        # Pre-v1 dict (no schema_version) walks the full migration
+        # chain and ends with brightness=1.0 on every slave.
+        legacy = {
+            "m1": {
+                "name": "M",
+                "id": "m1",
+                "ip": "10.0.0.1",
+                "slaves": {
+                    "s1": {
+                        "name": "S1",
+                        "pin": "1",
+                        "led_count": 6,
+                        "id": "s1",
+                        "tagTypes": {},
+                    },
+                },
+            }
+        }
+
+        result = migrate_to_current(legacy)
+
+        self.assertEqual(result["schema_version"], CURRENT_SCHEMA_VERSION)
+        slave = result["masters"]["m1"]["slaves"]["s1"]
+        self.assertEqual(slave["brightness"], 1.0)
+        self.assertEqual(slave["led_cells"], [0, 1, 2, 3, 4, 5])
+        validate(result)
+
+    def test_multi_slave_each_gets_independent_default_brightness(self):
+        envelope = {
+            "schema_version": 3,
+            "masters": {
+                "m1": {
+                    "name": "M",
+                    "id": "m1",
+                    "ip": "10.0.0.1",
+                    "slaves": {
+                        "s1": {
+                            "name": "S1",
+                            "pin": "1",
+                            "led_count": 4,
+                            "grid_rows": 1,
+                            "grid_columns": 4,
+                            "led_cells": [0, 1, 2, 3],
+                            "id": "s1",
+                            "tagTypes": {},
+                        },
+                        "s2": {
+                            "name": "S2",
+                            "pin": "2",
+                            "led_count": 2,
+                            "grid_rows": 1,
+                            "grid_columns": 2,
+                            "led_cells": [0, 1],
+                            "id": "s2",
+                            "tagTypes": {},
+                        },
+                    },
+                }
+            },
+        }
+
+        result = migrate_to_current(envelope)
+
+        slaves = result["masters"]["m1"]["slaves"]
+        self.assertEqual(slaves["s1"]["brightness"], 1.0)
+        self.assertEqual(slaves["s2"]["brightness"], 1.0)
+        # Mutating one default must not leak into the other (no
+        # shared reference): the migration writes per-slave literals.
+        slaves["s1"]["brightness"] = 0.25
+        self.assertEqual(slaves["s2"]["brightness"], 1.0)
+        validate(result)
 
 
 class WrapUnwrapTests(unittest.TestCase):

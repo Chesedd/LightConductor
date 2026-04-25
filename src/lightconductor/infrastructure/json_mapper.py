@@ -150,6 +150,7 @@ def pack_slave(slave: Slave) -> Dict[str, Any]:
         "led_count": slave.led_count,
         "grid_rows": slave.grid_rows,
         "grid_columns": slave.grid_columns,
+        "brightness": slave.brightness,
         "led_cells": list(slave.led_cells),
         "id": slave.id,
         "tagTypes": {
@@ -184,6 +185,7 @@ def unpack_slave(data: Dict[str, Any]) -> Slave:
         led_count=data["led_count"],
         grid_rows=data["grid_rows"],
         grid_columns=data["grid_columns"],
+        brightness=float(data.get("brightness", 1.0)),
         led_cells=list(data["led_cells"]),
         tag_types=tag_types,
     )

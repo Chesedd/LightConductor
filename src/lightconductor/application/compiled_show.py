@@ -125,9 +125,13 @@ class CompileShowsForMastersUseCase:
                 "Increase color-id width or reduce unique colors."
             )
 
+        brightness = max(0.0, min(1.0, float(getattr(slave, "brightness", 1.0))))
         palette_bytes = bytearray()
         for r, g, b in palette:
-            palette_bytes.extend((r & 0xFF, g & 0xFF, b & 0xFF))
+            sr = max(0, min(255, round(r * brightness)))
+            sg = max(0, min(255, round(g * brightness)))
+            sb = max(0, min(255, round(b * brightness)))
+            palette_bytes.extend((sr & 0xFF, sg & 0xFF, sb & 0xFF))
 
         header = HEADER_STRUCT.pack(
             MAGIC,

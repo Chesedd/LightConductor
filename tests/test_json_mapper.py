@@ -372,6 +372,7 @@ class PackSlaveTests(unittest.TestCase):
                 "led_count": 60,
                 "grid_rows": 1,
                 "grid_columns": 60,
+                "brightness": 1.0,
                 "led_cells": list(range(60)),
                 "id": "s1",
                 "tagTypes": {},
@@ -388,6 +389,7 @@ class PackSlaveTests(unittest.TestCase):
                 "led_count",
                 "grid_rows",
                 "grid_columns",
+                "brightness",
                 "led_cells",
                 "id",
                 "tagTypes",
@@ -430,6 +432,7 @@ class PackSlaveTests(unittest.TestCase):
         s.led_count = 0
         s.grid_rows = 1
         s.grid_columns = 0
+        s.brightness = 1.0
         s.led_cells = []
         s.tag_types = {}
         result = pack_slave(s)
@@ -461,6 +464,54 @@ class PackSlaveTests(unittest.TestCase):
         )
         result = pack_slave(s)
         self.assertEqual(result["tagTypes"]["front"], pack_tag_type(tt))
+
+
+class SlaveBrightnessTests(unittest.TestCase):
+    def test_pack_slave_includes_brightness_key(self):
+        s = Slave(
+            id="s1",
+            name="x",
+            pin="0",
+            led_count=0,
+            brightness=0.5,
+            tag_types={},
+        )
+        result = pack_slave(s)
+        self.assertIn("brightness", result)
+        self.assertEqual(result["brightness"], 0.5)
+
+    def test_unpack_slave_reads_brightness_as_float(self):
+        data = {
+            "name": "x",
+            "pin": "0",
+            "led_count": 0,
+            "grid_rows": 1,
+            "grid_columns": 0,
+            "brightness": 0.5,
+            "led_cells": [],
+            "id": "x",
+            "tagTypes": {},
+        }
+        s = unpack_slave(data)
+        self.assertEqual(s.brightness, 0.5)
+        self.assertIsInstance(s.brightness, float)
+
+    def test_unpack_slave_defaults_brightness_to_one_when_missing(self):
+        # Half-migrated files may lack brightness; unpack must
+        # default to 1.0 instead of raising.
+        data = {
+            "name": "x",
+            "pin": "0",
+            "led_count": 0,
+            "grid_rows": 1,
+            "grid_columns": 0,
+            "led_cells": [],
+            "id": "x",
+            "tagTypes": {},
+        }
+        s = unpack_slave(data)
+        self.assertEqual(s.brightness, 1.0)
+        self.assertIsInstance(s.brightness, float)
 
 
 class UnpackSlaveTests(unittest.TestCase):

@@ -37,6 +37,7 @@ def _slave(
     grid_rows=None,
     grid_columns=None,
     led_cells=None,
+    brightness=1.0,
 ):
     if grid_rows is None and grid_columns is None:
         grid_rows = 1
@@ -54,6 +55,7 @@ def _slave(
         led_count=led_count,
         grid_rows=grid_rows,
         grid_columns=grid_columns,
+        brightness=brightness,
         led_cells=list(led_cells),
         tag_types=dict(tag_types or {}),
     )
@@ -469,6 +471,27 @@ class ValidationServiceLedCellsTests(unittest.TestCase):
         issues = self.service.validate({"m1": master})
         topo_issues = [i for i in issues if i.category == "topology_non_led_cell"]
         self.assertEqual([], topo_issues)
+
+
+class ValidationServiceBrightnessTests(unittest.TestCase):
+    def setUp(self):
+        self.service = ValidationService()
+
+    def test_warning_for_brightness_out_of_range_above(self):
+        slave = _slave(pin="0", led_count=4, brightness=1.5)
+        master = _master(slaves={"s1": slave})
+        issues = self.service.validate({"m1": master})
+        out = [i for i in issues if i.category == "brightness_out_of_range"]
+        self.assertEqual(1, len(out))
+        self.assertEqual(SEVERITY_WARNING, out[0].severity)
+        self.assertEqual("masters.m1.slaves.s1", out[0].path)
+
+    def test_no_warning_for_in_range_brightness(self):
+        slave = _slave(pin="0", led_count=4, brightness=0.7)
+        master = _master(slaves={"s1": slave})
+        issues = self.service.validate({"m1": master})
+        out = [i for i in issues if i.category == "brightness_out_of_range"]
+        self.assertEqual([], out)
 
 
 if __name__ == "__main__":
