@@ -19,7 +19,7 @@ class SlavePlan:
     slave_id: int
     blob_size: int
     chunk_count: int
-    packet_count: int  # begin + chunks + end = 2 + chunk_count
+    packet_count: int  # begin + chunks*redundancy + end
 
 
 @dataclass(slots=True, frozen=True)
@@ -68,12 +68,17 @@ def build_upload_plan(
     compiled_by_host: Dict[str, List[CompiledSlaveShow]],
     chunk_size: int,
     inter_packet_delay: float,
+    *,
+    chunk_redundancy: int = 1,
 ) -> UploadPlan:
     """Compute the upload plan from compile output.
 
     - chunk_count per slave = ceil(blob_size / chunk_size).
       Empty blob -> 0 chunks.
-    - packet_count per slave = 2 + chunk_count (BEGIN + chunks + END).
+    - packet_count per slave = 2 + chunk_count * max(1, chunk_redundancy)
+      (BEGIN + chunks*N + END). BEGIN and END are sent exactly once per
+      slave regardless of redundancy; only CHUNK packets are duplicated
+      for Phase 19.1 UART bit-flip resilience.
     - estimated_seconds = total_packets * inter_packet_delay. Sends are
       essentially fire-and-forget UDP; the delay is the dominant
       latency. Network jitter is NOT modeled - this is a rough
@@ -81,6 +86,7 @@ def build_upload_plan(
     """
     if chunk_size <= 0:
         chunk_size = 1
+    redundancy = max(1, int(chunk_redundancy))
     delay = max(0.0, float(inter_packet_delay or 0.0))
     hosts: List[HostPlan] = []
     for host in sorted(compiled_by_host.keys()):
@@ -89,7 +95,7 @@ def build_upload_plan(
         for show in shows:
             blob_size = len(show.blob or b"")
             chunk_count = _ceil_div(blob_size, chunk_size)
-            packet_count = 2 + chunk_count
+            packet_count = 2 + chunk_count * redundancy
             slave_plans.append(
                 SlavePlan(
                     slave_id=show.slave_id,

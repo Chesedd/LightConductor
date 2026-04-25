@@ -175,6 +175,37 @@ class UploadPlanTests(unittest.TestCase):
         self.assertGreater(plan.total_packets, 0)
         self.assertEqual(plan.estimated_seconds, 0.0)
 
+    def test_build_upload_plan_redundancy_multiplies_chunks_and_seconds(self):
+        # 2 hosts, 1 slave each, blob = 250 bytes @ chunk_size=100 -> 3 chunks.
+        # Per slave (N=1): 2 + 3 = 5 packets. Total across 2 slaves = 10.
+        # Per slave (N=2): 2 + 3*2 = 8 packets. Total = 16.
+        # Difference = 6 = (chunk_count * (N-1)) * num_slaves = 3 * 1 * 2.
+        compiled = {
+            "10.0.0.1": [_fake_compiled("10.0.0.1", 1, b"x" * 250)],
+            "10.0.0.2": [_fake_compiled("10.0.0.2", 2, b"x" * 250)],
+        }
+        plan_n1 = build_upload_plan(
+            compiled_by_host=compiled,
+            chunk_size=100,
+            inter_packet_delay=0.01,
+            chunk_redundancy=1,
+        )
+        plan_n2 = build_upload_plan(
+            compiled_by_host=compiled,
+            chunk_size=100,
+            inter_packet_delay=0.01,
+            chunk_redundancy=2,
+        )
+        self.assertEqual(plan_n1.total_packets, 10)
+        self.assertEqual(plan_n2.total_packets, 16)
+        # chunk_count remains the unique count (not multiplied).
+        for host_plan in plan_n2.hosts:
+            self.assertEqual(host_plan.slaves[0].chunk_count, 3)
+            self.assertEqual(host_plan.slaves[0].packet_count, 8)
+        # estimated_seconds scales with the new packet total.
+        self.assertAlmostEqual(plan_n1.estimated_seconds, 0.10, places=6)
+        self.assertAlmostEqual(plan_n2.estimated_seconds, 0.16, places=6)
+
 
 if __name__ == "__main__":
     unittest.main()

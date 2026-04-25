@@ -121,20 +121,28 @@ class UploadCancelledError(Exception):
 def count_upload_packets(
     compiled_by_host: Optional[Dict[str, List[CompiledSlaveShow]]],
     chunk_size: int,
+    *,
+    chunk_redundancy: int = 1,
 ) -> int:
     """Total sendto() calls an upload() invocation will make for the
     given compiled input. Mirrors the packet-count arithmetic in
     upload_plan.build_upload_plan but intentionally re-derived here to
     keep the transport standalone (no reverse import from application
     layer).
+
+    ``chunk_redundancy`` (keyword-only, default 1) accounts for the
+    Phase 19.1 per-chunk duplication: each CHUNK packet is sent N
+    times. BEGIN and END are sent exactly once per slave regardless.
+    Values <= 0 or non-int coerce to 1 (no duplication).
     """
     size = max(1, int(chunk_size))
+    redundancy = max(1, int(chunk_redundancy))
     total = 0
     for _host, shows in (compiled_by_host or {}).items():
         for show in shows:
             blob_size = len(show.blob or b"")
             chunk_count = -(-blob_size // size)
-            total += 2 + chunk_count  # BEGIN + chunks + END
+            total += 2 + chunk_count * redundancy  # BEGIN + chunks*N + END
     return total
 
 
@@ -164,6 +172,31 @@ def compute_backoff_delays(
 
 
 class MasterUdpUploadTransport:
+    """UDP transport that streams compiled show blobs to one or more
+    masters via the BEGIN / CHUNK / END wire protocol.
+
+    Phase 19.1 — per-chunk UART redundancy
+    ---------------------------------------
+    The master->slave UART bus is one-way (no per-frame ACK back to
+    the master), so a single bit-flip inside a UART frame causes the
+    slave's frame-CRC-16 to reject the entire frame; the
+    corresponding chunk data is then never written to the slave's
+    showBuffer, and the failure only surfaces at SHOW_END when the
+    full-blob CRC32 fails. ``chunk_redundancy`` lets the master send
+    each CHUNK packet N times in a row. The slave's
+    ``memcpy(&showBuffer[offset], &payload[7], chunkLen)`` is
+    idempotent — duplicate frames at the same offset overwrite the
+    same bytes with the same content, so redundant copies are
+    harmless. If one of the N transmissions is corrupted and dropped
+    by the frame-CRC, the remaining N-1 cover for it.
+
+    BEGIN and END are NEVER duplicated regardless of
+    ``chunk_redundancy`` — the slave's state machine treats a
+    duplicate BEGIN as a reset (re-memset of showBuffer, all prior
+    chunks lost), so duplicating BEGIN would actively corrupt
+    uploads. END is one-shot for the same reason.
+    """
+
     def __init__(
         self,
         port: int = 43690,
@@ -178,6 +211,7 @@ class MasterUdpUploadTransport:
         ack_max_retries: int = DEFAULT_ACK_MAX_RETRIES,
         ack_backoff_delays: Tuple[float, ...] = DEFAULT_ACK_BACKOFF,
         use_ack: bool = True,
+        chunk_redundancy: int = 1,
     ):
         self.port = port
         self.chunk_size = chunk_size
@@ -197,6 +231,7 @@ class MasterUdpUploadTransport:
         self.ack_max_retries = max(0, int(ack_max_retries))
         self.ack_backoff_delays = tuple(max(0.0, float(d)) for d in ack_backoff_delays)
         self.use_ack = bool(use_ack)
+        self.chunk_redundancy = max(1, int(chunk_redundancy))
 
     def _send_with_retry(
         self,
@@ -351,9 +386,25 @@ class MasterUdpUploadTransport:
         *,
         progress_callback: Optional[Callable[[int, int], bool]] = None,
     ) -> None:
+        """Stream the compiled blobs to every host/slave.
+
+        Per-chunk redundancy: each CHUNK packet is sent
+        ``self.chunk_redundancy`` times in a row at the same offset
+        with identical bytes. The slave's per-frame CRC silently
+        drops corrupted copies; surviving copies overwrite the same
+        ``showBuffer`` bytes (idempotent ``memcpy``). BEGIN and END
+        are sent exactly once per slave — never duplicated, since
+        the slave treats a duplicate BEGIN as a buffer reset.
+
+        ``inter_packet_delay`` is applied after every individual
+        sendto, including between redundancy copies of the same
+        chunk. ``progress_callback`` is invoked once per sendto, so
+        each redundancy copy bumps the counter.
+        """
         total = count_upload_packets(
             compiled_by_host,
             self.chunk_size,
+            chunk_redundancy=self.chunk_redundancy,
         )
         sent = 0
 
@@ -404,20 +455,21 @@ class MasterUdpUploadTransport:
                             )
                             + chunk
                         )
-                        if self.use_ack:
-                            self._send_with_ack(
-                                sock,
-                                packet,
-                                addr,
-                                expected_cmd=CMD_UPLOAD_CHUNK,
-                                slave_id=show.slave_id,
-                                offset=offset,
-                            )
-                        else:
-                            self._send_with_retry(sock, packet, addr)
-                        _after_send()
+                        for _ in range(self.chunk_redundancy):
+                            if self.use_ack:
+                                self._send_with_ack(
+                                    sock,
+                                    packet,
+                                    addr,
+                                    expected_cmd=CMD_UPLOAD_CHUNK,
+                                    slave_id=show.slave_id,
+                                    offset=offset,
+                                )
+                            else:
+                                self._send_with_retry(sock, packet, addr)
+                            _after_send()
+                            time.sleep(self.inter_packet_delay)
                         offset += len(chunk)
-                        time.sleep(self.inter_packet_delay)
 
                     end_packet = END_STRUCT.pack(
                         APP_MAGIC, CMD_UPLOAD_END, show.slave_id

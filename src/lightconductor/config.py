@@ -13,6 +13,9 @@ class AppSettings:
     default_master_ip: str = "192.168.0.129"
     udp_port: int = 43690
     udp_chunk_size: int = 768
+    # Phase 19.1: each CHUNK sent N times for UART bit-flip
+    # resilience; 1 disables, 2 default balance, 3+ aggressive.
+    udp_chunk_redundancy: int = 2
     autosave_interval_seconds: int = 30
     color_presets: list = field(default_factory=list)
     recent_project_ids: list = field(default_factory=list)

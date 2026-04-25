@@ -129,6 +129,7 @@ class ProjectWindow(QMainWindow):
             transport=MasterUdpUploadTransport(
                 port=self.settings.udp_port,
                 chunk_size=self.settings.udp_chunk_size,
+                chunk_redundancy=self.settings.udp_chunk_redundancy,
             ),
             audio_loader=LibrosaAudioLoader(),
         )
@@ -866,6 +867,7 @@ class ProjectWindow(QMainWindow):
             compiled_by_host=compiled_by_host,
             chunk_size=self.settings.udp_chunk_size,
             inter_packet_delay=(self.showController.transport.inter_packet_delay),
+            chunk_redundancy=self.settings.udp_chunk_redundancy,
         )
         body = self._format_upload_preview(plan, warnings_only)
         reply = QMessageBox.question(
