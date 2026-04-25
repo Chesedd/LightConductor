@@ -56,7 +56,7 @@ class WaveWidget(pg.PlotWidget):
 
     def keyPressEvent(self, ev):
         modifiers = ev.modifiers()
-        step = 1.0 if modifiers & Qt.KeyboardModifier.ShiftModifier else 0.1
+        step = 1.0 if modifiers & Qt.KeyboardModifier.ShiftModifier else 0.02
         if ev.key() == Qt.Key.Key_Right:
             self._renderer.audioPlayer.setPosition(
                 round((self._renderer.selectedLine.value() + step) * 1000)

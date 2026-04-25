@@ -17,7 +17,7 @@ from lightconductor.application.project_state import (
 from lightconductor.domain.models import Tag as DomainTag
 from ProjectScreen.TagLogic.TagObject import Tag
 
-_SNAP_GRANULARITY_SECONDS = 0.1
+SNAP_GRANULARITY_SECONDS = 0.02
 
 
 logger = logging.getLogger(__name__)
@@ -217,15 +217,11 @@ class TagTimelineController:
         )
 
     def _on_tag_position_changed(self, scene_tag):
-        tag_info = getattr(self._manager, "tagScreen", None)
-        if tag_info is not None and getattr(tag_info, "tag", None) is scene_tag:
-            try:
-                new_x = float(scene_tag.value())
-            except (TypeError, ValueError):
-                return
-            scene_tag.time = new_x
-            if getattr(tag_info, "tagTimeText", None) is not None:
-                tag_info.tagTimeText.setText(f"{new_x:.3f}")
+        try:
+            new_x = float(scene_tag.value())
+        except (TypeError, ValueError):
+            return
+        scene_tag.time = new_x
         # If this scene_tag is the anchor of an active bulk
         # drag, mirror its delta across the selection.
         if (
@@ -295,7 +291,7 @@ class TagTimelineController:
         snapped = snap_to_nearest_beat(
             raw_time,
             beats,
-            _SNAP_GRANULARITY_SECONDS,
+            SNAP_GRANULARITY_SECONDS,
         )
         dur = float(getattr(self._renderer, "duration", 0.0) or 0.0)
         if dur > 0.0 and snapped > dur:
@@ -398,7 +394,7 @@ class TagTimelineController:
             snapped = snap_to_nearest_beat(
                 raw,
                 beats,
-                _SNAP_GRANULARITY_SECONDS,
+                SNAP_GRANULARITY_SECONDS,
             )
             if dur > 0.0 and snapped > dur:
                 snapped = dur
@@ -519,18 +515,6 @@ class TagTimelineController:
         # Identity is preserved across state-level reposition, but
         # the order in the scene registry may need refreshing.
         self.resort_scene_tags(event.type_name)
-        # Refresh TagInfoScreen labels when the selected tag is the
-        # one we just updated (drag, undo/redo, programmatic edits).
-        # The colors grid is rebuilt only via TagInfoScreen.setTag so
-        # we intentionally leave it alone here.
-        tag_info = getattr(self._manager, "tagScreen", None)
-        if tag_info is not None and getattr(tag_info, "tag", None) is scene_tag:
-            time_text = getattr(tag_info, "tagTimeText", None)
-            if time_text is not None:
-                time_text.setText(str(scene_tag.time))
-            action_text = getattr(tag_info, "tagActionText", None)
-            if action_text is not None:
-                action_text.setText("On" if scene_tag.action else "Off")
 
     def addTag(self, data):
         self.addTagAtTime(data, self._renderer.selectedLine.pos().x())

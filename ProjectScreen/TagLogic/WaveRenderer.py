@@ -9,6 +9,9 @@ from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
 
 from lightconductor.application.beat_detection import detect_beats
 from ProjectScreen.TagLogic.ruler_format import format_tick_strings
+from ProjectScreen.TagLogic.TagTimelineController import (
+    SNAP_GRANULARITY_SECONDS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +82,7 @@ class WaveRenderer:
             xMax=self.duration,
             yMin=-1,
             yMax=1,
-            minXRange=0.05,
+            minXRange=0.01,
             maxXRange=self.duration,
         )
 
@@ -149,7 +152,10 @@ class WaveRenderer:
 
         if self._plot_widget.sceneBoundingRect().contains(pos):
             mousePosition = self.vb.mapSceneToView(pos)
-            self.audioPlayer.setPosition(round(round(mousePosition.x(), 1) * 1000))
+            raw_x = float(mousePosition.x())
+            snapped = round(raw_x / SNAP_GRANULARITY_SECONDS) * SNAP_GRANULARITY_SECONDS
+            snapped = max(0.0, round(snapped, 6))
+            self.audioPlayer.setPosition(round(snapped * 1000))
 
     def initAudioPlayer(self):
         self.audioPlayer = QMediaPlayer()

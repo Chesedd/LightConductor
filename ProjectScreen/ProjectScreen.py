@@ -68,6 +68,7 @@ from lightconductor.presentation.project_session_controller import (
 from ProjectScreen.PlateLogic.LedPreviewWindow import LedPreviewWindow
 from ProjectScreen.PlateLogic.MasterBox import MasterBox
 from ProjectScreen.PlateLogic.TagPinsDialog import TagPinsDialog
+from ProjectScreen.TagLogic.TagTimelineController import SNAP_GRANULARITY_SECONDS
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +142,7 @@ class ProjectWindow(QMainWindow):
         self._tag_clipboard = None
         self._preview_window: LedPreviewWindow | None = None
         self._tag_pins_window: TagPinsDialog | None = None
+        self._tag_edit_windows: list[TagPinsDialog] = []
         self._unsubscribe_dirty = self.state.subscribe(
             self._on_state_event_dirty,
         )
@@ -261,6 +263,73 @@ class ProjectWindow(QMainWindow):
     def _on_tag_pins_window_destroyed(self, _obj=None):
         self._tag_pins_window = None
 
+    def openTagEditWindow(self, scene_tag):
+        """Open a fresh edit-mode :class:`TagPinsDialog` bound to the
+        given scene tag. Multiple simultaneous edit windows are
+        supported — each is tracked in ``self._tag_edit_windows`` and
+        removed from the list when the underlying widget is destroyed
+        (``WA_DeleteOnClose``)."""
+        manager = getattr(scene_tag, "manager", None)
+        if manager is None:
+            return
+        widget_type = getattr(scene_tag, "type", None)
+        if widget_type is None:
+            return
+        type_name = getattr(widget_type, "name", None)
+        if type_name is None:
+            return
+        master_id = getattr(widget_type, "master_id", None) or getattr(
+            manager, "_master_id", None
+        )
+        slave_id = getattr(widget_type, "slave_id", None) or getattr(
+            manager, "_slave_id", None
+        )
+        if master_id is None or slave_id is None:
+            return
+        box = getattr(manager, "box", None)
+        wave = getattr(box, "wave", None) if box is not None else None
+        controller = getattr(wave, "_tagController", None)
+        if controller is None:
+            return
+        domain_id = controller._find_domain_id_for_scene_tag(scene_tag)
+        domain_tags = controller._domain_tag_list(type_name)
+        if domain_id is None or domain_tags is None:
+            return
+        domain_tag = None
+        for dt in domain_tags:
+            if id(dt) == domain_id:
+                domain_tag = dt
+                break
+        if domain_tag is None:
+            return
+        slave_cols = int(getattr(box, "_grid_columns", 0) or 0) if box else 0
+        if slave_cols < 1:
+            slave_cols = max(1, int(getattr(widget_type, "table", 1) or 1))
+        led_cells = list(getattr(box, "_led_cells", None) or []) if box else []
+        window = TagPinsDialog(
+            project_window=self,
+            parent=self,
+            mode="edit",
+            tag=domain_tag,
+            master_id=str(master_id),
+            slave_id=str(slave_id),
+            type_name=str(type_name),
+            topology=list(getattr(widget_type, "topology", []) or []),
+            slave_grid_columns=slave_cols,
+            led_cells=led_cells,
+        )
+        self._tag_edit_windows.append(window)
+        window.destroyed.connect(
+            lambda _obj=None, w=window: self._on_tag_edit_window_destroyed(w)
+        )
+        window.show()
+
+    def _on_tag_edit_window_destroyed(self, window):
+        try:
+            self._tag_edit_windows.remove(window)
+        except ValueError:
+            pass
+
     def _focus_in_text_input(self) -> bool:
         fw = QApplication.focusWidget()
         if fw is None:
@@ -297,7 +366,7 @@ class ProjectWindow(QMainWindow):
             return
         raw_time = max(0.0, float(wave._renderer.selectedLine.value()))
         beats = getattr(wave._renderer, "beat_times", None) if beat_snap else None
-        time_val = snap_to_nearest_beat(raw_time, beats, 0.1)
+        time_val = snap_to_nearest_beat(raw_time, beats, SNAP_GRANULARITY_SECONDS)
         dur = float(getattr(wave._renderer, "duration", 0.0) or 0.0)
         if dur > 0.0 and time_val > dur:
             time_val = dur
@@ -323,11 +392,6 @@ class ProjectWindow(QMainWindow):
             list(controller.selected_scene_tags()) if controller is not None else []
         )
         if not selected:
-            # Fall back to existing single-tag path via TagInfoScreen.
-            tag_info = slave.tagInfo
-            if tag_info is None or tag_info.tag is None:
-                return
-            tag_info.deleteTag()
             return
         master_id = controller._master_id
         slave_id = controller._slave_id
@@ -378,10 +442,13 @@ class ProjectWindow(QMainWindow):
         slave = self._active_slave
         if slave is None:
             return
-        tag_info = slave.tagInfo
-        if tag_info is None or tag_info.tag is None:
+        controller = getattr(slave.wave, "_tagController", None)
+        if controller is None:
             return
-        tag = tag_info.tag
+        selected = list(controller.selected_scene_tags())
+        if not selected:
+            return
+        tag = selected[-1]
         type_name = tag.type.name if tag.type is not None else None
         if type_name is None:
             return
@@ -1096,4 +1163,10 @@ class ProjectWindow(QMainWindow):
             self._master_updated_unsubscribe()
         except Exception:
             pass
+        for window in list(self._tag_edit_windows):
+            try:
+                window.close()
+            except RuntimeError:
+                pass
+        self._tag_edit_windows.clear()
         super().closeEvent(event)

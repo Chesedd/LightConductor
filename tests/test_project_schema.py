@@ -214,9 +214,9 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(slaves["s2"]["led_cells"], [])
         validate(result)
 
-    def test_migrate_legacy_v0_goes_to_v3(self):
+    def test_migrate_legacy_v0_goes_to_current(self):
         # v0 legacy dict (no schema_version) must chain through
-        # v1 → v2 → v3 and arrive with led_cells populated.
+        # v1 → v2 → v3 → v4 and arrive with led_cells populated.
         legacy = {
             "m1": {
                 "name": "M",

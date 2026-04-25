@@ -23,7 +23,6 @@ from lightconductor.config import save_settings
 from ProjectScreen.PlateLogic.DeleteDialog import DeleteDialog
 from ProjectScreen.PlateLogic.RenameDialog import RenameDialog
 from ProjectScreen.PlateLogic.TagGroupPatternDialog import TagGroupPatternDialog
-from ProjectScreen.TagLogic.TagScreen import TagInfoScreen
 from ProjectScreen.TagLogic.WaveMiniMap import WaveMiniMap
 
 
@@ -102,21 +101,12 @@ class SlaveBox(DropBox):
         centralWidget.layout.addWidget(waveSpace)
         centralWidget.layout.addWidget(tagsWidget)
 
-        self.tagInfo = TagInfoScreen(
-            state=self._state,
-            master_id=self._master_id,
-            slave_id=self.boxID,
-            wave=self.wave,
-            commands=self._commands,
-        )
-        self.wave.manager.tagScreen = self.tagInfo
         self.wave.waveActivated.connect(self._on_wave_activated)
 
         self.mainWidget = QWidget()
         self.mainLayout = QHBoxLayout(self.mainWidget)
         self.mainLayout.addWidget(centralWidget, 3)
         self.mainLayout.addWidget(self.wave.manager, 2)
-        self.mainLayout.addWidget(self.tagInfo, 1)
 
         self.addWidget(self.mainWidget)
 

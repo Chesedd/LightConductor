@@ -125,6 +125,7 @@ class UploadProgressCallbackTests(unittest.TestCase):
             max_retries=0,
             retry_base_delay=0.0,
             socket_factory=factory,
+            use_ack=False,
         )
 
     def test_callback_invoked_once_per_successful_send(self):
@@ -201,6 +202,7 @@ class UploadProgressCallbackTests(unittest.TestCase):
             max_retries=0,
             retry_base_delay=0.0,
             socket_factory=factory,
+            use_ack=False,
         )
         recorded = []
 
@@ -223,6 +225,7 @@ class UploadProgressCallbackTests(unittest.TestCase):
             max_retries=0,
             retry_base_delay=0.0,
             socket_factory=factory2,
+            use_ack=False,
         )
 
         def cancel_cb(sent, total):

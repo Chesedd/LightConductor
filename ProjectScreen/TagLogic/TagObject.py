@@ -66,13 +66,28 @@ class Tag(InfiniteLine):
         # Snapshot origin times if a group-drag is about to start.
         if controller is not None and self.movable:
             controller.notify_drag_started(self)
-        # Preserve the existing single-tag info-panel behavior
-        # for plain clicks. On extend-clicks, still set the
-        # TagInfoScreen to this tag — user's last-clicked tag
-        # is the panel subject.
-        if self.manager is not None and self.manager.tagScreen is not None:
-            self.manager.tagScreen.setTag(self)
-        super().mousePressEvent(event)
+        # Open a fresh popout edit dialog for this tag. Multiple
+        # edit windows may coexist; each is tracked on the project
+        # window so project close tears them all down.
+        if self.manager is not None:
+            project_window = getattr(self.manager, "_project_window", None)
+            if project_window is not None and hasattr(
+                project_window, "openTagEditWindow"
+            ):
+                project_window.openTagEditWindow(self)
+        # Accept the event so Qt does not propagate it to other
+        # TagObjects whose bounding rects overlap this click point.
+        # At 0.02s grid spacing, neighbor tag bounding rects commonly
+        # overlap any single click; without accept(), each tag under
+        # the cursor would open its own edit window. The pyqtgraph
+        # InfiniteLine base does not define mousePressEvent, so the
+        # super chain ends at QGraphicsObject whose default
+        # implementation calls event.ignore() for non-movable /
+        # non-selectable items — exactly the propagation we need to
+        # suppress. Drag handling flows through mouseDragEvent
+        # (separate signal path), not through this handler, so
+        # skipping super here costs us no built-in behavior.
+        event.accept()
 
     def hoverEnterEvent(self, event):
         if self.movable:
