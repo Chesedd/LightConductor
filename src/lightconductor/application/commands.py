@@ -355,6 +355,39 @@ class UpdateMasterIpCommand:
 
 
 @dataclass(slots=True)
+class UpdateSlaveBrightnessCommand:
+    """Reversible edit of a slave's brightness. Captures the prior
+    value on ``execute`` so ``undo`` can restore it. Mutations go
+    through ``ProjectState.update_slave_brightness``, which emits
+    ``SlaveUpdated`` on both execute and undo."""
+
+    master_id: str
+    slave_id: str
+    new_brightness: float
+    _old_brightness: Optional[float] = field(default=None, init=False)
+
+    def execute(self, state: ProjectState) -> None:
+        master = state.master(self.master_id)
+        slave = master.slaves[self.slave_id]
+        self._old_brightness = slave.brightness
+        state.update_slave_brightness(
+            self.master_id,
+            self.slave_id,
+            self.new_brightness,
+        )
+
+    def undo(self, state: ProjectState) -> None:
+        if self._old_brightness is None:
+            raise RuntimeError("undo called before execute")
+        state.update_slave_brightness(
+            self.master_id,
+            self.slave_id,
+            self._old_brightness,
+        )
+        self._old_brightness = None
+
+
+@dataclass(slots=True)
 class AddSlaveCommand:
     master_id: str
     slave: Slave

@@ -23,6 +23,7 @@ from lightconductor.application.commands import (
     MoveTagCommand,
     TopologyCollisionError,
     UpdateMasterIpCommand,
+    UpdateSlaveBrightnessCommand,
 )
 from lightconductor.application.project_state import (
     DuplicateSlavePinError,
@@ -31,6 +32,7 @@ from lightconductor.application.project_state import (
     ProjectState,
     SlaveAdded,
     SlaveRemoved,
+    SlaveUpdated,
     TagAdded,
     TagRemoved,
     TagTypeAdded,
@@ -1071,3 +1073,66 @@ def test_update_master_ip_two_consecutive_push_undo_cycles_consistent(state):
 
     cmd_a.undo(state)
     assert state.master("m1").ip == "10.0.0.1"
+
+
+# ---------------------------------------------------------------------------
+# UpdateSlaveBrightnessCommand
+# ---------------------------------------------------------------------------
+
+
+def test_update_slave_brightness_execute_changes_value_and_emits_slave_updated(state):
+    state.master("m1").slaves["s1"].brightness = 1.0
+    events = _capture(state)
+    cmd = UpdateSlaveBrightnessCommand(
+        master_id="m1",
+        slave_id="s1",
+        new_brightness=0.5,
+    )
+
+    cmd.execute(state)
+
+    assert state.master("m1").slaves["s1"].brightness == 0.5
+    assert len(events) == 1
+    assert isinstance(events[0], SlaveUpdated)
+    assert events[0].master_id == "m1"
+    assert events[0].slave_id == "s1"
+
+
+def test_update_slave_brightness_undo_restores_old_value(state):
+    state.master("m1").slaves["s1"].brightness = 1.0
+    cmd = UpdateSlaveBrightnessCommand(
+        master_id="m1",
+        slave_id="s1",
+        new_brightness=0.25,
+    )
+    cmd.execute(state)
+
+    cmd.undo(state)
+
+    assert state.master("m1").slaves["s1"].brightness == 1.0
+
+
+def test_update_slave_brightness_redo_after_undo_reapplies_new_value(state):
+    state.master("m1").slaves["s1"].brightness = 1.0
+    cmd = UpdateSlaveBrightnessCommand(
+        master_id="m1",
+        slave_id="s1",
+        new_brightness=0.3,
+    )
+    cmd.execute(state)
+    cmd.undo(state)
+
+    cmd.execute(state)
+
+    assert state.master("m1").slaves["s1"].brightness == 0.3
+
+
+def test_update_slave_brightness_execute_unknown_slave_raises_key_error(state):
+    cmd = UpdateSlaveBrightnessCommand(
+        master_id="m1",
+        slave_id="missing",
+        new_brightness=0.5,
+    )
+
+    with pytest.raises(KeyError):
+        cmd.execute(state)
