@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional, Protocol, Tuple
+from typing import Any, Callable, Dict, Iterable, Optional, Protocol, Tuple
 
 from lightconductor.application.compiled_show import CompileShowsForMastersUseCase
 from lightconductor.domain.models import Master
@@ -24,9 +24,31 @@ class ProjectScreenController:
         self,
         masters: Dict[str, Master],
         *,
+        selected_master_ids: Optional[Iterable[str]] = None,
         progress_callback: Optional[Callable[[int, int], bool]] = None,
     ) -> None:
-        compiled_by_host = self.compile_use_case.execute(masters)
+        """Compile and upload the show for the given masters.
+
+        ``selected_master_ids`` controls which masters from ``masters``
+        are actually compiled and uploaded:
+
+        * ``None`` (default) — all masters are processed (back-compat).
+        * Any iterable — coerced to a set; only masters whose id is in
+          BOTH the set AND the ``masters`` dict are processed. Unknown
+          ids are silently dropped. An empty resulting subset is valid:
+          ``compile_use_case.execute({})`` is invoked, returns an empty
+          mapping, and ``transport.upload({})`` is a no-op.
+        """
+        if selected_master_ids is None:
+            filtered_masters = masters
+        else:
+            selected = set(selected_master_ids)
+            filtered_masters = {
+                mid: master
+                for mid, master in masters.items()
+                if mid in selected
+            }
+        compiled_by_host = self.compile_use_case.execute(filtered_masters)
         self.transport.upload(
             compiled_by_host,
             progress_callback=progress_callback,

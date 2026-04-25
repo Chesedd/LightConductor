@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
     QComboBox,
+    QDialog,
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -70,6 +71,10 @@ from ProjectScreen.PlateLogic.LedPreviewWindow import LedPreviewWindow
 from ProjectScreen.PlateLogic.MasterBox import MasterBox
 from ProjectScreen.PlateLogic.TagPinsDialog import TagPinsDialog
 from ProjectScreen.TagLogic.TagTimelineController import SNAP_GRANULARITY_SECONDS
+from ProjectScreen.upload_preview_dialog import (
+    MasterPreviewRow,
+    UploadPreviewDialog,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -863,23 +868,64 @@ class ProjectWindow(QMainWindow):
                 f"Cannot compile the show:\n{exc}",
             )
             return
+
+        masters_by_id = dict(domain_masters)
+        sorted_masters = sorted(
+            masters_by_id.values(),
+            key=lambda m: m.name or "",
+        )
+        master_rows = []
+        for master in sorted_masters:
+            blob_size = sum(
+                len(s.blob) for s in compiled_by_host.get(master.ip, [])
+            )
+            master_rows.append(
+                MasterPreviewRow(
+                    master_id=master.id,
+                    display_name=master.name or master.id,
+                    ip=master.ip or "",
+                    slaves_count=len(master.slaves),
+                    blob_size_bytes=blob_size,
+                ),
+            )
+
+        def _filtered_compiled(selected_ids):
+            selected_hosts = {
+                masters_by_id[mid].ip
+                for mid in selected_ids
+                if mid in masters_by_id
+            }
+            return {
+                host: shows
+                for host, shows in compiled_by_host.items()
+                if host in selected_hosts
+            }
+
+        def _summary(selected_ids):
+            filtered = _filtered_compiled(selected_ids)
+            sub_plan = build_upload_plan(
+                compiled_by_host=filtered,
+                chunk_size=self.settings.udp_chunk_size,
+                inter_packet_delay=(
+                    self.showController.transport.inter_packet_delay
+                ),
+                chunk_redundancy=self.settings.udp_chunk_redundancy,
+            )
+            return self._format_upload_preview(sub_plan, warnings_only)
+
+        dialog = UploadPreviewDialog(master_rows, _summary, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            logger.info("Upload cancelled by user at preview dialog")
+            return
+        selected_ids = dialog.selected_master_ids()
+
         plan = build_upload_plan(
-            compiled_by_host=compiled_by_host,
+            compiled_by_host=_filtered_compiled(selected_ids),
             chunk_size=self.settings.udp_chunk_size,
             inter_packet_delay=(self.showController.transport.inter_packet_delay),
             chunk_redundancy=self.settings.udp_chunk_redundancy,
         )
-        body = self._format_upload_preview(plan, warnings_only)
-        reply = QMessageBox.question(
-            self,
-            "Confirm upload",
-            body,
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
-            logger.info("Upload cancelled by user at preview dialog")
-            return
+
         progress = QProgressDialog(
             "Uploading show: 0 / 0 packets",
             "Cancel",
@@ -908,6 +954,7 @@ class ProjectWindow(QMainWindow):
         try:
             self.showController.upload_show(
                 domain_masters,
+                selected_master_ids=selected_ids,
                 progress_callback=_cb,
             )
             logger.info(
