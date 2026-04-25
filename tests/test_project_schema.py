@@ -44,6 +44,7 @@ def _minimal_slave(tag_types=None):
         "led_count": 30,
         "grid_rows": 1,
         "grid_columns": 30,
+        "brightness": 1.0,
         "led_cells": list(range(30)),
         "id": "s1",
         "tagTypes": tag_types if tag_types is not None else {},
@@ -240,10 +241,9 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(slave["led_cells"], [0, 1, 2, 3, 4, 5])
         validate(result)
 
-    def test_migrate_v3_envelope_chains_to_v4(self):
-        # A v3 envelope with non-sequential led_cells must be
-        # forwarded to v4 unchanged in led_cells, only the version
-        # bumped.
+    def test_migrate_v3_envelope_chains_to_current(self):
+        # A v3 envelope (no brightness) must keep led_cells verbatim
+        # and gain brightness=1.0 from the v3→v4 migration.
         envelope = {
             "schema_version": 3,
             "masters": {
@@ -271,86 +271,84 @@ class MigrationTests(unittest.TestCase):
 
         slave = result["masters"]["m1"]["slaves"]["s1"]
         self.assertEqual(slave["led_cells"], [3, 1, 0, 2])
+        self.assertEqual(slave["brightness"], 1.0)
         self.assertEqual(result["schema_version"], CURRENT_SCHEMA_VERSION)
 
 
-class MigrationV4Tests(unittest.TestCase):
-    """v3 → v4: tag.time snapped to nearest 0.02s multiple, with
-    collision-on-collapse handling per (master, slave, tag_type)."""
+class BrightnessMigrationTests(unittest.TestCase):
+    """v3→v4 schema migration: per-slave `brightness` field."""
 
-    def _v3_envelope_with_tags(self, tags_by_type):
-        # tags_by_type maps tag_type_name -> list of (key, time) tuples
-        tag_types = {}
-        for type_name, entries in tags_by_type.items():
-            tags = {
-                str(k): {"time": t, "action": True, "colors": []} for k, t in entries
-            }
-            tag_types[type_name] = _minimal_tag_type(tags=tags)
-        slave = _minimal_slave(tag_types=tag_types)
-        return {
-            "schema_version": 3,
-            "masters": {"m1": _minimal_master(slaves={"s1": slave})},
-        }
-
-    def test_v4_snap_exact_grid_value_unchanged(self):
-        envelope = self._v3_envelope_with_tags({"front": [(0, 1.3)]})
-        result = migrate_to_current(envelope)
-        self.assertEqual(result["schema_version"], 4)
-        tags = result["masters"]["m1"]["slaves"]["s1"]["tagTypes"]["front"]["tags"]
-        self.assertAlmostEqual(tags["0"]["time"], 1.30, places=6)
-
-    def test_v4_snap_zero_unchanged(self):
-        envelope = self._v3_envelope_with_tags({"front": [(0, 0.0)]})
-        result = migrate_to_current(envelope)
-        tags = result["masters"]["m1"]["slaves"]["s1"]["tagTypes"]["front"]["tags"]
-        self.assertEqual(tags["0"]["time"], 0.0)
-
-    def test_v4_snap_off_grid_value_lands_on_grid(self):
-        # 1.31 / 0.02 = 65.5 → banker's rounding → 66 (even) → 1.32.
-        envelope = self._v3_envelope_with_tags({"front": [(0, 1.31)]})
-        result = migrate_to_current(envelope)
-        tags = result["masters"]["m1"]["slaves"]["s1"]["tagTypes"]["front"]["tags"]
-        self.assertAlmostEqual(tags["0"]["time"], 1.32, places=6)
-
-    def test_v4_existing_v0_grid_tags_collide_per_type(self):
-        # 1.00 and 1.01 both round to 1.00; second tag is dropped.
-        envelope = self._v3_envelope_with_tags({"front": [(0, 1.00), (1, 1.01)]})
-        result = migrate_to_current(envelope)
-        tags = result["masters"]["m1"]["slaves"]["s1"]["tagTypes"]["front"]["tags"]
-        self.assertEqual(len(tags), 1)
-        self.assertIn("0", tags)
-        self.assertAlmostEqual(tags["0"]["time"], 1.00, places=6)
-
-    def test_v4_collisions_scoped_to_same_tag_type_per_slave(self):
-        # Same time on different slaves under the same master must
-        # NOT collide.
-        slave_a = _minimal_slave(
-            tag_types={
-                "front": _minimal_tag_type(
-                    tags={"0": {"time": 1.0, "action": True, "colors": []}}
-                )
-            }
-        )
-        slave_b = _minimal_slave(
-            tag_types={
-                "front": _minimal_tag_type(
-                    tags={"0": {"time": 1.0, "action": True, "colors": []}}
-                )
-            }
-        )
-        slave_b["id"] = "s2"
+    def test_v3_slaves_lacking_brightness_get_default_one(self):
         envelope = {
             "schema_version": 3,
-            "masters": {"m1": _minimal_master(slaves={"s1": slave_a, "s2": slave_b})},
+            "masters": {
+                "m1": {
+                    "name": "M",
+                    "id": "m1",
+                    "ip": "10.0.0.1",
+                    "slaves": {
+                        "s1": {
+                            "name": "S1",
+                            "pin": "1",
+                            "led_count": 4,
+                            "grid_rows": 1,
+                            "grid_columns": 4,
+                            "led_cells": [0, 1, 2, 3],
+                            "id": "s1",
+                            "tagTypes": {},
+                        },
+                    },
+                }
+            },
         }
-        result = migrate_to_current(envelope)
-        slaves = result["masters"]["m1"]["slaves"]
-        self.assertEqual(len(slaves["s1"]["tagTypes"]["front"]["tags"]), 1)
-        self.assertEqual(len(slaves["s2"]["tagTypes"]["front"]["tags"]), 1)
 
-    def test_v4_full_chain_from_v0(self):
-        # Pre-v1 dict with a tag at 1.05 (off-grid for 0.02) must
-        # chain v0 → v1 → v2 → v3 → v4 and snap to 1.06.
+        result = migrate_to_current(envelope)
+
+        slave = result["masters"]["m1"]["slaves"]["s1"]
+        self.assertEqual(slave["brightness"], 1.0)
+        self.assertEqual(result["schema_version"], CURRENT_SCHEMA_VERSION)
+        validate(result)
+
+    def test_v3_to_v4_bumps_envelope_schema_version(self):
+        envelope = {"schema_version": 3, "masters": {}}
+        result = migrate_to_current(envelope)
+        self.assertEqual(result["schema_version"], CURRENT_SCHEMA_VERSION)
+        self.assertGreaterEqual(CURRENT_SCHEMA_VERSION, 4)
+
+    def test_existing_brightness_preserved_on_migration(self):
+        envelope = {
+            "schema_version": 3,
+            "masters": {
+                "m1": {
+                    "name": "M",
+                    "id": "m1",
+                    "ip": "10.0.0.1",
+                    "slaves": {
+                        "s1": {
+                            "name": "S1",
+                            "pin": "1",
+                            "led_count": 4,
+                            "grid_rows": 1,
+                            "grid_columns": 4,
+                            "led_cells": [0, 1, 2, 3],
+                            "brightness": 0.42,
+                            "id": "s1",
+                            "tagTypes": {},
+                        },
+                    },
+                }
+            },
+        }
+
+        result = migrate_to_current(envelope)
+
+        slave = result["masters"]["m1"]["slaves"]["s1"]
+        self.assertEqual(slave["brightness"], 0.42)
+        validate(result)
+
+    def test_legacy_v0_chain_to_v4_injects_brightness(self):
+        # Pre-v1 dict (no schema_version) walks the full migration
+        # chain and ends with brightness=1.0 on every slave.
         legacy = {
             "m1": {
                 "name": "M",
@@ -360,64 +358,66 @@ class MigrationV4Tests(unittest.TestCase):
                     "s1": {
                         "name": "S1",
                         "pin": "1",
-                        "led_count": 4,
+                        "led_count": 6,
                         "id": "s1",
-                        "tagTypes": {
-                            "front": {
-                                "color": [0, 0, 0],
-                                "pin": "3",
-                                "segment_start": 0,
-                                "segment_size": 4,
-                                "row": 1,
-                                "table": 1,
-                                "topology": [0, 1, 2, 3],
-                                "tags": {
-                                    "0": {
-                                        "time": 1.05,
-                                        "action": True,
-                                        "colors": [],
-                                    }
-                                },
-                            }
-                        },
-                    }
+                        "tagTypes": {},
+                    },
                 },
             }
         }
+
         result = migrate_to_current(legacy)
+
         self.assertEqual(result["schema_version"], CURRENT_SCHEMA_VERSION)
-        tag = result["masters"]["m1"]["slaves"]["s1"]["tagTypes"]["front"]["tags"]["0"]
-        # round(1.05 / 0.02) = round(52.5) = 52 (banker's) → 1.04
-        self.assertAlmostEqual(tag["time"], 1.04, places=6)
+        slave = result["masters"]["m1"]["slaves"]["s1"]
+        self.assertEqual(slave["brightness"], 1.0)
+        self.assertEqual(slave["led_cells"], [0, 1, 2, 3, 4, 5])
         validate(result)
 
-    def test_v4_envelope_passes_through_unchanged(self):
+    def test_multi_slave_each_gets_independent_default_brightness(self):
         envelope = {
-            "schema_version": 4,
+            "schema_version": 3,
             "masters": {
-                "m1": _minimal_master(
-                    slaves={
-                        "s1": _minimal_slave(
-                            tag_types={
-                                "front": _minimal_tag_type(
-                                    tags={
-                                        "0": {
-                                            "time": 0.42,
-                                            "action": False,
-                                            "colors": [],
-                                        }
-                                    }
-                                )
-                            }
-                        )
-                    }
-                )
+                "m1": {
+                    "name": "M",
+                    "id": "m1",
+                    "ip": "10.0.0.1",
+                    "slaves": {
+                        "s1": {
+                            "name": "S1",
+                            "pin": "1",
+                            "led_count": 4,
+                            "grid_rows": 1,
+                            "grid_columns": 4,
+                            "led_cells": [0, 1, 2, 3],
+                            "id": "s1",
+                            "tagTypes": {},
+                        },
+                        "s2": {
+                            "name": "S2",
+                            "pin": "2",
+                            "led_count": 2,
+                            "grid_rows": 1,
+                            "grid_columns": 2,
+                            "led_cells": [0, 1],
+                            "id": "s2",
+                            "tagTypes": {},
+                        },
+                    },
+                }
             },
         }
+
         result = migrate_to_current(envelope)
-        tag = result["masters"]["m1"]["slaves"]["s1"]["tagTypes"]["front"]["tags"]["0"]
-        self.assertEqual(tag["time"], 0.42)
-        self.assertEqual(result["schema_version"], 4)
+
+        slaves = result["masters"]["m1"]["slaves"]
+        self.assertEqual(slaves["s1"]["brightness"], 1.0)
+        self.assertEqual(slaves["s2"]["brightness"], 1.0)
+        # Mutating one default must not leak into the other (no
+        # shared reference): the migration writes per-slave literals.
+        slaves["s1"]["brightness"] = 0.25
+        self.assertEqual(slaves["s2"]["brightness"], 1.0)
+        validate(result)
 
 
 class WrapUnwrapTests(unittest.TestCase):

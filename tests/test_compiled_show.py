@@ -190,5 +190,65 @@ class CompiledShowTests(unittest.TestCase):
         )
 
 
+class BrightnessScalingTests(unittest.TestCase):
+    """Phase 18.1: per-slave brightness scales the palette before
+    bytes are written into the blob. Wire format is unchanged."""
+
+    @staticmethod
+    def _build(brightness):
+        tag_type = TagType(
+            name="front",
+            pin="0",
+            rows=1,
+            columns=1,
+            topology=[0],
+            tags=[Tag(time_seconds=0.0, action="On", colors=[[200, 100, 50]])],
+        )
+        slave = Slave(
+            id="s1",
+            name="slave",
+            pin="2",
+            led_count=1,
+            grid_rows=1,
+            grid_columns=1,
+            led_cells=[0],
+            brightness=brightness,
+            tag_types={"front": tag_type},
+        )
+        master = Master(id="m1", name="master", ip="192.168.0.50", slaves={"s1": slave})
+        compiled = CompileShowsForMastersUseCase().execute({"m1": master})
+        blob = compiled["192.168.0.50"][0].blob
+        _, _, _, _, _, n_palette, _ = HEADER_STRUCT.unpack(blob[: HEADER_STRUCT.size])
+        palette_start = HEADER_STRUCT.size + SEGMENT_STRUCT.size
+        palette = blob[palette_start : palette_start + 3 * n_palette]
+        return palette
+
+    def test_brightness_one_leaves_palette_unchanged(self):
+        # With brightness=1.0 the colored entry is (200, 100, 50)
+        # exactly — no rounding drift.
+        palette = self._build(1.0)
+        self.assertEqual(tuple(palette[0:3]), (0, 0, 0))
+        self.assertEqual(tuple(palette[3:6]), (200, 100, 50))
+
+    def test_brightness_half_scales_each_channel_by_half(self):
+        palette = self._build(0.5)
+        self.assertEqual(tuple(palette[0:3]), (0, 0, 0))
+        self.assertEqual(tuple(palette[3:6]), (100, 50, 25))
+
+    def test_brightness_zero_zeroes_every_channel(self):
+        palette = self._build(0.0)
+        self.assertEqual(tuple(palette[0:3]), (0, 0, 0))
+        self.assertEqual(tuple(palette[3:6]), (0, 0, 0))
+
+    def test_brightness_above_one_is_clamped(self):
+        # 1.5 must clamp to 1.0; palette stays at the original color.
+        palette = self._build(1.5)
+        self.assertEqual(tuple(palette[3:6]), (200, 100, 50))
+
+    def test_negative_brightness_is_clamped_to_zero(self):
+        palette = self._build(-0.3)
+        self.assertEqual(tuple(palette[3:6]), (0, 0, 0))
+
+
 if __name__ == "__main__":
     unittest.main()
