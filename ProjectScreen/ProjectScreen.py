@@ -35,6 +35,7 @@ from lightconductor.application.project_search import compute_visibility
 from lightconductor.application.project_state import (
     MasterUpdated,
     ProjectState,
+    SlaveUpdated,
     StateReplaced,
 )
 from lightconductor.application.score_export import (
@@ -155,6 +156,9 @@ class ProjectWindow(QMainWindow):
         )
         self._master_updated_unsubscribe = self.state.subscribe(
             self._on_state_event_master_updated,
+        )
+        self._slave_updated_unsubscribe = self.state.subscribe(
+            self._on_state_event_slave_updated,
         )
         self._autosave_timer = QTimer(self)
         self._autosave_timer.setInterval(
@@ -1102,6 +1106,24 @@ class ProjectWindow(QMainWindow):
             return
         box.setMasterIp(master.ip)
 
+    def _on_state_event_slave_updated(self, event):
+        """Route SlaveUpdated events to the relevant SlaveBox. Generic
+        're-read slave' dispatch — currently carries brightness edits;
+        future non-brightness fields would hook in here too."""
+        if not isinstance(event, SlaveUpdated):
+            return
+        master_box = self.masters.get(event.master_id)
+        if master_box is None:
+            return
+        slave_box = master_box.slaves.get(event.slave_id)
+        if slave_box is None:
+            return
+        try:
+            slave = self.state.master(event.master_id).slaves[event.slave_id]
+        except KeyError:
+            return
+        slave_box.setBrightness(slave.brightness)
+
     def _set_dirty(self, value: bool):
         if self._dirty == value:
             return
@@ -1161,6 +1183,10 @@ class ProjectWindow(QMainWindow):
             pass
         try:
             self._master_updated_unsubscribe()
+        except Exception:
+            pass
+        try:
+            self._slave_updated_unsubscribe()
         except Exception:
             pass
         for window in list(self._tag_edit_windows):

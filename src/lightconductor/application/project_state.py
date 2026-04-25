@@ -54,6 +54,12 @@ class SlaveRemoved:
 
 
 @dataclass(frozen=True, slots=True)
+class SlaveUpdated:
+    master_id: str
+    slave_id: str
+
+
+@dataclass(frozen=True, slots=True)
 class TagTypeAdded:
     master_id: str
     slave_id: str
@@ -105,6 +111,7 @@ ProjectStateEvent = Union[
     MasterUpdated,
     SlaveAdded,
     SlaveRemoved,
+    SlaveUpdated,
     TagTypeAdded,
     TagTypeRemoved,
     TagAdded,
@@ -240,6 +247,21 @@ class ProjectState:
             raise KeyError(slave_id)
         del master.slaves[slave_id]
         self._emit(SlaveRemoved(master_id=master_id, slave_id=slave_id))
+
+    def update_slave_brightness(
+        self,
+        master_id: str,
+        slave_id: str,
+        new_brightness: float,
+    ) -> None:
+        """Set the slave's brightness and emit SlaveUpdated. Always emits
+        — matches the convention used by ``update_master_ip``. Raises
+        KeyError if the master or slave is missing. No range clamping
+        here; ``compile_show`` clamps defensively at render time."""
+        master = self._masters[master_id]
+        slave = master.slaves[slave_id]
+        slave.brightness = float(new_brightness)
+        self._emit(SlaveUpdated(master_id=master_id, slave_id=slave_id))
 
     def add_tag_type(
         self,

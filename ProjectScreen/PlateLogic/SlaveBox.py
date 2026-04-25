@@ -1,18 +1,27 @@
 import bisect
+import logging
 
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
+    QDialog,
+    QDoubleSpinBox,
     QHBoxLayout,
     QLabel,
     QMenu,
     QPushButton,
+    QSlider,
     QVBoxLayout,
     QWidget,
 )
 
 from AssistanceTools.DropBox import DropBox
 from AssistanceTools.FlowLayout import FlowLayout
+from AssistanceTools.SimpleDialog import SimpleDialog
 from AssistanceTools.TagState import TagState
+from lightconductor.application.commands import (
+    UpdateSlaveBrightnessCommand,
+)
 from lightconductor.application.device_templates import (
     template_from_slave,
 )
@@ -24,6 +33,83 @@ from ProjectScreen.PlateLogic.DeleteDialog import DeleteDialog
 from ProjectScreen.PlateLogic.RenameDialog import RenameDialog
 from ProjectScreen.PlateLogic.TagGroupPatternDialog import TagGroupPatternDialog
 from ProjectScreen.TagLogic.WaveMiniMap import WaveMiniMap
+
+logger = logging.getLogger(__name__)
+
+
+class editSlaveBrightnessDialog(SimpleDialog):
+    """Single-field dialog for editing a Slave's brightness. Contains a
+    horizontal QSlider (0..100 integer) and a QDoubleSpinBox
+    (0.00..1.00, step 0.01, 2 decimals) bidirectionally bound.
+    Emits ``brightnessChanged(float)`` on OK when the value differs
+    from ``current_brightness``."""
+
+    brightnessChanged = pyqtSignal(float)
+
+    def __init__(
+        self,
+        current_brightness: float,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._current_brightness = float(current_brightness)
+        self._syncing = False
+        self.uiCreate()
+
+    def uiCreate(self) -> None:
+        self.mainLayout = QVBoxLayout(self)
+
+        row = QWidget()
+        rowLayout = QHBoxLayout(row)
+        rowLayout.addWidget(QLabel("Brightness"))
+
+        self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setRange(0, 100)
+        self.slider.setValue(self._brightness_to_slider(self._current_brightness))
+        rowLayout.addWidget(self.slider)
+
+        self.spinBox = QDoubleSpinBox()
+        self.spinBox.setRange(0.0, 1.0)
+        self.spinBox.setSingleStep(0.01)
+        self.spinBox.setDecimals(2)
+        self.spinBox.setValue(self._current_brightness)
+        rowLayout.addWidget(self.spinBox)
+
+        self.layout().addWidget(row)
+
+        self.slider.valueChanged.connect(self._on_slider_changed)
+        self.spinBox.valueChanged.connect(self._on_spin_changed)
+
+        okButton = self.OkAndCancel()
+        okButton.clicked.connect(self.onOkClicked)
+
+    @staticmethod
+    def _brightness_to_slider(brightness: float) -> int:
+        return max(0, min(100, round(float(brightness) * 100)))
+
+    def _on_slider_changed(self, value: int) -> None:
+        if self._syncing:
+            return
+        self._syncing = True
+        try:
+            self.spinBox.setValue(value / 100.0)
+        finally:
+            self._syncing = False
+
+    def _on_spin_changed(self, value: float) -> None:
+        if self._syncing:
+            return
+        self._syncing = True
+        try:
+            self.slider.setValue(self._brightness_to_slider(value))
+        finally:
+            self._syncing = False
+
+    def onOkClicked(self) -> None:
+        new_brightness = float(self.spinBox.value())
+        if new_brightness != self._current_brightness:
+            self.brightnessChanged.emit(new_brightness)
+        self.accept()
 
 
 class SlaveBox(DropBox):
@@ -197,6 +283,10 @@ class SlaveBox(DropBox):
         renameAction.triggered.connect(self.showRenameDialog)
         menu.addAction(renameAction)
 
+        editBrightnessAction = QAction("Edit brightness...", self)
+        editBrightnessAction.triggered.connect(self._on_edit_brightness)
+        menu.addAction(editBrightnessAction)
+
         duplicateAction = QAction("Duplicate slave", self)
         duplicateAction.triggered.connect(self._on_duplicate_slave)
         menu.addAction(duplicateAction)
@@ -242,6 +332,48 @@ class SlaveBox(DropBox):
     def deleteBox(self):
         self.boxDeleted.emit(self.boxID)
         self.deleteLater()
+
+    def _on_edit_brightness(self):
+        if self._state is None or self._commands is None:
+            return
+        if self._master_id is None:
+            return
+        try:
+            slave = self._state.master(self._master_id).slaves[self.boxID]
+        except KeyError:
+            return
+        current = float(getattr(slave, "brightness", 1.0))
+        dialog = editSlaveBrightnessDialog(current, self)
+        new_values: list[float] = []
+        dialog.brightnessChanged.connect(new_values.append)
+        if dialog.exec() != QDialog.DialogCode.Accepted or not new_values:
+            return
+        try:
+            self._commands.push(
+                UpdateSlaveBrightnessCommand(
+                    master_id=self._master_id,
+                    slave_id=self.boxID,
+                    new_brightness=new_values[0],
+                )
+            )
+        except KeyError:
+            logger.warning(
+                "state missing slave %s on master %s during edit-brightness",
+                self.boxID,
+                self._master_id,
+            )
+        except Exception:
+            logger.exception(
+                "UpdateSlaveBrightnessCommand push failed",
+            )
+
+    def setBrightness(self, new_brightness: float) -> None:
+        """Apply an externally-driven brightness change. ``ProjectState``
+        already holds the authoritative domain slave and has mutated it
+        in place; this hook exists so future visual feedback (e.g. a
+        brightness badge on the slave header) can be added without
+        changing the dispatch wiring in ``ProjectWindow``."""
+        self._brightness = float(new_brightness)
 
     def _on_duplicate_slave(self):
         if self._state is None or self._commands is None:

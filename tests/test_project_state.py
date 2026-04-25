@@ -16,6 +16,7 @@ from lightconductor.application.project_state import (
     ProjectState,
     SlaveAdded,
     SlaveRemoved,
+    SlaveUpdated,
     StateReplaced,
     TagAdded,
     TagRemoved,
@@ -154,6 +155,30 @@ def test_update_master_ip_same_value_still_emits_master_updated(state):
     assert len(events) == 1
     assert isinstance(events[0], MasterUpdated)
     assert events[0].master_id == "m1"
+
+
+def test_update_slave_brightness_mutates_and_emits_slave_updated(state):
+    state.add_master(_master("m1"))
+    state.add_slave("m1", _slave("s1"))
+    events = _capture(state)
+
+    state.update_slave_brightness("m1", "s1", 0.4)
+
+    assert state.master("m1").slaves["s1"].brightness == 0.4
+    assert len(events) == 1
+    assert isinstance(events[0], SlaveUpdated)
+    assert events[0].master_id == "m1"
+    assert events[0].slave_id == "s1"
+
+
+def test_update_slave_brightness_missing_slave_raises_key_error(state):
+    state.add_master(_master("m1"))
+    events = _capture(state)
+
+    with pytest.raises(KeyError):
+        state.update_slave_brightness("m1", "nope", 0.5)
+
+    assert events == []
 
 
 # ---------------------------------------------------------------------------
