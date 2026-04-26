@@ -75,6 +75,7 @@ from ProjectScreen.TagLogic.TagClipboard import (
     build_paste_command,
     make_clipboard_from_selection,
 )
+from ProjectScreen.TagLogic.TagFlip import build_flip_commands
 from ProjectScreen.TagLogic.TagTimelineController import SNAP_GRANULARITY_SECONDS
 from ProjectScreen.upload_preview_dialog import (
     MasterPreviewRow,
@@ -237,6 +238,16 @@ class ProjectWindow(QMainWindow):
         cutTagAction.setShortcut(QKeySequence("Ctrl+X"))
         cutTagAction.triggered.connect(self._on_cut_tag)
         self.addAction(cutTagAction)
+
+        flipHAction = QAction("Flip selected tags horizontally", self)
+        flipHAction.setShortcut(QKeySequence("H"))
+        flipHAction.triggered.connect(self._on_flip_selected_horizontal)
+        self.addAction(flipHAction)
+
+        flipVAction = QAction("Flip selected tags vertically", self)
+        flipVAction.setShortcut(QKeySequence("V"))
+        flipVAction.triggered.connect(self._on_flip_selected_vertical)
+        self.addAction(flipVAction)
 
     def set_active_slave(self, slave):
         # Idempotent: SlaveBox.wave emits waveActivated on any wave
@@ -535,6 +546,58 @@ class ProjectWindow(QMainWindow):
         except Exception as exc:  # noqa: BLE001 — surface to user
             logger.exception("Paste failed")
             QMessageBox.warning(self, "Paste failed", str(exc))
+
+    def _on_flip_selected_horizontal(self):
+        self._flip_selected(axis="horizontal")
+
+    def _on_flip_selected_vertical(self):
+        self._flip_selected(axis="vertical")
+
+    def _flip_selected(self, *, axis: str) -> None:
+        if self._focus_in_text_input():
+            return
+        slave = self._active_slave
+        if slave is None:
+            return
+        controller = getattr(slave.wave, "_tagController", None)
+        if controller is None:
+            return
+        selected = list(controller.selected_scene_tags())
+        if not selected:
+            return
+        master_id = getattr(slave, "_master_id", None)
+        slave_id = getattr(slave, "boxID", None)
+        if master_id is None or slave_id is None:
+            return
+        slave_cols = int(getattr(slave, "_grid_columns", 0) or 0)
+        if slave_cols < 1:
+            slave_cols = 1
+        try:
+            command, skipped = build_flip_commands(
+                selected_scene_tags=selected,
+                controller=controller,
+                master_id=str(master_id),
+                slave_id=str(slave_id),
+                slave_grid_columns=slave_cols,
+                axis=axis,
+            )
+        except Exception as exc:  # noqa: BLE001 — surface to user
+            logger.exception("Flip failed")
+            QMessageBox.warning(self, "Flip failed", str(exc))
+            return
+        if skipped:
+            logger.info(
+                "Flip (%s): skipped %d action-off tag(s)",
+                axis,
+                skipped,
+            )
+        if command is None:
+            return
+        try:
+            self.commands.push(command)
+        except Exception as exc:  # noqa: BLE001 — surface to user
+            logger.exception("Flip push failed")
+            QMessageBox.warning(self, "Flip failed", str(exc))
 
     def _report_validation_errors(
         self,
