@@ -70,6 +70,11 @@ from lightconductor.presentation.project_session_controller import (
 from ProjectScreen.PlateLogic.LedPreviewWindow import LedPreviewWindow
 from ProjectScreen.PlateLogic.MasterBox import MasterBox
 from ProjectScreen.PlateLogic.TagPinsDialog import TagPinsDialog
+from ProjectScreen.TagLogic.TagClipboard import (
+    build_cut_commands,
+    build_paste_command,
+    make_clipboard_from_selection,
+)
 from ProjectScreen.TagLogic.TagTimelineController import SNAP_GRANULARITY_SECONDS
 from ProjectScreen.upload_preview_dialog import (
     MasterPreviewRow,
@@ -227,6 +232,11 @@ class ProjectWindow(QMainWindow):
         pasteTagAction.setShortcut(QKeySequence("Ctrl+V"))
         pasteTagAction.triggered.connect(self._on_paste_tag)
         self.addAction(pasteTagAction)
+
+        cutTagAction = QAction("Cut tag", self)
+        cutTagAction.setShortcut(QKeySequence("Ctrl+X"))
+        cutTagAction.triggered.connect(self._on_cut_tag)
+        self.addAction(cutTagAction)
 
     def set_active_slave(self, slave):
         # Idempotent: SlaveBox.wave emits waveActivated on any wave
@@ -458,40 +468,73 @@ class ProjectWindow(QMainWindow):
         selected = list(controller.selected_scene_tags())
         if not selected:
             return
-        tag = selected[-1]
-        type_name = tag.type.name if tag.type is not None else None
-        if type_name is None:
+        clipboard = make_clipboard_from_selection(selected)
+        if clipboard is None:
             return
-        self._tag_clipboard = {
-            "type_name": type_name,
-            "action": bool(tag.action),
-            "colors": [list(c) for c in (tag.colors or [])],
-        }
+        self._tag_clipboard = clipboard
+
+    def _on_cut_tag(self):
+        if self._focus_in_text_input():
+            return
+        slave = self._active_slave
+        if slave is None:
+            return
+        controller = getattr(slave.wave, "_tagController", None)
+        if controller is None:
+            return
+        selected = list(controller.selected_scene_tags())
+        if not selected:
+            return
+        master_id = getattr(slave, "_master_id", None)
+        slave_id = getattr(slave, "boxID", None)
+        if master_id is None or slave_id is None:
+            return
+        try:
+            clipboard, composite = build_cut_commands(
+                selected_scene_tags=selected,
+                controller=controller,
+                master_id=master_id,
+                slave_id=slave_id,
+            )
+            if clipboard is None or composite is None:
+                return
+            self._tag_clipboard = clipboard
+            self.commands.push(composite)
+            controller.clear_selection()
+        except Exception as exc:  # noqa: BLE001 — surface to user
+            logger.exception("Cut failed")
+            QMessageBox.warning(self, "Cut failed", str(exc))
 
     def _on_paste_tag(self):
         if self._focus_in_text_input():
             return
-        clip = self._tag_clipboard
-        if clip is None:
+        clipboard = self._tag_clipboard
+        if clipboard is None or not clipboard.entries:
             return
         slave = self._active_slave
         if slave is None:
             return
         wave = slave.wave
         manager = wave.manager
-        type_name = clip["type_name"]
-        if type_name not in manager.types:
+        master_id = getattr(slave, "_master_id", None)
+        slave_id = getattr(slave, "boxID", None)
+        if master_id is None or slave_id is None:
             return
-        prev_cur_type = manager.curType
-        manager.curType = manager.types[type_name]
         try:
-            time_val = float(wave._renderer.selectedLine.value())
-            wave.addTagAtTime(
-                {"action": clip["action"], "colors": [list(c) for c in clip["colors"]]},
-                time_val,
+            anchor_time = float(wave._renderer.selectedLine.value())
+            composite = build_paste_command(
+                clipboard=clipboard,
+                target_manager=manager,
+                master_id=master_id,
+                slave_id=slave_id,
+                anchor_time=anchor_time,
             )
-        finally:
-            manager.curType = prev_cur_type
+            if composite is None:
+                return
+            self.commands.push(composite)
+        except Exception as exc:  # noqa: BLE001 — surface to user
+            logger.exception("Paste failed")
+            QMessageBox.warning(self, "Paste failed", str(exc))
 
     def _report_validation_errors(
         self,
