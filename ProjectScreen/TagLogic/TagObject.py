@@ -191,11 +191,19 @@ class Tag(InfiniteLine):
 
     def hoverEnterEvent(self, event):
         if self.movable:
-            QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.SizeHorCursor)
+            try:
+                QtWidgets.QApplication.setOverrideCursor(
+                    QtCore.Qt.CursorShape.SizeHorCursor
+                )
+            except Exception:
+                pass
         super().hoverEnterEvent(event)
 
     def hoverLeaveEvent(self, event):
-        QtWidgets.QApplication.restoreOverrideCursor()
+        try:
+            QtWidgets.QApplication.restoreOverrideCursor()
+        except Exception:
+            pass
         super().hoverLeaveEvent(event)
 
     def editParams(self, params):
