@@ -20,8 +20,9 @@ from __future__ import annotations
 from typing import Any, List, Literal, Optional
 
 from PyQt6.QtCore import QEvent, QPoint, Qt
-from PyQt6.QtGui import QMouseEvent, QWheelEvent
+from PyQt6.QtGui import QKeySequence, QMouseEvent, QShortcut, QWheelEvent
 from PyQt6.QtWidgets import (
+    QAbstractSpinBox,
     QApplication,
     QButtonGroup,
     QComboBox,
@@ -30,6 +31,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QPlainTextEdit,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
@@ -37,6 +39,10 @@ from PyQt6.QtWidgets import (
 )
 
 from AssistanceTools.ColorPicker import ColorPicker
+from lightconductor.application.color_flip import (
+    flipped_colors_horizontal,
+    flipped_colors_vertical,
+)
 from lightconductor.application.commands import (
     AddOrReplaceTagCommand,
     DeleteTagCommand,
@@ -345,9 +351,39 @@ class TagPinsDialog(QDialog):
             edit_row_widget = QWidget()
             edit_row_widget.setLayout(edit_row)
             root.addWidget(edit_row_widget)
+
+            self._flip_h_btn: Optional[QPushButton] = QPushButton("Flip ↔")
+            self._flip_h_btn.setToolTip("Mirror palette horizontally (H)")
+            self._flip_h_btn.clicked.connect(self._on_flip_horizontal_clicked)
+            self._flip_v_btn: Optional[QPushButton] = QPushButton("Flip ↕")
+            self._flip_v_btn.setToolTip("Mirror palette vertically (V)")
+            self._flip_v_btn.clicked.connect(self._on_flip_vertical_clicked)
+            flip_row = QHBoxLayout()
+            flip_row.addWidget(self._flip_h_btn)
+            flip_row.addWidget(self._flip_v_btn)
+            flip_row_widget = QWidget()
+            flip_row_widget.setLayout(flip_row)
+            root.addWidget(flip_row_widget)
+
+            self._flip_h_shortcut: Optional[QShortcut] = QShortcut(
+                QKeySequence("H"), self
+            )
+            self._flip_h_shortcut.activated.connect(
+                self._on_flip_horizontal_clicked,
+            )
+            self._flip_v_shortcut: Optional[QShortcut] = QShortcut(
+                QKeySequence("V"), self
+            )
+            self._flip_v_shortcut.activated.connect(
+                self._on_flip_vertical_clicked,
+            )
         else:
             self._save_btn = None
             self._delete_btn = None
+            self._flip_h_btn = None
+            self._flip_v_btn = None
+            self._flip_h_shortcut = None
+            self._flip_v_shortcut = None
             self._place_btn = QPushButton("Place tag")
             self._place_btn.clicked.connect(self._on_place_tag_clicked)
             root.addWidget(self._place_btn)
@@ -573,6 +609,11 @@ class TagPinsDialog(QDialog):
     def _set_color_controls_enabled(self, enabled: bool) -> None:
         if self._grid_container is not None:
             self._grid_container.setEnabled(enabled)
+        flip_enabled = enabled and bool(self._topology)
+        if self._flip_h_btn is not None:
+            self._flip_h_btn.setEnabled(flip_enabled)
+        if self._flip_v_btn is not None:
+            self._flip_v_btn.setEnabled(flip_enabled)
 
     # ---- Preview ----------------------------------------------------------
 
@@ -796,6 +837,58 @@ class TagPinsDialog(QDialog):
             self.setWindowTitle(f"Edit tag · {type_name} · {snapped:.2f}s")
         else:
             self.setWindowTitle(f"Edit tag · {snapped:.2f}s")
+
+    def _focus_in_text_input(self) -> bool:
+        """True if focus is held by an editable widget that should
+        eat plain-letter shortcuts (H / V) before they trigger flips."""
+        fw = QApplication.focusWidget()
+        if fw is None:
+            return False
+        if isinstance(fw, (QLineEdit, QPlainTextEdit, QAbstractSpinBox)):
+            return True
+        if isinstance(fw, QComboBox) and fw.isEditable():
+            return True
+        return False
+
+    def _apply_flipped_colors(self, new_colors: List[List[int]]) -> None:
+        """Mutate ``self.colors`` in place to the helper output and
+        repaint each color cell. Save() reads ``self.colors`` so no
+        command is pushed here — the user must click Save to persist."""
+        self.colors = [list(c) for c in new_colors]
+        for pos, btn in self._buttons_by_pos.items():
+            if 0 <= pos < len(self.colors):
+                btn.setColor(self.colors[pos])
+        self._refresh_preview()
+
+    def _on_flip_horizontal_clicked(self) -> None:
+        if self._mode != "edit" or not self._action_on or not self._topology:
+            return
+        if self._focus_in_text_input():
+            return
+        try:
+            new_colors = flipped_colors_horizontal(
+                list(self._topology),
+                [list(c) for c in self.colors],
+                self._slave_cols,
+            )
+        except ValueError:
+            return
+        self._apply_flipped_colors(new_colors)
+
+    def _on_flip_vertical_clicked(self) -> None:
+        if self._mode != "edit" or not self._action_on or not self._topology:
+            return
+        if self._focus_in_text_input():
+            return
+        try:
+            new_colors = flipped_colors_vertical(
+                list(self._topology),
+                [list(c) for c in self.colors],
+                self._slave_cols,
+            )
+        except ValueError:
+            return
+        self._apply_flipped_colors(new_colors)
 
     def _on_delete_clicked(self) -> None:
         if self._mode != "edit" or self._edit_tag is None:
