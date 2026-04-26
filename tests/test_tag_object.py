@@ -46,14 +46,15 @@ def _ensure_app() -> QApplication:
 class _FakeEvent:
     """Minimal stand-in for a QGraphicsSceneMouseEvent.
 
-    Tag.mousePressEvent only calls event.accept() on it — the
-    base InfiniteLine.mousePressEvent is inherited from
-    QGraphicsObject which tolerates plain accept/ignore stubs in
-    headless tests.
+    Tag.mousePressEvent / mouseReleaseEvent only call accept(),
+    scenePos() — the base InfiniteLine handlers are inherited
+    from QGraphicsObject which tolerates plain stubs in headless
+    tests.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, scene_pos: QPointF | None = None) -> None:
         self._accepted = False
+        self._scene_pos = scene_pos if scene_pos is not None else QPointF(0.0, 0.0)
 
     def accept(self) -> None:
         self._accepted = True
@@ -63,6 +64,9 @@ class _FakeEvent:
 
     def isAccepted(self) -> bool:
         return self._accepted
+
+    def scenePos(self) -> QPointF:
+        return self._scene_pos
 
 
 def _make_tag() -> Tag:
@@ -77,10 +81,10 @@ def test_mouse_press_accepts_event_with_no_manager() -> None:
     assert event.isAccepted() is True
 
 
-def test_mouse_press_accepts_event_with_manager_and_project_window() -> None:
-    """Even when openTagEditWindow is invoked, the event must be
-    accepted so the click does not propagate to a second tag
-    whose bounding rect overlaps at 0.02s spacing."""
+def test_mouse_press_does_not_open_dialog_until_release() -> None:
+    """The dialog open is now deferred to mouseReleaseEvent so an
+    in-flight drag is not interrupted by a focus-stealing dialog.
+    A press alone must NOT open the edit window."""
     _ensure_app()
 
     opened: list[Any] = []
@@ -94,8 +98,61 @@ def test_mouse_press_accepts_event_with_manager_and_project_window() -> None:
     )
 
     tag = Tag(pos=QPointF(0.5, 0.0), manager=manager)
-    event = _FakeEvent()
-    tag.mousePressEvent(event)
+    press_event = _FakeEvent(scene_pos=QPointF(10.0, 20.0))
+    tag.mousePressEvent(press_event)
 
-    assert event.isAccepted() is True
+    assert press_event.isAccepted() is True
+    assert opened == []
+
+
+def test_quick_click_release_opens_dialog() -> None:
+    """A press followed by a near-immediate release at the same
+    position is treated as a click and opens the edit dialog. The
+    event must still be accepted so the click does not propagate
+    to neighboring tags whose bounding rects overlap at 0.02s
+    spacing."""
+    _ensure_app()
+
+    opened: list[Any] = []
+
+    project_window = SimpleNamespace(
+        openTagEditWindow=lambda tag: opened.append(tag),
+    )
+    manager = SimpleNamespace(
+        box=None,
+        _project_window=project_window,
+    )
+
+    tag = Tag(pos=QPointF(0.5, 0.0), manager=manager)
+    press_event = _FakeEvent(scene_pos=QPointF(10.0, 20.0))
+    tag.mousePressEvent(press_event)
+    release_event = _FakeEvent(scene_pos=QPointF(10.0, 20.0))
+    tag.mouseReleaseEvent(release_event)
+
+    assert release_event.isAccepted() is True
     assert opened == [tag]
+
+
+def test_drag_release_does_not_open_dialog() -> None:
+    """A press followed by a release far from the press position
+    is read as a drag — the edit dialog must stay closed."""
+    _ensure_app()
+
+    opened: list[Any] = []
+
+    project_window = SimpleNamespace(
+        openTagEditWindow=lambda tag: opened.append(tag),
+    )
+    manager = SimpleNamespace(
+        box=None,
+        _project_window=project_window,
+    )
+
+    tag = Tag(pos=QPointF(0.5, 0.0), manager=manager)
+    press_event = _FakeEvent(scene_pos=QPointF(10.0, 20.0))
+    tag.mousePressEvent(press_event)
+    release_event = _FakeEvent(scene_pos=QPointF(80.0, 20.0))
+    tag.mouseReleaseEvent(release_event)
+
+    assert release_event.isAccepted() is True
+    assert opened == []
