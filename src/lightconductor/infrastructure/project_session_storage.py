@@ -26,6 +26,7 @@ from lightconductor.infrastructure.project_file_backup import (
     write_with_rotation,
 )
 from lightconductor.infrastructure.project_schema import (
+    CURRENT_SCHEMA_VERSION,
     SchemaValidationError,
     load_and_migrate,
     unwrap_boxes,
@@ -70,8 +71,13 @@ class ProjectSessionStorage:
         project_name: str,
         masters: Dict[str, Master],
     ) -> None:
-        """Pack masters, wrap as v1 envelope, validate, and write
-        atomically with rotated .bak snapshots.
+        """Pack masters, wrap in the current envelope, validate, and
+        write atomically with rotated .bak snapshots.
+
+        Preserves any existing root-level `audio_offset_ms` on disk —
+        without this round-trip, save_masters would clobber the
+        offset slider's persisted value because it lives in the same
+        envelope (Phase 24.1).
 
         Ensures the project directory exists (creates if missing,
         parents=True). Raises SchemaValidationError if the packed
@@ -81,7 +87,8 @@ class ProjectSessionStorage:
         packed_masters = {
             master_id: pack_master(master) for master_id, master in masters.items()
         }
-        envelope = wrap_boxes(packed_masters)
+        existing_offset = self._read_existing_audio_offset_ms(project_name)
+        envelope = wrap_boxes(packed_masters, audio_offset_ms=existing_offset)
         try:
             validate(envelope)
         except SchemaValidationError:
@@ -98,6 +105,29 @@ class ProjectSessionStorage:
             ensure_ascii=False,
         ).encode("utf-8")
         write_with_rotation(path, content)
+
+    def _read_existing_audio_offset_ms(self, project_name: str) -> int:
+        """Best-effort raw read of `audio_offset_ms` from the on-disk
+        envelope. Returns 0 if the file is missing, unreadable, not
+        valid JSON, or has no field. Does not migrate or validate —
+        used by save_masters to round-trip the offset across writes
+        without losing it.
+        """
+        path = self._data_path(project_name)
+        if not path.exists():
+            return 0
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            return 0
+        if not isinstance(raw, dict):
+            return 0
+        value = raw.get("audio_offset_ms", 0)
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 0
 
     def load_masters(
         self,
@@ -125,6 +155,69 @@ class ProjectSessionStorage:
             )
             return {}
         return {master_id: unpack_master(m) for master_id, m in packed_masters.items()}
+
+    # --- audio offset ---
+
+    def load_audio_offset_ms(self, project_name: str) -> int:
+        """Read data.json, migrate, return the root-level
+        `audio_offset_ms` (Phase 24.1).
+
+        Returns 0 if the file is missing or fails schema validation
+        (mirroring the load_masters tolerance — never raises to the
+        caller).
+        """
+        path = self._data_path(project_name)
+        if not path.exists():
+            return 0
+        try:
+            envelope = load_and_migrate(path)
+            validate(envelope)
+        except SchemaValidationError as exc:
+            logger.warning(
+                "data.json at %s failed schema validation: %s; "
+                "returning audio_offset_ms=0",
+                path,
+                exc,
+            )
+            return 0
+        try:
+            return int(envelope.get("audio_offset_ms", 0))
+        except (TypeError, ValueError):
+            return 0
+
+    def save_audio_offset_ms(self, project_name: str, value: int) -> None:
+        """Persist the root-level `audio_offset_ms` field, preserving
+        every other key already on disk (Phase 24.1).
+
+        If data.json is missing or unreadable, writes a fresh empty
+        envelope carrying just the offset — keeps the slider usable
+        before any masters have been added. Atomic via the same
+        rotating-backup helper save_masters uses.
+        """
+        path = self._data_path(project_name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        raw: Dict[str, Any]
+        if path.exists():
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    raw = json.load(f)
+                if not isinstance(raw, dict):
+                    raw = {}
+            except (OSError, json.JSONDecodeError):
+                raw = {}
+        else:
+            raw = {}
+        if "schema_version" not in raw:
+            raw["schema_version"] = CURRENT_SCHEMA_VERSION
+        if "masters" not in raw:
+            raw["masters"] = {}
+        raw["audio_offset_ms"] = int(value)
+        content = json.dumps(
+            raw,
+            indent=4,
+            ensure_ascii=False,
+        ).encode("utf-8")
+        write_with_rotation(path, content)
 
     # --- audio ---
 

@@ -7,7 +7,10 @@ from typing import Any, Dict, Iterable, Tuple, cast
 
 logger = logging.getLogger(__name__)
 
-CURRENT_SCHEMA_VERSION = 4
+CURRENT_SCHEMA_VERSION = 5
+
+AUDIO_OFFSET_MS_MIN = -2000
+AUDIO_OFFSET_MS_MAX = 2000
 
 
 class SchemaValidationError(ValueError):
@@ -51,9 +54,21 @@ _TAG_FIELDS: Tuple[Tuple[str, Tuple[type, ...]], ...] = (
 )
 
 
-def wrap_boxes(boxes: Dict[str, Any]) -> Dict[str, Any]:
-    """Wrap a masters dict in the current envelope. Used on write."""
-    return {"schema_version": CURRENT_SCHEMA_VERSION, "masters": boxes}
+def wrap_boxes(
+    boxes: Dict[str, Any],
+    audio_offset_ms: int = 0,
+) -> Dict[str, Any]:
+    """Wrap a masters dict in the current envelope. Used on write.
+
+    `audio_offset_ms` (Phase 24.1) is persisted at the envelope root.
+    Default 0 preserves byte-equivalent behavior for callers that have
+    not adopted the offset slider.
+    """
+    return {
+        "schema_version": CURRENT_SCHEMA_VERSION,
+        "masters": boxes,
+        "audio_offset_ms": int(audio_offset_ms),
+    }
 
 
 def unwrap_boxes(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -164,19 +179,77 @@ def _migrate_v3_to_v4(envelope: Dict[str, Any]) -> Dict[str, Any]:
     return envelope
 
 
+def _clamp_audio_offset_ms(value: Any) -> int:
+    """Coerce-and-clamp `value` into the AUDIO_OFFSET_MS_* range.
+
+    Non-int (or non-coercible) values are reset to 0 with a warning.
+    Out-of-range values are clamped to the nearest bound with a
+    warning. Returns the safe int.
+    """
+    try:
+        ivalue = int(value)
+    except (TypeError, ValueError):
+        logger.warning(
+            "audio_offset_ms had non-int value %r; resetting to 0", value
+        )
+        return 0
+    if ivalue > AUDIO_OFFSET_MS_MAX:
+        logger.warning(
+            "audio_offset_ms %d exceeds max %d; clamping",
+            ivalue,
+            AUDIO_OFFSET_MS_MAX,
+        )
+        return AUDIO_OFFSET_MS_MAX
+    if ivalue < AUDIO_OFFSET_MS_MIN:
+        logger.warning(
+            "audio_offset_ms %d below min %d; clamping",
+            ivalue,
+            AUDIO_OFFSET_MS_MIN,
+        )
+        return AUDIO_OFFSET_MS_MIN
+    return ivalue
+
+
+def _migrate_v4_to_v5(envelope: Dict[str, Any]) -> Dict[str, Any]:
+    """Inject root-level `audio_offset_ms=0` if missing; clamp if present.
+
+    Phase 24.1: per-project sub-second offset between the master Start
+    signal and audio playback. Default 0 preserves visual/audio behavior
+    for legacy projects. Out-of-range values are clamped (with warning)
+    rather than rejected — keeps hand-edited JSON from killing load.
+    Bumps envelope schema_version to 5. Returns the mutated envelope.
+
+    Idempotent: envelopes already carrying a valid in-range
+    `audio_offset_ms` are left untouched, so the function doubles as a
+    v5 field repair when invoked on an envelope already at
+    schema_version 5 (see `migrate_to_current` for the
+    defensive-repair branch).
+    """
+    if "audio_offset_ms" not in envelope:
+        envelope["audio_offset_ms"] = 0
+    else:
+        envelope["audio_offset_ms"] = _clamp_audio_offset_ms(
+            envelope["audio_offset_ms"]
+        )
+    envelope["schema_version"] = 5
+    return envelope
+
+
 def migrate_to_current(data: Any) -> Dict[str, Any]:
     """Apply migrations until data reaches CURRENT_SCHEMA_VERSION.
 
     Migration chain:
       - v0 (dict without schema_version): wrap in a v1 envelope,
-        then v1→v2 grid-field, v2→v3 led_cells, v3→v4 brightness.
-      - v1: apply v1→v2, v2→v3, v3→v4.
-      - v2: apply v2→v3, v3→v4.
-      - v3: apply v3→v4 brightness.
-      - v4 (current): legacy-action coercion, then `_migrate_v3_to_v4`
-        is re-run as a defensive idempotent repair for files saved by
-        buggy intermediate code that bumped `schema_version` to 4
-        without injecting the `brightness` field on slaves.
+        then v1→v2 grid-field, v2→v3 led_cells, v3→v4 brightness,
+        v4→v5 audio_offset_ms.
+      - v1: apply v1→v2, v2→v3, v3→v4, v4→v5.
+      - v2: apply v2→v3, v3→v4, v4→v5.
+      - v3: apply v3→v4 brightness, v4→v5 audio_offset_ms.
+      - v4: apply v4→v5 audio_offset_ms.
+      - v5 (current): legacy-action coercion, then `_migrate_v3_to_v4`
+        and `_migrate_v4_to_v5` are re-run as defensive idempotent
+        repairs for files saved by buggy intermediate code that bumped
+        `schema_version` without injecting the corresponding fields.
 
     If `data` carries a version higher than CURRENT_SCHEMA_VERSION,
     SchemaValidationError is raised (prevent older code from
@@ -195,6 +268,7 @@ def migrate_to_current(data: Any) -> Dict[str, Any]:
         _migrate_v1_to_v2(envelope)
         _migrate_v2_to_v3(envelope)
         _migrate_v3_to_v4(envelope)
+        _migrate_v4_to_v5(envelope)
         return envelope
     version = data["schema_version"]
     if not isinstance(version, int) or isinstance(version, bool):
@@ -211,19 +285,28 @@ def migrate_to_current(data: Any) -> Dict[str, Any]:
         _migrate_v1_to_v2(data)
         _migrate_v2_to_v3(data)
         _migrate_v3_to_v4(data)
+        _migrate_v4_to_v5(data)
         return data
     if version == 2:
         _coerce_legacy_tag_actions(data)
         _migrate_v2_to_v3(data)
         _migrate_v3_to_v4(data)
+        _migrate_v4_to_v5(data)
         return data
     if version == 3:
         _coerce_legacy_tag_actions(data)
         _migrate_v3_to_v4(data)
+        _migrate_v4_to_v5(data)
+        return data
+    if version == 4:
+        _coerce_legacy_tag_actions(data)
+        _migrate_v3_to_v4(data)
+        _migrate_v4_to_v5(data)
         return data
     if version == CURRENT_SCHEMA_VERSION:
         _coerce_legacy_tag_actions(data)
         _migrate_v3_to_v4(data)
+        _migrate_v4_to_v5(data)
         return data
     raise SchemaValidationError(f"unknown schema_version {version}")
 
@@ -324,8 +407,25 @@ def validate(data: Any) -> None:
             f"masters: expected dict, got {type(masters).__name__}"
         )
 
+    if "audio_offset_ms" not in data:
+        raise SchemaValidationError(
+            "top-level: missing required field 'audio_offset_ms'"
+        )
+    audio_offset_ms = data["audio_offset_ms"]
+    if not isinstance(audio_offset_ms, int) or isinstance(audio_offset_ms, bool):
+        raise SchemaValidationError(
+            f"audio_offset_ms: expected int, "
+            f"got {type(audio_offset_ms).__name__}"
+        )
+    if audio_offset_ms < AUDIO_OFFSET_MS_MIN or audio_offset_ms > AUDIO_OFFSET_MS_MAX:
+        raise SchemaValidationError(
+            f"audio_offset_ms: expected in range "
+            f"[{AUDIO_OFFSET_MS_MIN}, {AUDIO_OFFSET_MS_MAX}], "
+            f"got {audio_offset_ms}"
+        )
+
     for key in data:
-        if key not in ("schema_version", "masters"):
+        if key not in ("schema_version", "masters", "audio_offset_ms"):
             logger.debug("ignoring unknown top-level key %r", key)
 
     for master_id, master in masters.items():

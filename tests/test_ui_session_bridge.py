@@ -116,7 +116,12 @@ class UiSessionBridgeTests(unittest.TestCase):
             with data_path.open("r", encoding="utf-8") as fh:
                 envelope = json.load(fh)
             self.assertEqual(
-                envelope, {"schema_version": CURRENT_SCHEMA_VERSION, "masters": {}}
+                envelope,
+                {
+                    "schema_version": CURRENT_SCHEMA_VERSION,
+                    "masters": {},
+                    "audio_offset_ms": 0,
+                },
             )
 
     def test_load_audio_delegates_with_project_name(self):

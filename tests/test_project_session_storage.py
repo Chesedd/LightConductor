@@ -174,5 +174,73 @@ class CrossCuttingTests(unittest.TestCase):
         self.assertEqual(self.storage.load_masters("proj2"), {})
 
 
+class AudioOffsetMsStorageTests(unittest.TestCase):
+    """Phase 24.1: per-project root-level `audio_offset_ms` persistence."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.storage = ProjectSessionStorage(projects_root=self.root)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_load_audio_offset_ms_default_zero_for_legacy_v4_file(self):
+        # A pre-Phase-24.1 file at schema_version=4 has no
+        # audio_offset_ms; load should migrate it to v5 with 0.
+        legacy_v4 = {
+            "schema_version": 4,
+            "masters": {
+                "m1": {
+                    "name": "M1",
+                    "id": "m1",
+                    "ip": "1.2.3.4",
+                    "slaves": {},
+                },
+            },
+        }
+        project_dir = self.root / "proj"
+        project_dir.mkdir(parents=True)
+        (project_dir / "data.json").write_text(
+            json.dumps(legacy_v4), encoding="utf-8"
+        )
+        self.assertEqual(self.storage.load_audio_offset_ms("proj"), 0)
+
+    def test_load_audio_offset_ms_returns_zero_for_missing_file(self):
+        self.assertEqual(self.storage.load_audio_offset_ms("nope"), 0)
+
+    def test_save_then_load_audio_offset_ms_roundtrip(self):
+        self.storage.save_audio_offset_ms("proj", 350)
+        self.assertEqual(self.storage.load_audio_offset_ms("proj"), 350)
+
+        self.storage.save_audio_offset_ms("proj", -480)
+        self.assertEqual(self.storage.load_audio_offset_ms("proj"), -480)
+
+    def test_save_audio_offset_ms_preserves_other_fields(self):
+        masters_in = {"m1": _make_full_master()}
+        self.storage.save_masters("proj", masters_in)
+
+        self.storage.save_audio_offset_ms("proj", 250)
+
+        # masters dict on disk must be intact.
+        masters_out = self.storage.load_masters("proj")
+        self.assertEqual(masters_out, masters_in)
+        # And the offset is what we saved.
+        self.assertEqual(self.storage.load_audio_offset_ms("proj"), 250)
+
+    def test_save_masters_preserves_audio_offset_ms_set_earlier(self):
+        # Set offset first; then save masters; offset must survive.
+        self.storage.save_audio_offset_ms("proj", 700)
+        self.storage.save_masters("proj", {"m1": _make_master()})
+        self.assertEqual(self.storage.load_audio_offset_ms("proj"), 700)
+
+    def test_save_audio_offset_ms_writes_envelope_when_no_data_yet(self):
+        # No prior data.json — saving the offset alone should still
+        # create a loadable envelope.
+        self.storage.save_audio_offset_ms("proj", 120)
+        self.assertEqual(self.storage.load_audio_offset_ms("proj"), 120)
+        self.assertEqual(self.storage.load_masters("proj"), {})
+
+
 if __name__ == "__main__":
     unittest.main()
