@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QPlainTextEdit,
     QProgressDialog,
     QPushButton,
+    QSpinBox,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -129,10 +130,15 @@ class ProjectWindow(QMainWindow):
         self.boxCounter = 0
         self.boxes = {}
         self.audioPath = None
+        self._project_storage = ProjectSessionStorage()
+        self._project_name = self.project_data["project_name"]
+        self._audio_offset_ms: int = self._project_storage.load_audio_offset_ms(
+            self._project_name,
+        )
         self.sessionController = ProjectSessionController(
             UiSessionBridge(
-                domain_storage=ProjectSessionStorage(),
-                project_name=self.project_data["project_name"],
+                domain_storage=self._project_storage,
+                project_name=self._project_name,
             )
         )
         self.showController = ProjectScreenController(
@@ -785,6 +791,23 @@ class ProjectWindow(QMainWindow):
             "QPushButton:hover { background-color: #347a5a; }"
         )
         controlsLayout.addWidget(showButton)
+
+        audioOffsetLabel = QLabel("Audio offset:")
+        controlsLayout.addWidget(audioOffsetLabel)
+        self._audio_offset_spin = QSpinBox()
+        self._audio_offset_spin.setRange(-2000, 2000)
+        self._audio_offset_spin.setSingleStep(10)
+        self._audio_offset_spin.setSuffix(" ms")
+        self._audio_offset_spin.setValue(self._audio_offset_ms)
+        self._audio_offset_spin.setToolTip(
+            "Audio offset: positive = audio later than show; "
+            "negative = audio earlier. Compensates master start delay."
+        )
+        self._audio_offset_spin.valueChanged.connect(
+            self._on_audio_offset_changed,
+        )
+        controlsLayout.addWidget(self._audio_offset_spin)
+
         controlsLayout.addStretch(1)
 
         self.searchEdit = QLineEdit()
@@ -1158,22 +1181,52 @@ class ProjectWindow(QMainWindow):
             file_path,
         )
 
+    def _on_audio_offset_changed(self, value: int) -> None:
+        self._audio_offset_ms = int(value)
+        try:
+            self._project_storage.save_audio_offset_ms(
+                self._project_name,
+                self._audio_offset_ms,
+            )
+        except Exception:
+            logger.exception("Failed to persist audio offset")
+            return
+        logger.info("Audio offset set to %d ms", self._audio_offset_ms)
+
     def startShow(self):
         if not hasattr(self, "audioPlayer"):
             logger.warning("Audio player not initialized, track required")
             QMessageBox.warning(self, "Нет трека", "Сначала добавьте аудио-трек.")
             return
-        self.audioPlayer.setPosition(0)
 
-        try:
-            self.showController.send_start_signal(self.state.masters())
-            logger.info("Start signal sent")
-        except Exception as e:
-            logger.exception("Failed to send start signal")
-            QMessageBox.critical(self, "Ошибка старта шоу", str(e))
-            return
+        offset = self._audio_offset_ms
+        udp_delay_ms = max(0, offset)
+        audio_delay_ms = max(0, -offset)
 
-        self.audioPlayer.play()
+        def _send_udp():
+            try:
+                self.showController.send_start_signal(self.state.masters())
+                logger.info(
+                    "Start signal sent (offset=%dms, "
+                    "udp_delay=%dms, audio_delay=%dms)",
+                    offset,
+                    udp_delay_ms,
+                    audio_delay_ms,
+                )
+            except Exception as e:
+                logger.exception("Failed to send start signal")
+                QMessageBox.critical(self, "Ошибка старта шоу", str(e))
+
+        def _play_audio():
+            self.audioPlayer.setPosition(0)
+            self.audioPlayer.play()
+
+        # Both branches are scheduled via singleShot — even with
+        # offset==0 they still fire on the next event-loop tick,
+        # which keeps the dispatch consistent across all offsets
+        # and avoids off-by-tick drift between the two paths.
+        QTimer.singleShot(udp_delay_ms, _send_udp)
+        QTimer.singleShot(audio_delay_ms, _play_audio)
 
     def _on_search_text_changed(self, _text: str):
         self._apply_search_filter()

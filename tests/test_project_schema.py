@@ -64,7 +64,12 @@ class MigrationTests(unittest.TestCase):
     def test_migrate_wraps_legacy_empty_dict(self):
         result = migrate_to_current({})
         self.assertEqual(
-            result, {"schema_version": CURRENT_SCHEMA_VERSION, "masters": {}}
+            result,
+            {
+                "schema_version": CURRENT_SCHEMA_VERSION,
+                "masters": {},
+                "audio_offset_ms": 0,
+            },
         )
 
     def test_migrate_wraps_legacy_non_empty_dict(self):
@@ -428,7 +433,13 @@ class WrapUnwrapTests(unittest.TestCase):
 
 class ValidateHappyPathTests(unittest.TestCase):
     def test_validate_accepts_empty_envelope(self):
-        validate({"schema_version": CURRENT_SCHEMA_VERSION, "masters": {}})
+        validate(
+            {
+                "schema_version": CURRENT_SCHEMA_VERSION,
+                "masters": {},
+                "audio_offset_ms": 0,
+            }
+        )
 
     def test_validate_accepts_realistic_structure(self):
         envelope = {
@@ -444,6 +455,7 @@ class ValidateHappyPathTests(unittest.TestCase):
                     }
                 )
             },
+            "audio_offset_ms": 0,
         }
         validate(envelope)
 
@@ -593,11 +605,13 @@ class V4DefensiveBrightnessRepair(unittest.TestCase):
         )
         validate(result)
 
-    def test_v4_repair_does_not_bump_schema_version(self):
+    def test_v4_envelope_now_bumps_to_v5(self):
+        # Phase 24.1: v4 is no longer the current schema; loading a v4
+        # envelope must bump it to v5 and inject audio_offset_ms=0.
         envelope = self._v4_envelope_with_slave(self._slave_without_brightness())
         result = migrate_to_current(envelope)
-        self.assertEqual(result["schema_version"], 4)
-        self.assertEqual(CURRENT_SCHEMA_VERSION, 4)
+        self.assertEqual(result["schema_version"], CURRENT_SCHEMA_VERSION)
+        self.assertEqual(result["audio_offset_ms"], 0)
 
     def test_v4_repair_via_load_and_migrate_tempfile(self):
         envelope = self._v4_envelope_with_slave(self._slave_without_brightness())
@@ -611,6 +625,144 @@ class V4DefensiveBrightnessRepair(unittest.TestCase):
         slave = result["masters"]["m1"]["slaves"]["s1"]
         self.assertEqual(slave["brightness"], 1.0)
         validate(result)
+
+
+class V4ToV5Migration(unittest.TestCase):
+    """v4→v5 schema migration: root-level `audio_offset_ms` field
+    (Phase 24.1)."""
+
+    def _v4_envelope(self, **extra):
+        envelope = {
+            "schema_version": 4,
+            "masters": {
+                "m1": {
+                    "name": "M",
+                    "id": "m1",
+                    "ip": "10.0.0.1",
+                    "slaves": {},
+                },
+            },
+        }
+        envelope.update(extra)
+        return envelope
+
+    def _v5_envelope(self, **extra):
+        envelope = {
+            "schema_version": 5,
+            "masters": {
+                "m1": {
+                    "name": "M",
+                    "id": "m1",
+                    "ip": "10.0.0.1",
+                    "slaves": {},
+                },
+            },
+        }
+        envelope.update(extra)
+        return envelope
+
+    def test_v4_envelope_gets_audio_offset_ms_zero(self):
+        envelope = self._v4_envelope()
+        result = migrate_to_current(envelope)
+        self.assertEqual(result["schema_version"], CURRENT_SCHEMA_VERSION)
+        self.assertEqual(result["audio_offset_ms"], 0)
+        validate(result)
+
+    def test_v5_envelope_with_audio_offset_preserved(self):
+        envelope = self._v5_envelope(audio_offset_ms=750)
+        result = migrate_to_current(envelope)
+        self.assertEqual(result["schema_version"], CURRENT_SCHEMA_VERSION)
+        self.assertEqual(result["audio_offset_ms"], 750)
+        validate(result)
+
+    def test_v5_clamping_above_range_warns_and_clamps(self):
+        envelope = self._v5_envelope(audio_offset_ms=5000)
+        with self.assertLogs(
+            "lightconductor.infrastructure.project_schema",
+            level="WARNING",
+        ) as cm:
+            result = migrate_to_current(envelope)
+        self.assertEqual(result["audio_offset_ms"], 2000)
+        self.assertTrue(
+            any("clamping" in line for line in cm.output),
+            cm.output,
+        )
+        validate(result)
+
+    def test_v5_clamping_below_range_warns_and_clamps(self):
+        envelope = self._v5_envelope(audio_offset_ms=-9999)
+        with self.assertLogs(
+            "lightconductor.infrastructure.project_schema",
+            level="WARNING",
+        ) as cm:
+            result = migrate_to_current(envelope)
+        self.assertEqual(result["audio_offset_ms"], -2000)
+        self.assertTrue(
+            any("clamping" in line for line in cm.output),
+            cm.output,
+        )
+        validate(result)
+
+    def test_v5_defensive_repair_injects_missing_field(self):
+        envelope = self._v5_envelope()  # no audio_offset_ms
+        # Migration must not raise, validate must pass, field default 0.
+        result = migrate_to_current(envelope)
+        validate(result)
+        self.assertEqual(result["audio_offset_ms"], 0)
+
+    def test_v0_to_v5_chain_includes_audio_offset_ms(self):
+        legacy = {
+            "m1": {
+                "name": "M",
+                "id": "m1",
+                "ip": "10.0.0.1",
+                "slaves": {
+                    "s1": {
+                        "name": "S1",
+                        "pin": "1",
+                        "led_count": 4,
+                        "id": "s1",
+                        "tagTypes": {},
+                    },
+                },
+            }
+        }
+        result = migrate_to_current(legacy)
+        self.assertEqual(result["schema_version"], CURRENT_SCHEMA_VERSION)
+        self.assertEqual(result["audio_offset_ms"], 0)
+        validate(result)
+
+
+class AudioOffsetValidatorRejectionTests(unittest.TestCase):
+    """validator-side checks for the audio_offset_ms field."""
+
+    def _envelope(self, value):
+        return {
+            "schema_version": CURRENT_SCHEMA_VERSION,
+            "masters": {},
+            "audio_offset_ms": value,
+        }
+
+    def test_validate_rejects_missing_audio_offset_ms(self):
+        envelope = {"schema_version": CURRENT_SCHEMA_VERSION, "masters": {}}
+        with self.assertRaises(SchemaValidationError) as ctx:
+            validate(envelope)
+        self.assertIn("audio_offset_ms", str(ctx.exception))
+
+    def test_validate_rejects_non_int_audio_offset_ms(self):
+        with self.assertRaises(SchemaValidationError) as ctx:
+            validate(self._envelope("oops"))
+        self.assertIn("audio_offset_ms", str(ctx.exception))
+
+    def test_validate_rejects_bool_audio_offset_ms(self):
+        with self.assertRaises(SchemaValidationError) as ctx:
+            validate(self._envelope(True))
+        self.assertIn("audio_offset_ms", str(ctx.exception))
+
+    def test_validate_rejects_out_of_range_audio_offset_ms(self):
+        with self.assertRaises(SchemaValidationError) as ctx:
+            validate(self._envelope(2001))
+        self.assertIn("audio_offset_ms", str(ctx.exception))
 
 
 if __name__ == "__main__":
